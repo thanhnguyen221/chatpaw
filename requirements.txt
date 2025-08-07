@@ -1,0 +1,7 @@
+Flask==2.3.2
+Flask-SocketIO==5.3.6
+eventlet==0.33.3
+pymongo==4.5.0
+bcrypt==4.0.1
+dnspython==2.3.0
+python-dotenv==1.0.0

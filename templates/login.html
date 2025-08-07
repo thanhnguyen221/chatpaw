@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <h2>Đăng nhập</h2>
+
+        {% if session.username %}
+        <p>Xin chào, {{ session.username }}!</p>
+        <a href="{{ url_for('main.logout') }}">Logout</a>
+        {% endif %}
+
+        <form method="POST">
+            <input type="text" name="username" placeholder="Tên đăng nhập" required>
+            <input type="password" name="password" placeholder="Mật khẩu" required>
+            <button type="submit">Đăng nhập</button>
+        </form>
+        <div class="link">
+            <a href="{{ url_for('main.register') }}">Chưa có tài khoản? Đăng ký</a>
+        </div>
+    </div>
+</body>
+
+</html>

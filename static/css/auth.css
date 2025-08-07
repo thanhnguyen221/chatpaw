@@ -1,0 +1,106 @@
+:root {
+    --sidebar-bg: linear-gradient(135deg, #f0faf5 0%, #e0f7eb 100%);
+    --primary: #3eb489;
+    --primary-dark: #36a07b;
+    --text-color: #2e3a30;
+    --form-bg: #ffffffcc;           /* form hơi trong suốt, sáng */
+    --input-bg: #f7f9f7;
+    --input-border: #cdd1cd;
+    --input-focus: var(--primary);
+    --button-bg: var(--primary);
+    --button-hover: var(--primary-dark);
+    --link-color: var(--primary);
+    --transition-speed: 0.3s;
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: all var(--transition-speed) ease;
+  }
+  
+  body {
+    min-height: 100vh;
+    background: var(--sidebar-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Container form */
+  .auth-container {
+    width: 100%;
+    max-width: 400px;
+    background: var(--form-bg);
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
+  }
+  
+  .auth-container h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+    color: var(--primary);
+  }
+  
+  .auth-container form {
+    display: grid;
+    gap: 1rem;
+  }
+  
+  .auth-container input,
+  .auth-container select,
+  .auth-container input[type="date"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    color: var(--text-color);
+  }
+  
+  .auth-container input::placeholder {
+    color: #8a928b;
+  }
+  
+  .auth-container input:focus,
+  .auth-container select:focus,
+  .auth-container input[type="date"]:focus {
+    border-color: var(--input-focus);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(62, 180, 137, 0.3);
+  }
+  
+  .auth-container button {
+    padding: 0.75rem;
+    background: var(--button-bg);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  
+  .auth-container button:hover {
+    background: var(--button-hover);
+  }
+  
+  .auth-container .link {
+    text-align: center;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  
+  .auth-container a {
+    color: var(--link-color);
+    text-decoration: none;
+  }
+  
+  .auth-container a:hover {
+    text-decoration: underline;
+  }
+  

@@ -132,9 +132,6 @@
     <main class="chat-area">
       <header class="chat-header">
         <h2>Messages</h2>
-        <button id="manage-group-button" class="icon-button" title="Quản lý nhóm">
-          <i class="fi fi-br-settings"></i>
-        </button>
       </header>
     
       <!-- ✅ Animation Overlay -->
@@ -154,10 +151,13 @@
     
       <div class="message-input">
         <input id="message" type="text" placeholder="Nhập tin nhắn và nhấn Enter...">
-        <button id="send">Gửi</button>
+        <button id="send">
+          <i class="fi fi-br-paper-plane"></i>
+        </button>
       </div>
-    </main>    
+      </main>
   </div>
+      
 <!-- PROFILE MODAL -->
 <!-- Trong form profile -->
 <input type="hidden" id="user-id" value="{{ user_id }}">
@@ -226,47 +226,64 @@
 <div id="create-group-modal" class="modal">
   <div class="modal-content">
     <span class="close">&times;</span>
-    <h2>Tạo nhóm mới</h2>
+    <h2>
+      <i class="fas fa-users"></i> Tạo nhóm mới
+    </h2>
     <input type="text" id="group-name" placeholder="Tên nhóm">
+
+    <h3 class="member-list-title">
+      <i class="fas fa-user-plus"></i> Chọn thành viên
+    </h3>
     <div id="group-members-selector">
       <!-- Danh sách bạn bè để chọn thành viên -->
     </div>
-    <button id="confirm-create-group">Tạo nhóm</button>
+
+    <div class="action-buttons">
+      <button id="confirm-create-group">Tạo nhóm</button>
+      <button id="cancel-create-group" class="cancel-btn">Huỷ</button>
+    </div>
   </div>
 </div>
 
+<div id="manage-group-sidebar" class="sidebar"> <div class="sidebar-content"> 
+  <span class="close" id="close-manage-sidebar">&times;</span>
+   <h2>Quản lý nhóm</h2>
 
+   <div id="group-avatar-preview">
+    <img src="" alt="Group Avatar" id="group-avatar-img">
+    <button id="change-group-avatar">Thay đổi avatar</button>
+    <input type="file" id="group-avatar-upload" accept="image/*" style="display:none">
+</div>
 
-
-  <!-- Overlay -->
-  <div class="overlay" id="sidebar-overlay"></div>
-
-  <!-- Sidebar quản lý nhóm -->
-  <div id="manage-group-sidebar" class="sidebar">
-    <div class="sidebar-content">
-      <span class="close" id="close-manage-sidebar">&times;</span>
-      <h2>Quản lý nhóm</h2>
-
-      <div class="form-group" id="group-name-edit-section">
-        <label for="edit-group-name">Tên nhóm</label>
-        <div class="group-name-edit">
-          <input type="text" id="edit-group-name" />
-          <button id="save-group-name"><i class="fi fi-br-check"></i></button>
-        </div>
-      </div>
-
-      <div class="form-group" id="add-member-section">
-        <label for="add-member-input">Thêm thành viên</label>
-        <input type="text" id="add-member-input" placeholder="Nhập tên hoặc email" />
-        <div id="add-member-results"></div>
-      </div>
-
-      <div class="form-group">
-        <h3>Thành viên</h3>
-        <div id="group-members-list"></div>
+    <div class="form-group" id="group-name-edit-section">
+      <label for="edit-group-name">Tên nhóm</label>
+      <div class="group-name-edit">
+        <input type="text" id="edit-group-name" />
+        <button id="save-group-name"><i class="fi fi-br-check"></i></button>
       </div>
     </div>
+    
+    <div class="form-group" id="add-member-section">
+      <label for="add-member-input">Thêm thành viên</label>
+      <input type="text" id="add-member-input" placeholder="Nhập tên hoặc email" />
+      <div id="add-member-results"></div>
+    </div>
+
+    <div class="form-group">
+      <h3>Thành viên</h3>
+      <div id="group-members-list"></div>
+    </div>
   </div>
+</div>
+<div class="group-actions">
+  <button id="leave-group-btn" class="leave-group-btn">
+    <i class="fi fi-rr-exit"></i> Rời nhóm
+  </button>
+</div>
+</div>
+</div>
+<!-- Overlay -->
+<div class="overlay" id="sidebar-overlay"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>

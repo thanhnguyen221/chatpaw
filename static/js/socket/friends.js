@@ -75,22 +75,13 @@ export function setupSearchInput() {
     }
   });
 }
-
 function renderUserResult(user) {
   const div = document.createElement('div');
   div.className = 'search-result';
   div.dataset.id = user._id;
 
-  let avatarSrc = '/static/img/default-avatar.png';
-  if (user.avatar) {
-    if (user.avatar.startsWith('http')) {
-      avatarSrc = user.avatar;
-    } else if (user.avatar.startsWith('data:image') && user.avatar.length < 100000) {
-      avatarSrc = user.avatar;
-    } else {
-      avatarSrc = `/static/${user.avatar}`;
-    }
-  }
+  // ✅ Dùng lại hàm getAvatarSrc
+  const avatarSrc = getAvatarSrc(user.avatar);
 
   div.innerHTML = `
     <div class="user-info">
@@ -154,8 +145,6 @@ export function fetchFriends() {
       });
     });
 }
-
-
 export function fetchFriendRequests() {
   fetch('/friend_requests')
     .then(res => res.json())
@@ -166,13 +155,24 @@ export function fetchFriendRequests() {
       data.requests.forEach(req => {
         const reqEl = document.createElement('div');
         reqEl.className = 'friend-request';
+
+        // ✅ Lấy avatar thật của người gửi (req.avatar hoặc req.sender.avatar)
+        const avatarSrc = getAvatarSrc(req.avatar || (req.sender && req.sender.avatar));
+
         reqEl.innerHTML = `
-          <div>
-            <strong>${req.username}</strong> (${req.email})
+          <div class="friend-request-info">
+            <img src="${avatarSrc}" alt="${req.username}" class="avatar">
+            <div>
+              <strong>${req.username}</strong> (${req.email})
+            </div>
           </div>
           <div class="friend-request-actions">
-            <button class="accept-friend" data-request="${req.request_id}" data-sender="${req.sender_id}">Chấp nhận</button>
-            <button class="decline-friend" data-request="${req.request_id}">Từ chối</button>
+            <button class="accept-friend" data-request="${req.request_id}" data-sender="${req.sender_id}">
+              <i class="fi fi-ss-check-circle"></i>
+            </button>
+            <button class="decline-friend" data-request="${req.request_id}">
+              <i class="fi fi-ss-cross-circle"></i>
+            </button>
           </div>
         `;
 

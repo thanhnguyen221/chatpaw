@@ -125,31 +125,40 @@ def register_group_events(socketio, mongo):
 
     @socketio.on('update_group_name')
     def handle_update_group_name(data):
-        group_id = data.get('group_id')
-        new_name = data.get('new_name')
-        user_id = session.get('user_id')
+        try:
+            group_id = data.get('group_id')
+            new_name = data.get('new_name')
+            user_id = session.get('user_id')
 
-        if not group_id or not new_name or not user_id:
-            return
+            if not group_id or not new_name or not user_id:
+                return {'ok': False, 'error': 'Thiếu thông tin'}
 
-        member = group_members_col.find_one({
-            'group_id': ObjectId(group_id),
-            'user_id': ObjectId(user_id)
-        })
+            member = group_members_col.find_one({
+                'group_id': ObjectId(group_id),
+                'user_id': ObjectId(user_id)
+            })
 
-        if not member or member.get('role') != 'admin':
-            emit('error', {'message': 'Permission denied'}, room=request.sid)
-            return
+            if not member or member.get('role') != 'admin':
+                return {'ok': False, 'error': 'Permission denied'}
 
-        groups_col.update_one(
-            {'_id': ObjectId(group_id)},
-            {'$set': {'name': new_name}}
-        )
+            result = groups_col.update_one(
+                {'_id': ObjectId(group_id)},
+                {'$set': {'name': new_name}}
+            )
 
-        emit('group_name_updated', {
-            'group_id': group_id,
-            'new_name': new_name
-        }, room=f"group_{group_id}")
+            if result.modified_count > 0:
+                emit('group_name_updated', {
+                    'group_id': group_id,
+                    'new_name': new_name
+                }, room=f"group_{group_id}")
+                return {'ok': True}
+            else:
+                return {'ok': False, 'error': 'Không có thay đổi hoặc cập nhật thất bại'}
+        except Exception as e:
+            # Log lỗi server nếu cần
+            print('Error in update_group_name:', e)
+            return {'ok': False, 'error': 'Lỗi server'}
+
 
     @socketio.on('add_group_member')
     def handle_add_group_member(data):
@@ -213,4 +222,39 @@ def register_group_events(socketio, mongo):
         emit('you_were_removed', {
             'group_id': group_id
         }, room=user_id_to_remove)
+    
+    @socketio.on('update_group_avatar')
+    def handle_update_group_avatar(data):
+        try:
+            group_id = data.get('group_id')
+            new_avatar = data.get('new_avatar')
+            user_id = session.get('user_id')
+
+            # Sửa tại đây: Bỏ dấu ngoặc () sau group_members_col
+            member = group_members_col.find_one({
+                'group_id': ObjectId(group_id),
+                'user_id': ObjectId(user_id),
+                '$or': [{'role': 'admin'}, {'is_creator': True}]
+            })
+                        
+            if not member:
+                return {'ok': False, 'error': 'Permission denied'}
+
+            # Sửa tại đây: Bỏ dấu ngoặc () sau groups_col
+            result = groups_col.update_one(
+                {'_id': ObjectId(group_id)},
+                {'$set': {'avatar': new_avatar}}
+            )
+
+            if result.modified_count > 0:
+                emit('group_avatar_updated', {
+                    'group_id': group_id,
+                    'new_avatar': new_avatar
+                }, room=f"group_{group_id}")
+                return {'ok': True}
+            
+            return {'ok': False, 'error': 'Update failed'}
         
+        except Exception as e:
+            print(f'Error updating group avatar: {str(e)}')
+            return {'ok': False, 'error': 'Internal server error'}

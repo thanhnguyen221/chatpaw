@@ -15,7 +15,6 @@
   --error: #f04747;
   --transition-speed: 0.3s;
 }
-
 * {
   box-sizing: border-box;
   transition: background-color var(--transition-speed) ease, 
@@ -230,15 +229,6 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
-.online-dot {
-  width: 12px;
-  height: 12px;
-  background-color: var(--success);
-  border-radius: 50%;
-  box-shadow: 0 0 8px var(--success);
-  margin-left: auto;
-}
-
 .friend-request-actions {
   display: flex;
   gap: 8px;
@@ -246,14 +236,14 @@ body {
 }
 
 .friend-request-actions button {
-  flex: 1;
-  padding: 8px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all var(--transition-speed) ease;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 
 .friend-request-actions .accept-friend {
   background-color: var(--success);
@@ -264,6 +254,12 @@ body {
   background-color: var(--error);
   color: white;
 }
+.friend-request-actions button i,
+.friend-request-actions button svg {
+  font-size: 15px; /* tăng kích thước icon */
+  vertical-align: middle; /* canh giữa icon với text */
+}
+
 
 .friend-request-actions button:hover {
   transform: translateY(-2px);
@@ -394,7 +390,7 @@ body {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
-  padding: 0 30px;
+  padding: 0 20px;
   border-radius: 30px;
   cursor: pointer;
   font-weight: 600;
@@ -670,14 +666,6 @@ body {
   justify-content: center;
   font-size: 0.7rem;
   margin-top: 5px;
-}
-
-.online-dot {
-  width: 10px;
-  height: 10px;
-  background-color: #43b581;
-  border-radius: 50%;
-  box-shadow: 0 0 5px #43b581;
 }
 .profile-modal {
   display: none;
@@ -1027,18 +1015,6 @@ body {
   color: var(--error);
 }
 
-/* Group member list */
-#group-members-selector {
-  max-height: 300px;
-  overflow-y: auto;
-  margin: 20px 0;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 10px;
-  background-color: #f9f9f9;
-  box-shadow: inset 0 1px 5px rgba(0,0,0,0.05);
-}
-
 /* Friend item */
 .friend-selector-item {
   padding: 10px;
@@ -1135,6 +1111,42 @@ body {
   align-items: center;
   cursor: pointer;
 }
+/* Style checkbox trong danh sách bạn bè */
+.friend-selector-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color, #ccc);
+  border-radius: 50%; /* bo tròn như Messenger */
+  background-color: #fff;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Hover */
+.friend-selector-item input[type="checkbox"]:hover {
+  border-color: var(--primary-color, #43b581);
+  box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.15);
+}
+
+/* Khi tick */
+.friend-selector-item input[type="checkbox"]:checked {
+  background-color: var(--primary-color, #43b581);
+  border-color: var(--primary-color, #43b581);
+}
+
+/* Dấu tick trắng bên trong */
+.friend-selector-item input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: white;
+  font-size: 14px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -58%);
+}
 
 /* Avatar bạn bè */
 .friend-avatar {
@@ -1145,22 +1157,6 @@ body {
   margin-right: 12px;
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
-
-/* Nút tạo nhóm */
-#confirm-create-group {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 30px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  margin-top: 20px;
-  box-shadow: 0 4px 10px rgba(62, 180, 137, 0.3);
-  transition: all 0.3s ease;
-}
-
 #confirm-create-group:hover {
   background: var(--primary-dark);
   transform: translateY(-2px);
@@ -1203,26 +1199,63 @@ body {
   flex: 1;
   min-width: 0;
 }
-
-.group-name {
-  font-weight: 600;
+#create-group-modal #group-name {
+  width: 100%;
+  padding: 8px 12px;
+  font-weight: 600; /* giữ đồng bộ với .group-name */
   font-size: 1rem;
-  color: var(--text-color);
+  color: #000; /* chữ đen */
+  border: 1px solid #ccc; /* viền xám */
+  border-radius: 6px;
+  background-color: var(--bg-color, #fff);
+
+  /* để chữ không tràn ra ngoài */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  /* transition để hover/focus mượt */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
+
+#create-group-modal #group-name:focus {
+  outline: none;
+  border-color: var(--primary-color, #43b581);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+#create-group-modal h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* khoảng cách icon - chữ */
+  font-size: 1.4rem;
+}
+
+#create-group-modal h2 i {
+  color: var(--primary-color, #43b581);
+  font-size: 1.5rem;
+}
+
 .groups-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
 }
-
+.member-list-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem; /* nhỏ hơn một chút */
+  font-weight: 600;
+  color: #555; /* xám đậm */
+  margin: 12px 0 6px;
+}
 .groups-header h2 {
   font-size: 1.4rem;
   margin: 0;
 }
+
 #create-group-btn {
   background-color: var(--primary);
   border: none;
@@ -1330,7 +1363,9 @@ body {
   margin-left: auto;
   color: #4caf50;
   font-weight: bold;
+  font-size: 10px; /* chỉnh nhỏ lại */
 }
+
 
 .search-results {
   margin-top: 10px;
@@ -1356,39 +1391,52 @@ body {
   border-radius: 3px;
   cursor: pointer;
 }
-/* CSS cho sidebar quản lý nhóm */
 #manage-group-sidebar {
   position: fixed;
   top: 0;
-  right: -400px; /* Ẩn ban đầu */
-  width: 400px;
-  height: 100%;
-  background-color: #fff;
-  z-index: 1000;
-  transition: right 0.3s ease;
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+  right: 0;               
+  height: 100vh;
+  width: 360px;          
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+  z-index: 1001;        
+  background: #fff;      
+  box-shadow: -6px 0 20px rgba(0,0,0,0.12);
+  display: block;       
   overflow-y: auto;
 }
 
-/* Khi sidebar hiển thị */
-#manage-group-sidebar.active {
-  right: 0;
+ #manage-group-sidebar.active {
+  transform: translateX(0); 
 }
 
 #manage-group-sidebar .sidebar-content {
   padding: 20px;
 }
 
-/* Đóng sidebar */
 #close-manage-sidebar {
-  float: right;
+  position: absolute;
+  top: 15px;
+  right: 20px;
   font-size: 24px;
   cursor: pointer;
   color: #333;
-  margin-bottom: 15px;
+  z-index: 1002;
+}
+#sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000; 
+  display: none;    
 }
 
-/* Tiêu đề */
+
+#sidebar-overlay.show {
+  display: block;
+}
+
+
 #manage-group-sidebar h2 {
   margin-top: 0;
   padding-bottom: 15px;
@@ -1529,4 +1577,535 @@ body {
   background: rgba(0, 0, 0, 0.5);
   z-index: 999;
   display: none;
+}
+/* ========== CẢI TIẾN MENU QUẢN LÝ NHÓM ========== */
+#manage-group-sidebar {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.15);
+  border-left: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+#manage-group-sidebar .sidebar-content {
+  padding: 25px;
+}
+
+#manage-group-sidebar h2 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--primary);
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#manage-group-sidebar h2 i {
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+
+/* Form nhóm */
+.group-name-edit {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.group-name-edit input {
+  flex: 1;
+  padding: 14px 18px;
+  border: 2px solid #e1e5eb;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.group-name-edit input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 2px 15px rgba(62, 180, 137, 0.2);
+  outline: none;
+}
+
+#save-group-name {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(62, 180, 137, 0.3);
+}
+
+#save-group-name:hover {
+  background: var(--primary-dark);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(62, 180, 137, 0.4);
+}
+
+#save-group-name i {
+  font-size: 1.4rem;
+}
+
+/* Tìm kiếm thành viên */
+#add-member-section {
+  margin-bottom: 30px;
+  position: relative;
+}
+
+#add-member-input {
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid #e1e5eb;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+#add-member-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 2px 15px rgba(62, 180, 137, 0.2);
+  outline: none;
+}
+
+#add-member-results {
+  position: absolute;
+  width: 100%;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+  display: none;
+}
+
+#add-member-input:focus + #add-member-results,
+#add-member-results:hover {
+  display: block;
+}
+
+.search-result-item {
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-bottom: 1px solid #f0f2f5;
+  transition: background 0.3s ease;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  background: #f8f9fa;
+}
+
+.search-result-item img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e1e5eb;
+}
+
+.search-result-item span {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.select-member-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.select-member-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+/* Danh sách thành viên */
+#group-members-list {
+  border-radius: 12px;
+  background: #f8f9fa;
+  padding: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.05);
+}
+
+.group-member-item {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border-radius: 10px;
+  background: white;
+  margin-bottom: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease;
+}
+
+.group-member-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+}
+
+.group-member-item:last-child {
+  margin-bottom: 0;
+}
+
+.member-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e1e5eb;
+  margin-right: 15px;
+  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.group-member-item span {
+  flex: 1;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.creator-badge {
+  background: var(--primary);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+.admin-badge {
+  background: #6c5ce7;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+.remove-member-btn {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+}
+
+.remove-member-btn:hover {
+  background: #ff4757;
+  transform: scale(1.1);
+}
+
+.leave-group-btn {
+  background: #ff9f43;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leave-group-btn:hover {
+  background: #ff7e33;
+  transform: translateY(-2px);
+}
+
+/* Loading spinner */
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #manage-group-sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .group-name-edit {
+    flex-direction: column;
+  }
+  
+  #save-group-name {
+    width: 100%;
+    margin-top: 10px;
+  }
+}
+    /* ========== LEAVE GROUP BUTTON AT BOTTOM ========== */
+    .group-actions {
+      margin-top: auto;
+      padding: 20px 0;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: center;
+    }
+
+    .leave-group-btn {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
+      color: white;
+      border: none;
+      padding: 14px 30px;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+
+    .leave-group-btn:hover {
+      background: linear-gradient(135deg, #ff4757 0%, #ff2e4c 100%);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+    }
+
+    .leave-group-btn i {
+      font-size: 1.3rem;
+    }
+
+    @media (max-width: 768px) {
+      #manage-group-sidebar {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+    .icon-button {
+      background: linear-gradient(135deg, #3eb489, #2c7a7b);
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .icon-button i {
+      font-size: 1.2rem;
+    }
+    
+    .icon-button:hover {
+      background: linear-gradient(135deg, #4fd1c5, #285e61);
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .icon-button:active {
+      transform: scale(0.95);
+    }
+    .btn-manage {
+      background: linear-gradient(135deg, #3eb489, #2f8f83);
+      border: none;
+      outline: none; /* Bỏ viền mặc định */
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .btn-manage i {
+      font-size: 1.2rem;
+    }
+    
+    /* Hover */
+    .btn-manage:hover {
+      background: linear-gradient(135deg, #4fd1c5, #2c7a7b);
+      transform: scale(1.05);
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+    
+    /* Focus với hiệu ứng glow */
+    .btn-manage:focus {
+      box-shadow: 0 0 10px rgba(62, 180, 137, 0.7);
+    }
+    
+    /* Click */
+    .btn-manage:active {
+      transform: scale(0.95);
+    }
+    #group-avatar-preview {
+      text-align: center;
+      margin-bottom: 15px;
+  }
+  #group-avatar-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+#group-avatar-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid  #43b581; /* xanh lá */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+#group-avatar-img:hover {
+    transform: scale(1.05);
+}
+
+#change-group-avatar {
+    padding: 6px 12px;
+    background: #43b581;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+#change-group-avatar:hover {
+    background: #43b581;
+    transform: translateY(-1px);
+}
+
+
+#send i {
+  font-size: 18px;
+}
+.search-result .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #fff; 
+  box-shadow: 0 0 4px rgba(0,0,0,0.1); 
+  object-fit: cover;
+}
+.search-result .user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+#search-results .no-results {
+  padding: 12px;
+  color: #666;
+  text-align: center;
+  font-style: italic;
+}
+.search-result .relationship {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-result .friend-badge {
+  font-size: 12px;
+  padding: 4px 8px;
+  background: #43b581;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.search-result .add-friend {
+  padding: 4px 8px;
+  background: #43b581;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.search-result .add-friend:hover {
+  background: #43b581;
+}
+
+.search-result .request-sent {
+  font-size: 12px;
+  color: #888;
+}.friend-request-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Icon bên trong */
+.friend-request-actions i {
+  pointer-events: none; /* Để click không bị bắt vào icon */
+}
+.friend-request-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.friend-request-info .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
 }

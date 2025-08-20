@@ -1,36 +1,49 @@
 import { socket } from "./index.js";
 
-// Biến toàn cục lưu trữ nhóm hiện tại đang mở
+// --- DEFAULT AVATARS (fallback) ---
+const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-group.png';
+// ------------------------------------
+
 let currentGroupId = null;
 
 export function setupGroupSocketEvents() {
   // Trong setupGroupSocketEvents
-socket.on('user_left_group', (data) => {
-  if (data.user_id === window.session.user_id) {
-      // Nếu là chính mình rời nhóm
+  socket.on('user_left_group', (data) => {
+    if (data.user_id === window.session.user_id) {
       if (currentGroupId === data.group_id) {
-          currentGroupId = null;
-          // Hiển thị màn hình chính
-          document.querySelector('.chat-header h2').textContent = 'Messages';
-          document.getElementById('animation-screen').style.display = 'flex';
+        currentGroupId = null;
+        document.querySelector('.chat-header h2').textContent = 'Messages';
+        document.getElementById('animation-screen').style.display = 'flex';
+        // đảm bảo ẩn messages nếu có
+        document.getElementById('messages').style.display = 'none';
+        // ẩn sidebar + overlay
+        closeManageSidebar();
       }
-      // Xóa nhóm khỏi danh sách
       document.querySelector(`.group-item[data-id="${data.group_id}"]`)?.remove();
-  } else {
-      // Cập nhật giao diện nếu đang xem nhóm này
+    } else {
       if (currentGroupId === data.group_id) {
-          openManageGroupModal(data.group_id); // Refresh modal
+        openManageGroupModal(data.group_id); // refresh modal
       }
-  }
-});
-  // Cập nhật tên nhóm
-  socket.on('group_name_updated', (data) => {
-    if (data.group_id === currentGroupId) {
-      document.querySelector('.chat-header h2').textContent = data.new_name;
-      document.getElementById('manage-group-sidebar').style.display = 'none';
     }
   });
-
+  
+  socket.on('group_name_updated', (data) => {
+    const groupNameEl = document.querySelector(`.group-item[data-id="${data.group_id}"] .group-name`);
+    if (groupNameEl) groupNameEl.textContent = data.new_name;
+  
+    if (data.group_id === currentGroupId) {
+      const headerH2 = document.querySelector('.chat-header h2');
+      if (headerH2) headerH2.textContent = data.new_name;
+  
+      // Nếu sidebar đang mở cho chính nhóm đó, cập nhật input
+      const sidebar = document.getElementById('manage-group-sidebar');
+      if (sidebar && sidebar.dataset.groupId === data.group_id) {
+        const editInput = document.getElementById('edit-group-name');
+        if (editInput) editInput.value = data.new_name;
+      }
+    }
+  });
+  
   socket.on('group_member_added', (data) => {
     if (data.group_id === currentGroupId) {
       openManageGroupModal(data.group_id); // Làm mới modal
@@ -43,13 +56,12 @@ socket.on('user_left_group', (data) => {
       if (document.getElementById('manage-group-sidebar').style.display === 'block') {
         openManageGroupModal(data.group_id);
       }
-      
-      // Nếu người dùng hiện tại bị xóa
       if (data.user_id === window.session.user_id) {
         currentGroupId = null;
         document.querySelector('.chat-header h2').textContent = 'Messages';
         document.getElementById('animation-screen').style.display = 'flex';
         document.getElementById('messages').style.display = 'none';
+        closeManageSidebar(); // <-- thêm
       }
     }
   });
@@ -68,15 +80,17 @@ socket.on('user_left_group', (data) => {
     addGroupToList(group._id, group.name);
   });
 
-  // Bị xóa khỏi nhóm
   socket.on('group_removed', (groupId) => {
     console.log(`[Socket] Bạn đã bị xóa khỏi nhóm ${groupId}`);
     if (currentGroupId === groupId) {
       document.querySelector('.chat-header h2').textContent = 'Messages';
       currentGroupId = null;
+      // đóng sidebar/overlay nếu đang mở
+      closeManageSidebar();
     }
     document.querySelector(`.group-item[data-id="${groupId}"]`)?.remove();
   });
+  
 }
 function removeGroupMember(groupId, userId) {
   // Xóa thành viên ngay lập tức khỏi giao diện
@@ -91,6 +105,157 @@ function removeGroupMember(groupId, userId) {
     user_id: userId
   });
 }
+function openManageGroupModal(groupId) {
+  const modal = document.getElementById('manage-group-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!modal) return;
+
+  // fallback avatar nếu bạn chưa khai báo global
+  const fallbackGroupAvatar = window.defaultGroupAvatar || '/static/img/default-group.png';
+
+  modal.dataset.groupId = groupId;
+
+  fetch(`/group_info/${groupId}`)
+    .then(response => response.json())
+    .then(groupInfo => {
+      const isAdmin = groupInfo.current_user_role === 'admin';
+      const groupName = groupInfo.name;
+      const isCreatorOfGroup = groupInfo.created_by === window.session.user_id;
+
+      // cập nhật tên, ẩn/hiện section
+      const editNameInput = document.getElementById('edit-group-name');
+      if (editNameInput) editNameInput.value = groupName;
+      const nameEditSection = document.getElementById('group-name-edit-section');
+      if (nameEditSection) nameEditSection.style.display = isAdmin ? 'block' : 'none';
+      const addMemberSection = document.getElementById('add-member-section');
+      if (addMemberSection) addMemberSection.style.display = isAdmin ? 'block' : 'none';
+
+      // render danh sách thành viên (reset nội dung trước)
+      const membersContainer = document.getElementById('group-members-list');
+      if (membersContainer) membersContainer.innerHTML = '';
+
+      (groupInfo.members || []).forEach(member => {
+        const memberEl = document.createElement('div');
+        memberEl.className = 'group-member-item';
+
+        const isMe = member._id === window.session.user_id;
+        const isCreator = member.is_creator;
+
+        let actionsHTML = '';
+        if (isAdmin && !isMe && !isCreator) {
+          actionsHTML += `
+            <button class="remove-member-btn" data-user-id="${member._id}" title="Xoá thành viên">❌</button>
+          `;
+        }
+
+        memberEl.innerHTML = `
+          <img src="${member.avatar || (window.defaultUserAvatar || '/static/img/default-avatar.png')}" 
+               alt="${member.username}" class="member-avatar">
+          <span class="member-username">${member.username}</span>
+          ${isCreator ? '<span class="creator-badge">Trưởng nhóm</span>' : ''}
+          ${actionsHTML}
+        `;
+        membersContainer.appendChild(memberEl);
+      });
+
+      // Gắn event xóa thành viên (chắc chắn chỉ 1 lần vì container đã reset innerHTML)
+      if (isAdmin && membersContainer) {
+        membersContainer.querySelectorAll('.remove-member-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const userId = btn.dataset.userId;
+            if (confirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) {
+              removeGroupMember(groupId, userId);
+            }
+          });
+        });
+      }
+
+      // Nút rời nhóm: nếu đã có thì cập nhật dataset và gỡ listener cũ, nếu chưa có thì tạo
+      if (groupInfo.members.some(m => m._id === window.session.user_id)) {
+        let leaveBtn = document.getElementById('leave-group-btn-fixed');
+        if (!leaveBtn) {
+          leaveBtn = document.createElement('button');
+          leaveBtn.id = 'leave-group-btn-fixed';
+          leaveBtn.className = 'leave-group-btn';
+          modal.appendChild(leaveBtn);
+        }
+        // set lại thuộc tính và sự kiện mới (tránh chồng listener)
+        leaveBtn.dataset.groupId = groupId;
+        leaveBtn.textContent = ' Rời nhóm';
+        leaveBtn.title = 'Rời nhóm';
+        leaveBtn.onclick = () => {
+          if (confirm('Bạn có chắc muốn rời nhóm này?')) {
+            socket.emit('leave_group', { group_id: groupId });
+            closeManageSidebar();
+          }
+        };
+      } else {
+        // nếu không phải thành viên thì xoá nút rời (nếu tồn tại)
+        const existingLeave = document.getElementById('leave-group-btn-fixed');
+        if (existingLeave) existingLeave.remove();
+      }
+
+      // Avatar nhóm (chỉ cho phép "Thay đổi avatar" nếu admin hoặc creator)
+      const canChangeAvatar = isAdmin || isCreatorOfGroup;
+      const avatarPreview = document.createElement('div');
+      avatarPreview.id = 'group-avatar-preview';
+      avatarPreview.innerHTML = `
+        <img src="${groupInfo.avatar || fallbackGroupAvatar}" 
+             alt="${groupInfo.name || 'Group'}" 
+             id="group-avatar-img">
+        ${canChangeAvatar ? '<button id="change-group-avatar">Thay đổi avatar</button>' : ''}
+        <input type="file" id="group-avatar-upload" accept="image/*" style="display:none">
+      `;
+
+      // replace hoặc prepend để tránh tạo nhiều lần
+      const existingPreview = modal.querySelector('#group-avatar-preview');
+      if (existingPreview) {
+        existingPreview.replaceWith(avatarPreview);
+      } else {
+        modal.prepend(avatarPreview);
+      }
+
+      // CHÚ Ý: gắn event nếu phần tử tồn tại (kiểm tra null trước khi addEventListener)
+      const changeBtn = modal.querySelector('#change-group-avatar');
+      const uploadInput = modal.querySelector('#group-avatar-upload');
+      if (changeBtn && uploadInput) {
+        changeBtn.addEventListener('click', () => uploadInput.click());
+      }
+
+      if (uploadInput) {
+        // đảm bảo không gắn nhiều lần: thay thế handler cũ
+        uploadInput.onchange = function () {
+          if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+              const img = document.getElementById('group-avatar-img');
+              if (img) img.src = e.target.result;
+
+              socket.emit('update_group_avatar', {
+                group_id: groupId,
+                new_avatar: e.target.result
+              }, (response) => {
+                if (!response || !response.ok) {
+                  alert('Cập nhật avatar thất bại: ' + (response && response.error ? response.error : 'Lỗi không xác định'));
+                }
+              });
+            };
+            reader.readAsDataURL(this.files[0]);
+          }
+        };
+      }
+
+      // SHOW sidebar (kiểm tra tồn tại overlay)
+      modal.classList.add('active');
+      if (overlay) overlay.classList.add('show');
+    })
+    .catch(error => {
+      console.error('Lỗi tải thông tin nhóm:', error);
+      alert('Không thể tải thông tin nhóm');
+    });
+}
+
+
 export function setupCreateGroupHandler() {
   const createBtn = document.getElementById('create-group-btn');
   if (!createBtn) return;
@@ -176,20 +341,34 @@ async function loadFriendsForGroupCreation() {
     console.error('Lỗi tải danh sách bạn bè:', err);
   }
 }
-
-export function addGroupToList(groupId, groupName) {
+export function addGroupToList(groupId, groupName, avatarUrl) {
   // Kiểm tra xem nhóm đã tồn tại chưa
-  if (document.querySelector(`.group-item[data-id="${groupId}"]`)) {
+  const existingGroup = document.querySelector(`.group-item[data-id="${groupId}"]`);
+  
+  if (existingGroup) {
+    // Cập nhật avatar và tên nếu nhóm đã tồn tại
+    const avatarImg = existingGroup.querySelector('.group-avatar img');
+    if (avatarImg) {
+      avatarImg.src = avatarUrl || defaultGroupAvatar;
+      avatarImg.alt = groupName;
+    }
+    
+    const nameElement = existingGroup.querySelector('.group-name');
+    if (nameElement) {
+      nameElement.textContent = groupName;
+    }
     return;
   }
 
+  // Nếu chưa tồn tại, tạo nhóm mới
   const groupsList = document.getElementById('groups-list');
   const groupElement = document.createElement('div');
   groupElement.className = 'group-item';
   groupElement.dataset.id = groupId;
   groupElement.innerHTML = `
     <div class="group-avatar">
-      <i class="fi fi-rr-users-alt"></i>
+      <img src="${avatarUrl || defaultGroupAvatar}" 
+           alt="${groupName}">
     </div>
     <div class="group-info">
       <div class="group-name">${groupName}</div>
@@ -202,7 +381,6 @@ export function addGroupToList(groupId, groupName) {
   
   groupsList.appendChild(groupElement);
 }
-
 
 export function setupGroupMessageSending() {
   const messageInput = document.getElementById('message');
@@ -281,7 +459,7 @@ function appendGroupMessage(msg) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 function getUserAvatar(userId, avatarUrl) {
-  return avatarUrl || "{{ url_for('static', filename='img/default-avatar.png') }}";
+  return url_for('static', filename='img/default-avatar.png');
 }
 
 export function openGroupChat(groupId, groupName) {
@@ -296,7 +474,7 @@ export function openGroupChat(groupId, groupName) {
   header.innerHTML = `
   <h2>${groupName}</h2>
   <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
-    <i class="fi fi-rr-settings"></i>
+  <i class="fi fi-br-bars-staggered"></i>
   </button>
 `;
 
@@ -307,99 +485,6 @@ export function openGroupChat(groupId, groupName) {
   socket.emit('join_group', { group_id: groupId });
 
 }
-function openManageGroupModal(groupId) {
-  const modal = document.getElementById('manage-group-sidebar');
-  if (!modal) return;
-
-  modal.dataset.groupId = groupId;
-
-  fetch(`/group_info/${groupId}`)
-    .then(response => response.json())
-    .then(groupInfo => {
-      // Sửa: Lấy role của người dùng hiện tại từ groupInfo
-      const isAdmin = groupInfo.current_user_role === 'admin';
-      const groupName = groupInfo.name;
-
-      // Sửa: Hiển thị tên nhóm trong input
-      document.getElementById('edit-group-name').value = groupName;
-
-      // Hiển thị các phần chỉ dành cho admin
-      document.getElementById('group-name-edit-section').style.display = isAdmin ? 'block' : 'none';
-      document.getElementById('add-member-section').style.display = isAdmin ? 'block' : 'none';
-
-      // Hiển thị danh sách thành viên
-      const membersContainer = document.getElementById('group-members-list');
-      membersContainer.innerHTML = '';
-
-      groupInfo.members.forEach(member => {
-        const memberEl = document.createElement('div');
-        memberEl.className = 'group-member-item';
-
-        const isMe = member._id === window.session.user_id;
-        const isCreator = member.is_creator;
-
-        let actionsHTML = '';
-
-        // Hiển thị nút xóa nếu là admin
-        if (isAdmin && !isMe && !isCreator) {
-          actionsHTML += `
-            <button class="remove-member-btn" data-user-id="${member._id}" title="Xoá thành viên">
-            ❌
-            </button>
-          `;
-        }
-
-        // Hiển thị nút rời nhóm cho chính mình
-        if (isMe) {
-          actionsHTML += `
-            <button class="leave-group-btn" data-group-id="${groupId}" title="Rời nhóm">
-              🚪 Rời nhóm
-            </button>
-          `;
-        }
-
-        memberEl.innerHTML = `
-          <img src="${member.avatar}" alt="${member.username}" class="member-avatar">
-          <span>${member.username}</span>
-          ${isCreator ? '<span class="creator-badge">(Chủ nhóm)</span>' : ''}
-          ${actionsHTML}
-        `;
-
-        membersContainer.appendChild(memberEl);
-      });
-
-      // Gắn sự kiện xóa thành viên
-      if (isAdmin) {
-        membersContainer.querySelectorAll('.remove-member-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const userId = btn.dataset.userId;
-            if (confirm('Bạn có chắc muốn xóa thành viên này khỏi nhóm?')) {
-              removeGroupMember(groupId, userId);
-            }
-          });
-        });
-      }
-
-      // Gắn sự kiện rời nhóm
-      membersContainer.querySelectorAll('.leave-group-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (confirm('Bạn có chắc muốn rời nhóm này?')) {
-            socket.emit('leave_group', {
-              group_id: groupId
-            });
-            modal.style.display = 'none';
-          }
-        });
-      });
-
-      modal.style.display = 'block';
-    })
-    .catch(error => {
-      console.error('Lỗi tải thông tin nhóm:', error);
-      alert('Không thể tải thông tin nhóm');
-    });
-}
-
 document.getElementById('add-member-input').addEventListener('input', (e) => {
   const term = e.target.value.trim();
   if (term.length < 2) return;
@@ -440,11 +525,7 @@ socket.on('group_history', (data) => {
       });
   }
 });
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('manage-group-btn')?.addEventListener('click', () => {
-    openManageGroupModal(currentGroupId);
-  });
-});
+
 // Sửa hàm formatTime thành
 function formatTime(dateString) {
   if (!dateString) return '';
@@ -522,10 +603,6 @@ function setupAddMemberSearch() {
 document.addEventListener('DOMContentLoaded', () => {
   setupAddMemberSearch();
 });
-// Gọi hàm setup trong DOMContentLoaded
-document.addEventListener('DOMContentLoaded', () => {
-  setupAddMemberSearch();
-});
 
 // Thêm sự kiện tìm kiếm
 document.getElementById('add-member-input').addEventListener('input', debounce(function(e) {
@@ -569,6 +646,9 @@ document.getElementById('add-member-input').addEventListener('input', debounce(f
       });
     });
 }, 300));
+document.getElementById('cancel-create-group').addEventListener('click', function() {
+  document.getElementById('create-group-modal').style.display = 'none';
+});
 
 // Hàm debounce
 function debounce(func, wait) {
@@ -580,22 +660,105 @@ function debounce(func, wait) {
 }
 document.addEventListener('DOMContentLoaded', () => {
   const manageBtn = document.getElementById("manage-group-button");
-  if (manageBtn) {
+  const sidebar = document.getElementById("manage-group-sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+
+  if (manageBtn && sidebar && overlay) {
     manageBtn.addEventListener("click", () => {
-      const sidebar = document.getElementById("manage-group-sidebar");
-      if (sidebar) {
-        sidebar.style.display = "block";
-      }
+      sidebar.classList.add('active');
+      overlay.classList.add('show');
+      // đảm bảo remove inline style nếu có
+      sidebar.style.display = '';
+      overlay.style.display = '';
     });
   }
 
   const closeBtn = document.getElementById("close-manage-sidebar");
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
-      const sidebar = document.getElementById("manage-group-sidebar");
-      if (sidebar) {
-        sidebar.style.display = "none";
+      closeManageSidebar();
+    });
+  }
+
+  // khi click overlay cũng đóng sidebar
+  if (overlay) {
+    overlay.addEventListener('click', closeManageSidebar);
+  }
+});
+
+function closeManageSidebar() {
+  const modal = document.getElementById('manage-group-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (modal) {
+    // xóa class active, và fallback về style
+    modal.classList.remove('active');
+    modal.style.display = ''; // reset nếu có style inline cũ
+    delete modal.dataset.groupId;
+  }
+  if (overlay) {
+    overlay.classList.remove('show');
+    overlay.style.display = 'none';
+  }
+}
+document.getElementById('save-group-name')?.addEventListener('click', async (e) => {
+  e.preventDefault();
+  const sidebar = document.getElementById('manage-group-sidebar');
+  const groupId = sidebar?.dataset.groupId;
+  const input = document.getElementById('edit-group-name');
+  const newName = input?.value.trim();
+
+  if (!groupId || !newName) {
+    alert('Vui lòng nhập tên nhóm mới');
+    return;
+  }
+
+  try {
+    // Sử dụng socket.emit thay vì fetch
+    socket.emit('update_group_name', {
+      group_id: groupId,
+      new_name: newName
+    }, (response) => {
+      if (response && response.ok) {
+        // Cập nhật UI ngay lập tức
+        const groupNameEl = document.querySelector(`.group-item[data-id="${groupId}"] .group-name`);
+        if (groupNameEl) groupNameEl.textContent = newName;
+        
+        if (currentGroupId === groupId) {
+          const headerH2 = document.querySelector('.chat-header h2');
+          if (headerH2) headerH2.textContent = newName;
+        }
+        
+        // Đóng sidebar sau khi cập nhật thành công
+        closeManageSidebar();
+      } else {
+        alert(response.error || 'Đổi tên nhóm thất bại');
       }
     });
+  } catch (err) {
+    console.error('Lỗi đổi tên nhóm:', err);
+    alert('Lỗi khi đổi tên nhóm');
+  }
+});
+
+socket.on('group_avatar_updated', (data) => {
+  addGroupToList(data.group_id, null, data.new_avatar);
+  if (data.group_id === currentGroupId) {
+      // Cập nhật avatar trong header
+      const headerImg = document.querySelector('.chat-header .group-avatar');
+      if (headerImg) {
+          headerImg.src = data.new_avatar;
+      }
+      
+      // Cập nhật avatar trong sidebar
+      const sidebarImg = document.querySelector(`.group-item[data-id="${data.group_id}"] .group-avatar img`);
+      if (sidebarImg) {
+          sidebarImg.src = data.new_avatar;
+      }
+      
+      // Cập nhật trong modal nếu đang mở
+      const modalImg = document.getElementById('group-avatar-img');
+      if (modalImg) {
+          modalImg.src = data.new_avatar;
+      }
   }
 });

@@ -433,6 +433,7 @@ def create_group():
             'last_message': None,
             'last_message_time': None,
             'created_at': get_vietnam_time(),
+            'avatar': data.get('avatar', '')
         }
         group_id = groups_col().insert_one(group_data).inserted_id
 
@@ -449,7 +450,8 @@ def create_group():
                 'group_id': group_id,
                 'user_id': member_id,
                 'joined_at': datetime.utcnow(),
-                'role': 'admin' if member_id == ObjectId(user_id) else 'member'
+                'role': 'admin' if member_id == ObjectId(user_id) else 'member',
+                'is_creator': True
             })
 
         return jsonify({
@@ -595,6 +597,11 @@ def update_group(group_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
+    try:
+        group_oid = ObjectId(group_id)
+    except:
+        return jsonify({'error': 'Invalid group ID'}), 400
+
     data = request.get_json()
     new_name = data.get('name')
     new_avatar = data.get('avatar')
@@ -602,23 +609,22 @@ def update_group(group_id):
     if not new_name and not new_avatar:
         return jsonify({'error': 'No data to update'}), 400
 
-    try:
-        group_oid = ObjectId(group_id)
-    except:
-        return jsonify({'error': 'Invalid group ID'}), 400
-
     # Kiểm tra quyền: chỉ admin mới có thể cập nhật
     current_user_oid = ObjectId(session['user_id'])
+# Sửa phần kiểm tra quyền trong handle_update_group_avatar
     admin = group_members_col().find_one({
         'group_id': group_oid,
         'user_id': current_user_oid,
-        'role': 'admin'
+        '$or': [
+            {'role': 'admin'},
+            {'is_creator': True}  # Cho phép người tạo nhóm
+        ]
     })
-    
+
     if not admin:
         return jsonify({'error': 'Permission denied'}), 403
 
-    # Tạo update data
+    # Tạo dữ liệu cập nhật
     update_data = {}
     if new_name:
         update_data['name'] = new_name
@@ -632,6 +638,7 @@ def update_group(group_id):
     )
 
     return jsonify({'message': 'Group updated successfully'})
+
 
 # Lấy danh sách nhóm của người dùng
 @main.route('/user_groups', methods=['GET'])

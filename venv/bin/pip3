@@ -1,4 +1,6 @@
-#!/Users/tranthanhthuy/Documents/NCKH/venv/bin/python3.12
+#!/bin/sh
+'''exec' "/Users/tranthanhthuy/Documents/NCKH (1)/venv/bin/python" "$0" "$@"
+' '''
 # -*- coding: utf-8 -*-
 import re
 import sys

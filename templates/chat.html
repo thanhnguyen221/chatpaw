@@ -2,48 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Chat</title>
+  <title>PAW TALK</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bold Rounded -->
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-      <!-- Regular Rounded -->
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css">
-    
-    <!-- Bold Straight -->
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-straight/css/uicons-bold-straight.css">
-    
-    <!-- Solid Straight -->
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-solid-straight/css/uicons-solid-straight.css">
-  <!-- CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-  <!-- Socket.IO -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_input.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/video-call.css') }}">
+
   <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 
-  <!-- Lottie Player -->
   <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
-  <!-- Regular Solid -->
-  <!-- <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-solid/css/uicons-regular-solid.css"> -->
-
-
 </head>
 <body>
   <div class="chat-app">
-    <!-- MINI SIDEBAR ICONS -->
     <nav class="mini-sidebar">
-      <button data-tab="requests" title="Yêu cầu kết bạn"><i class="fi fi-rr-following"></i></i></button>
+      <button data-tab="requests" title="Yêu cầu kết bạn"><i class="fi fi-rr-following"></i></button>
       <button data-tab="search" title="Tìm bạn"><i class="fi fi-rr-search-heart"></i></button>
-      <button data-tab="contacts" title="Bạn bè"><i class="fi fi-rr-address-book"></i> </i></button>
+      <button data-tab="contacts" title="Bạn bè"><i class="fi fi-rr-address-book"></i></button>
       <button data-tab="conversations" title="Hội thoại"><i class="fi fi-rr-comment-alt-dots"></i></button>
-      <button data-tab="groups" title="Nhóm"><i class="fi fi-rr-users-alt"></i></i></button>
+      <button data-tab="groups" title="Nhóm"><i class="fi fi-rr-users-alt"></i></button>
       <a href="{{ url_for('main.logout') }}" class="mini-logout" title="Đăng xuất"><i class="fi fi-rr-power"></i></a>
     </nav>
 
-    <!-- MAIN SIDEBAR CONTENT -->
     <aside class="main-sidebar">
       <div class="sidebar-header">
-        <h1>NAMELESS</h1>
+        <h1>PAW TALK</h1>
         <div class="user-avatar" data-user-id="{{ user_id }}">
           <img src="{{ user_avatar }}" alt="{{ username }}">
           <span class="username">{{ username }}</span>
@@ -52,32 +40,27 @@
       
       <div class="sidebar-content">
         <section id="tab-requests" class="tab-section">
-          <h2> Yêu cầu kết bạn</h2>
+          <h2>Yêu cầu kết bạn</h2>
           <div id="friend-requests"></div>
         </section>
 
         <section id="tab-search" class="tab-section">
-          <h2> Tìm bạn mới</h2>
+          <h2>Tìm bạn mới</h2>
           <input id="search-friends" type="text" placeholder="Tên hoặc email...">
           <div id="search-results"></div>
         </section>
 
         <section id="tab-contacts" class="tab-section">
-          <h2> Danh sách bạn bè</h2>
+          <h2>Danh sách bạn bè</h2>
           <div id="contacts">
             {% for friend in friends %}
               <div class="contact" data-id="{{ friend._id }}">
-                <!-- Sử dụng bộ lọc get_avatar_url -->
-                <img src="{{ friend.avatar | get_avatar_url }}" 
-                    alt="{{ friend.username }}" 
-                    class="contact-avatar">
+                <img src="{{ friend.avatar | get_avatar_url }}" alt="{{ friend.username }}" class="contact-avatar">
                 <div class="contact-info">
                   <div class="contact-name">{{ friend.username }}</div>
                 </div>
                 <div class="contact-status">
-                  {% if friend.online %}
-                    <span class="online-dot"></span>
-                  {% endif %}
+                  {% if friend.online %}<span class="online-dot"></span>{% endif %}
                 </div>
               </div>
             {% endfor %}
@@ -87,35 +70,30 @@
           <h2>Hội thoại</h2>
           <div id="conversations">
             {% for conv in conversations %}
-              <div class="conversation-item" data-id="{{ conv._id }}">
-                <!-- Sử dụng friend_avatar đã được xử lý -->
-                <img src="{{ conv.friend_avatar }}" class="conversation-avatar">
-                <div class="conversation-info">
-                  <div class="conversation-name">{{ conv.friend_name }}</div>
-                  <div class="conversation-last-message">
-                    {% if conv.last_message_sender == session.user_id %}
-                      Bạn: {{ conv.last_message }}
-                    {% else %}
-                      {{ conv.last_message }}
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="conversation-status">
-                  <div class="conversation-time">
-                    {{ conv.last_message_time|format_time }}
-                  </div>
-                  {% if conv.unread_count > 0 %}
-                    <div class="unread-count">{{ conv.unread_count }}</div>
-                  {% elif conv.is_online %}
-                    <div class="online-dot"></div>
-                  {% endif %}
+<!-- Trong chat.html - phần conversation item -->
+            <div class="conversation-item" data-id="{{ conv._id }}"
+                data-last-message="{{ conv.last_message|tojson|forceescape }}"
+                data-last-message-type="{{ conv.last_message_type }}"
+                data-last-message-sender="{{ conv.last_message_sender or '' }}">
+              <img src="{{ conv.friend_avatar }}" class="conversation-avatar" alt="{{ conv.friend_name }}">
+              <div class="conversation-info">
+                <div class="conversation-name">{{ conv.friend_name }}</div>
+                <div class="conversation-preview">
+                  {% if conv.last_message_sender == user_id %}Bạn: {% endif %}
+                  {{ conv.last_message_preview }}
                 </div>
               </div>
-            {% else %}
-              <div class="no-conversations">Chưa có hội thoại nào</div>
+              <div class="conversation-status">
+  <div class="conversation-time" data-time="{{ (conv.last_message_time or conv.created_at)|to_iso_string }}">
+    {{ conv.last_message_time|format_time if conv.last_message_time else conv.created_at|format_time }}
+  </div> {% if conv.unread_count > 0 %}
+  <div class="unread-count">{{ conv.unread_count }}</div>
+  {% endif %}
+</div>
+            </div>
             {% endfor %}
           </div>
-        </section>  
+        </section>
         <section id="tab-groups" class="tab-section">
           <div class="groups-header">
             <h2>Danh sách nhóm</h2>
@@ -125,16 +103,23 @@
           </div>
           <div id="groups-list"></div>
         </section>
-        
+      </div>
     </aside>
 
-    <!-- CHAT AREA -->
     <main class="chat-area">
       <header class="chat-header">
         <h2>Messages</h2>
+
+        <div class="call-controls">
+          <button id="start-video-call" style="display:none" title="Gọi video 1-1">
+            <i class="fi fi-rr-video-camera-alt"></i>
+          </button>
+          <button id="end-video-call" style="display:none" title="Kết thúc cuộc gọi">
+            <i class="fi fi-rr-call-incoming"></i>
+          </button>
+        </div>
       </header>
-    
-      <!-- ✅ Animation Overlay -->
+      
       <div id="animation-screen" class="animation-screen">
         <lottie-player
           src="{{ url_for('static', filename='lottie/animation.json') }}"
@@ -145,157 +130,227 @@
           autoplay>
         </lottie-player>
       </div>
-    
-      <!-- ✅ Messages -->
+
       <div id="messages" class="messages"></div>
-    
+
       <div class="message-input">
+        <button id="attach-file" title="Đính kèm file">
+          <i class="fi fi-rr-folder-open"></i>
+        </button>
+        <button id="attach-image" title="Gửi hình ảnh">
+          <i class="fi fi-rr-picture"></i>
+        </button>
+        <button id="show-stickers" title="Gửi sticker">
+          <i class="fi fi-rr-smile"></i>
+        </button>
         <input id="message" type="text" placeholder="Nhập tin nhắn và nhấn Enter...">
         <button id="send">
           <i class="fi fi-br-paper-plane"></i>
         </button>
       </div>
-      </main>
+
+      <input type="file" id="file-upload" style="display:none" accept="*/*">
+      <input type="file" id="image-upload" style="display:none" accept="image/*">
+
+      <div id="sticker-panel" class="sticker-panel" style="display:none;">
+        <div class="sticker-header">
+          <button id="close-stickers" class="close-stickers">&times;</button>
+        </div>
+        <div class="sticker-grid">
+          <div class="sticker" data-sticker="sticker1">😀</div>
+          <div class="sticker" data-sticker="sticker2">😂</div>
+          <div class="sticker" data-sticker="sticker3">😍</div>
+          <div class="sticker" data-sticker="sticker4">🤔</div>
+          <div class="sticker" data-sticker="sticker5">👍</div>
+          <div class="sticker" data-sticker="sticker6">❤️</div>
+          <div class="sticker" data-sticker="sticker1">😎</div>
+          <div class="sticker" data-sticker="sticker2">🥹</div>
+          <div class="sticker" data-sticker="sticker3">😤</div>
+          <div class="sticker" data-sticker="sticker4">😓</div>
+          <div class="sticker" data-sticker="sticker5">🤬</div>
+          <div class="sticker" data-sticker="sticker6">🤯</div>
+        </div>
+      </div>
+    </main>
   </div>
+
+  <input type="hidden" id="user-id" value="{{ user_id }}">
+  <div class="profile-modal" id="profile-modal">
+    <div class="profile-modal-content">
+      <div class="profile-modal-header">
+        <h2>Hồ sơ của bạn</h2>
+        <div class="close-modal" id="close-profile-modal">&times;</div>
+      </div>
+      <div class="profile-modal-body">
+        <div class="avatar-section">
+          <div class="avatar-preview" id="avatar-preview">
+            <img src="https://randomuser.me/api/portraits/men/41.jpg" alt="Avatar">
+          </div>
+          <button class="change-avatar-btn" id="change-avatar-btn">
+            <i class="fi fi-rr-camera"></i> Thay đổi ảnh đại diện
+          </button>
+        </div>
+        <input type="file" id="avatar-upload" accept="image/*" style="display:none">
+
+        <form class="profile-form" id="profile-form">
+          <div class="form-group">
+            <label for="full-name">Họ và tên</label>
+            <input type="text" id="full-name" value="Nguyễn Văn A" required>
+          </div>
+          <div class="form-group">
+            <label for="username">Tên đăng nhập</label>
+            <input type="text" id="username" value="nguyenvana" required>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" value="nguyenvana@example.com" required>
+          </div>
+          <div class="form-group">
+            <label for="phone">Số điện thoại</label>
+            <input type="tel" id="phone" value="0987654321">
+          </div>
+          <div class="form-group">
+            <label for="dob">Ngày sinh</label>
+            <input type="date" id="dob" value="1990-01-15">
+          </div>
+          <div class="form-group">
+            <label for="gender">Giới tính</label>
+            <select id="gender">
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+              <option value="other">Khác</option>
+            </select>
+          </div>
+          <div class="profile-actions">
+            <button type="button" class="cancel-btn" id="cancel-profile">Hủy</button>
+            <button type="submit" class="save-profile-btn">Lưu thay đổi</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="create-group-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2><i class="fas fa-users"></i> Tạo nhóm mới</h2>
+      <input type="text" id="group-name" placeholder="Tên nhóm">
+      <h3 class="member-list-title"><i class="fas fa-user-plus"></i> Chọn thành viên</h3>
+      <div id="group-members-selector"></div>
+      <div class="action-buttons">
+        <button id="confirm-create-group">Tạo nhóm</button>
+        <button id="cancel-create-group" class="cancel-btn">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="manage-group-sidebar" class="sidebar">
+    <div class="sidebar-content">
+      <span class="close" id="close-manage-sidebar">&times;</span>
+      <h2>Quản lý nhóm</h2>
+
+      <div id="group-avatar-preview">
+        <img src="" alt="Group Avatar" id="group-avatar-img">
+        <button id="change-group-avatar">Thay đổi avatar</button>
+        <input type="file" id="group-avatar-upload" accept="image/*" style="display:none">
+      </div>
+
+      <div class="form-group" id="group-name-edit-section">
+        <label for="edit-group-name">Tên nhóm</label>
+        <div class="group-name-edit">
+          <input type="text" id="edit-group-name" />
+          <button id="save-group-name"><i class="fi fi-br-check"></i></button>
+        </div>
+      </div>
       
-<!-- PROFILE MODAL -->
-<!-- Trong form profile -->
-<input type="hidden" id="user-id" value="{{ user_id }}">
-<div class="profile-modal" id="profile-modal">
-  <div class="profile-modal-content">
-    <div class="profile-modal-header">
-      <h2>Hồ sơ của bạn</h2>
-      <div class="close-modal" id="close-profile-modal">&times;</div>
-    </div>
-    
-    <div class="profile-modal-body">
-      <div class="avatar-section">
-        <div class="avatar-preview" id="avatar-preview">
-          <img src="https://randomuser.me/api/portraits/men/41.jpg" alt="Avatar">
-        </div>
-        <button class="change-avatar-btn" id="change-avatar-btn">
-          <i class="fi fi-rr-camera"></i> Thay đổi ảnh đại diện
-        </button>
+      <div class="form-group" id="add-member-section">
+        <label for="add-member-input">Thêm thành viên</label>
+        <input type="text" id="add-member-input" placeholder="Nhập tên hoặc email" />
+        <div id="add-member-results"></div>
       </div>
-      <!-- Input ẩn chọn file -->
-      <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
 
-      <form class="profile-form" id="profile-form">
-        <div class="form-group">
-          <label for="full-name">Họ và tên</label>
-          <input type="text" id="full-name" value="Nguyễn Văn A" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="username">Tên đăng nhập</label>
-          <input type="text" id="username" value="nguyenvana" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" value="nguyenvana@example.com" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="phone">Số điện thoại</label>
-          <input type="tel" id="phone" value="0987654321">
-        </div>
-        
-        <div class="form-group">
-          <label for="dob">Ngày sinh</label>
-          <input type="date" id="dob" value="1990-01-15">
-        </div>
-        
-        <div class="form-group">
-          <label for="gender">Giới tính</label>
-          <select id="gender">
-            <option value="male">Nam</option>
-            <option value="female">Nữ</option>
-            <option value="other">Khác</option>
-          </select>
-        </div>
-        
-        <div class="profile-actions">
-          <button type="button" class="cancel-btn" id="cancel-profile">Hủy</button>
-          <button type="submit" class="save-profile-btn">Lưu thay đổi</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-<div id="create-group-modal" class="modal">
-  <div class="modal-content">
-    <span class="close">&times;</span>
-    <h2>
-      <i class="fas fa-users"></i> Tạo nhóm mới
-    </h2>
-    <input type="text" id="group-name" placeholder="Tên nhóm">
-
-    <h3 class="member-list-title">
-      <i class="fas fa-user-plus"></i> Chọn thành viên
-    </h3>
-    <div id="group-members-selector">
-      <!-- Danh sách bạn bè để chọn thành viên -->
-    </div>
-
-    <div class="action-buttons">
-      <button id="confirm-create-group">Tạo nhóm</button>
-      <button id="cancel-create-group" class="cancel-btn">Huỷ</button>
-    </div>
-  </div>
-</div>
-
-<div id="manage-group-sidebar" class="sidebar"> <div class="sidebar-content"> 
-  <span class="close" id="close-manage-sidebar">&times;</span>
-   <h2>Quản lý nhóm</h2>
-
-   <div id="group-avatar-preview">
-    <img src="" alt="Group Avatar" id="group-avatar-img">
-    <button id="change-group-avatar">Thay đổi avatar</button>
-    <input type="file" id="group-avatar-upload" accept="image/*" style="display:none">
-</div>
-
-    <div class="form-group" id="group-name-edit-section">
-      <label for="edit-group-name">Tên nhóm</label>
-      <div class="group-name-edit">
-        <input type="text" id="edit-group-name" />
-        <button id="save-group-name"><i class="fi fi-br-check"></i></button>
+      <div class="form-group">
+        <h3>Thành viên</h3>
+        <div id="group-members-list"></div>
       </div>
     </div>
-    
-    <div class="form-group" id="add-member-section">
-      <label for="add-member-input">Thêm thành viên</label>
-      <input type="text" id="add-member-input" placeholder="Nhập tên hoặc email" />
-      <div id="add-member-results"></div>
+    <div class="group-actions">
+      <button id="leave-group-btn" class="leave-group-btn">
+        <i class="fi fi-rr-exit"></i> Rời nhóm
+      </button>
     </div>
+  </div>
 
-    <div class="form-group">
-      <h3>Thành viên</h3>
-      <div id="group-members-list"></div>
+  <div class="overlay" id="sidebar-overlay"></div>
+
+  <div id="video-call-modal" class="video-modal" style="display:none;">
+  <div class="video-wrapper">
+    <video id="remoteVideo" autoplay playsinline muted></video>
+    <div id="unmute-overlay" class="unmute-overlay">
+        Bấm vào video để bật tiếng
+      </div>
+    
+    <video id="localVideo" autoplay playsinline muted></video>
+    
+    <div class="video-controls">
+      <button id="toggle-mic" title="Bật/Tắt micro"><i class="fi fi-rr-microphone"></i></button>
+      <button id="toggle-cam" title="Bật/Tắt camera"><i class="fi fi-rr-camera"></i></button>
+      <button id="flip-cam" title="Lật camera" style="display: none;"><i class="fi fi-rr-sync"></i></button>
+      <button id="hangup" class="danger" title="Kết thúc"><i class="fi fi-rr-call-end"></i></button>
     </div>
   </div>
 </div>
-<div class="group-actions">
-  <button id="leave-group-btn" class="leave-group-btn">
-    <i class="fi fi-rr-exit"></i> Rời nhóm
-  </button>
-</div>
-</div>
-</div>
-<!-- Overlay -->
-<div class="overlay" id="sidebar-overlay"></div>
 
+  <div id="incoming-call-modal" class="incoming-call-modal" style="display:none;">
+      <div class="incoming-call-content">
+          <h3>Cuộc gọi đến...</h3>
+          <p><span id="caller-name">Một người</span> đang gọi cho bạn.</p>
+          <div class="incoming-call-actions">
+              <button id="accept-call" class="accept-btn">
+                  <i class="fi fi-rr-phone-call"></i> Nghe
+              </button>
+              <button id="decline-call" class="decline-btn">
+                  <i class="fi fi-rr-call-end"></i> Từ chối
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <audio id="ringtone-audio" 
+         src="https://cdn.freesound.org/previews/215/215783_1101511-lq.mp3" 
+         preload="auto" 
+         loop>
+  </audio>
+
+<!-- XÓA TẤT CẢ CÁC DÒNG SCRIPT SAU DÒNG audio VÀ THAY THẾ BẰNG: -->
+
+<!-- CHỈ GIỮ LẠI 1 BỘ MOMENT.JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
 
+<!-- IMPORT CÁC FILE JAVASCRIPT CỦA ỨNG DỤNG -->
+<script type="module" src="{{ url_for('static', filename='js/socket/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/locale/vi.min.js"></script>
+<script type="module" src="{{ url_for('static', filename='js/chat_input.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/user.js') }}"></script>
+
 <script>
-  window.session = {
-    user_id: "{{ user_id }}"
-  };
+  window.session = { user_id: "{{ user_id }}" };
+  window.defaultUserAvatar = "{{ url_for('static', filename='img/default-avatar.png') }}";
+  window.defaultGroupAvatar = "{{ url_for('static', filename='img/default-group.png') }}";
+  
+  // KIỂM TRA AN TOÀN TRƯỚC KHI GỌI moment.tz
+  if (typeof moment !== 'undefined' && typeof moment.tz !== 'undefined') {
+    moment.tz.setDefault('Asia/Ho_Chi_Minh');
+    console.log('Moment-timezone initialized successfully');
+  } else {
+    console.warn('Moment-timezone not loaded properly - using fallback date formatting');
+  }
 </script>
 </body>
 </html>

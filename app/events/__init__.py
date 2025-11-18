@@ -5,6 +5,7 @@ from flask_socketio import emit, join_room
 from .chat import register_chat_events
 from .friend import register_friend_events
 from .group import register_group_events
+from .call import register_call_events
 
 online_users = {}
 sid_to_user = {}
@@ -13,6 +14,7 @@ def register_all_events(socketio, mongo):
     register_chat_events(socketio, mongo)           
     register_friend_events(socketio, mongo, online_users, sid_to_user)
     register_group_events(socketio, mongo)
+    register_call_events(socketio, mongo)
 
     @socketio.on('connect')
     def handle_connect():

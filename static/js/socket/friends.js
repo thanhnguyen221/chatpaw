@@ -1,4 +1,6 @@
 import { socket } from "./index.js";
+import { joinConversation } from './chat.js';
+import { setCurrentConversation } from '../chat_input.js';
 
 function getAvatarSrc(avatar) {
   if (!avatar) return '/static/img/default-avatar.png';
@@ -34,8 +36,15 @@ export function setupFriendEvents() {
 
 export function setupContactClickEvents() {
   document.querySelectorAll('.contact-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const friendId = item.dataset.userId;
+    item.addEventListener('click', async function() {
+      const friendId = this.dataset.userId;
+      
+      // Add active class to highlight selected contact
+      document.querySelectorAll('.contact-item').forEach(el => {
+        el.classList.remove('active');
+      });
+      this.classList.add('active');
+      
       await openOrCreateConversation(friendId);
     });
   });
@@ -80,11 +89,10 @@ function renderUserResult(user) {
   div.className = 'search-result';
   div.dataset.id = user._id;
 
-  // ✅ Dùng lại hàm getAvatarSrc
   const avatarSrc = getAvatarSrc(user.avatar);
 
   div.innerHTML = `
-    <div class="user-info">
+    <div class="user-info" style="cursor: pointer;">
       <img src="${avatarSrc}" alt="${user.username}" class="avatar">
       <div>
         <div>
@@ -95,20 +103,35 @@ function renderUserResult(user) {
       </div>
     </div>
     <div class="relationship">
-      ${user.is_friend ? '<span class="friend-badge">Bạn bè</span>' : '<button class="add-friend">Kết bạn</button>'}
+      ${user.is_friend ? 
+        '<button class="open-chat">Nhắn tin</button>' : 
+        '<button class="add-friend">Kết bạn</button>'
+      }
     </div>
   `;
 
-  if (!user.is_friend) {
+  // Add click event to open chat for friends
+  if (user.is_friend) {
+    div.querySelector('.open-chat').addEventListener('click', () => {
+      openOrCreateConversation(user._id);
+      document.getElementById('search-results').style.display = 'none';
+      document.getElementById('search-friends').value = '';
+    });
+  } else {
     div.querySelector('.add-friend').addEventListener('click', () => {
       socket.emit('send_friend_request', { recipient_id: user._id });
       div.querySelector('.relationship').innerHTML = '<span class="request-sent">Đã gửi lời mời</span>';
     });
   }
 
+  // Add click event to user info to open profile (optional)
+  div.querySelector('.user-info').addEventListener('click', () => {
+    // You can implement profile viewing here
+    console.log('View profile of', user.username);
+  });
+
   return div;
 }
-
 export function fetchFriends() {
   fetch('/get_friends')
     .then(res => res.json())
@@ -119,10 +142,10 @@ export function fetchFriends() {
 
       data.friends.forEach(friend => {
         const contactEl = document.createElement('div');
-        contactEl.className = 'contact';
-        contactEl.dataset.id = friend._id;
+        contactEl.className = 'contact-item'; // Changed to contact-item
+        contactEl.dataset.userId = friend._id; // Added userId dataset
 
-        const avatarSrc = getAvatarSrc(friend.avatar); // ✅ dùng hàm getAvatarSrc
+        const avatarSrc = getAvatarSrc(friend.avatar);
 
         contactEl.innerHTML = `
           <img 
@@ -137,12 +160,11 @@ export function fetchFriends() {
           </div>
         `;
 
-        contactEl.addEventListener('click', () => {
-          socket.emit('start_conversation', { recipient_id: friend._id });
-        });
-
         contactsContainer.appendChild(contactEl);
       });
+
+      // Setup click events after rendering
+      setupContactClickEvents();
     });
 }
 export function fetchFriendRequests() {
@@ -249,12 +271,18 @@ socket.on('user_status', ({ userId, online }) => {
     }
   }
 });
+// [friends.js] - Tìm hàm openOrCreateConversation và sửa
 export async function openOrCreateConversation(friendId) {
   try {
     const response = await fetch(`/get_or_create_conversation/${friendId}`);
     const data = await response.json();
     
     if (data.conversation_id) {
+      // QUAN TRỌNG: Set conversation cho file sharing
+      if (typeof setCurrentConversation === 'function') {
+        setCurrentConversation(data.conversation_id, 'private');
+      }
+      
       // Lấy tên bạn
       const friendItem = document.querySelector(`.contact-item[data-user-id="${friendId}"]`);
       const friendName = friendItem?.querySelector('.contact-name')?.textContent || 'Bạn bè';

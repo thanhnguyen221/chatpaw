@@ -1,10 +1,30 @@
 import { socket } from "./index.js";
+import { setCurrentConversation } from '../chat_input.js';
 
 // --- DEFAULT AVATARS (fallback) ---
 const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-group.png';
 // ------------------------------------
 
 let currentGroupId = null;
+let groupClickHandlerAttached = false; 
+
+function resetPrivateChat() {
+  // QUAN TRỌNG: Chỉ reset nếu đang có conversation private
+  if (window.currentConversation) {
+    socket.emit('leave_conversation', { conversation_id: window.currentConversation });
+    window.currentConversation = null;
+  }
+  
+  // Reset UI cho chat cá nhân
+  document.querySelectorAll('.conversation-item').forEach(el => {
+    el.classList.remove('active');
+  });
+
+  // QUAN TRỌNG: Clear current conversation trong module chat
+  if (window.chatModule && typeof window.chatModule.resetCurrentConversation === 'function') {
+    window.chatModule.resetCurrentConversation();
+  }
+}
 
 export function setupGroupSocketEvents() {
   // Trong setupGroupSocketEvents
@@ -26,7 +46,23 @@ export function setupGroupSocketEvents() {
       }
     }
   });
-  
+  socket.on('group_history', (data) => {
+    console.log('[Socket] Nhận lịch sử tin nhắn:', data);
+    // KIỂM TRA KỸ: chỉ xử lý nếu đang ở đúng group
+    if (currentGroupId && String(currentGroupId) === String(data.group_id)) {
+      const messagesContainer = document.getElementById('messages');
+      if (messagesContainer) {
+        // KHÔNG clear messages nếu đang có loading
+        if (!messagesContainer.classList.contains('loading')) {
+          messagesContainer.innerHTML = '';
+          data.messages.forEach(message => {
+            appendGroupMessage(message);
+          });
+        }
+      }
+    }
+  });
+
   socket.on('group_name_updated', (data) => {
     const groupNameEl = document.querySelector(`.group-item[data-id="${data.group_id}"] .group-name`);
     if (groupNameEl) groupNameEl.textContent = data.new_name;
@@ -57,11 +93,21 @@ export function setupGroupSocketEvents() {
         openManageGroupModal(data.group_id);
       }
       if (data.user_id === window.session.user_id) {
-        currentGroupId = null;
-        document.querySelector('.chat-header h2').textContent = 'Messages';
-        document.getElementById('animation-screen').style.display = 'flex';
-        document.getElementById('messages').style.display = 'none';
-        closeManageSidebar(); // <-- thêm
+        // Reset view nếu đang mở nhóm đó
+        if (String(currentGroupId) === String(data.group_id)) {
+          currentGroupId = null;
+          const headerH2 = document.querySelector('.chat-header h2');
+          if (headerH2) headerH2.textContent = 'Messages';
+          const animation = document.getElementById('animation-screen');
+          if (animation) animation.style.display = 'flex';
+          const messages = document.getElementById('messages');
+          if (messages) messages.style.display = 'none';
+          closeManageSidebar();
+        }
+      
+        // Xoá group khỏi sidebar (nếu còn)
+        const removedEl = document.querySelector(`.group-item[data-id="${data.group_id}"]`);
+        if (removedEl) removedEl.remove();
       }
     }
   });
@@ -69,7 +115,8 @@ export function setupGroupSocketEvents() {
   // Tin nhắn nhóm mới
   socket.on('group_message', (data) => {
     console.log('[Socket] Nhận tin nhắn nhóm:', data);
-    if (currentGroupId === data.group_id) {
+    // Đảm bảo chỉ append khi đang ở đúng group
+    if (currentGroupId && String(currentGroupId) === String(data.group_id)) {
       appendGroupMessage(data);
     }
   });
@@ -184,11 +231,37 @@ function openManageGroupModal(groupId) {
         leaveBtn.textContent = ' Rời nhóm';
         leaveBtn.title = 'Rời nhóm';
         leaveBtn.onclick = () => {
-          if (confirm('Bạn có chắc muốn rời nhóm này?')) {
-            socket.emit('leave_group', { group_id: groupId });
-            closeManageSidebar();
+          if (!confirm('Bạn có chắc muốn rời nhóm này?')) return;
+        
+          // Gửi yêu cầu rời nhóm
+          socket.emit('leave_group', { group_id: groupId }, (ack) => {
+            // nếu server trả lỗi bạn có thể hiển thị ở đây (tùy server)
+            if (ack && ack.error) {
+              alert('Rời nhóm thất bại: ' + ack.error);
+            }
+          });
+        
+          // Cập nhật UI ngay lập tức (optimistic update)
+          try {
+            const groupEl = document.querySelector(`.group-item[data-id="${groupId}"]`);
+            if (groupEl) groupEl.remove();
+        
+            if (String(currentGroupId) === String(groupId)) {
+              currentGroupId = null;
+              const headerH2 = document.querySelector('.chat-header h2');
+              if (headerH2) headerH2.textContent = 'Messages';
+              const animation = document.getElementById('animation-screen');
+              if (animation) animation.style.display = 'flex';
+              const messages = document.getElementById('messages');
+              if (messages) messages.style.display = 'none';
+            }
+          } catch (err) {
+            console.warn('UI update khi rời nhóm gặp lỗi:', err);
           }
+        
+          closeManageSidebar();
         };
+        
       } else {
         // nếu không phải thành viên thì xoá nút rời (nếu tồn tại)
         const existingLeave = document.getElementById('leave-group-btn-fixed');
@@ -254,7 +327,211 @@ function openManageGroupModal(groupId) {
       alert('Không thể tải thông tin nhóm');
     });
 }
+export function openGroupChat(groupId, groupName) {
+  console.log(`[Group] Opening group chat: ${groupId}`);
+  
+  // QUAN TRỌNG: Kiểm tra nếu đang mở cùng group thì không làm gì
+  if (currentGroupId && String(currentGroupId) === String(groupId)) {
+    console.log(`[Group] Group ${groupId} is already open, skipping...`);
+    return;
+  }
+  
+  // QUAN TRỌNG: Reset chat cá nhân trước
+  resetPrivateChat();
+  
+  currentGroupId = groupId;
+  
+  // QUAN TRỌNG: Set conversation cho file sharing
+  if (typeof setCurrentConversation === 'function') {
+    setCurrentConversation(groupId, 'group');
+  }
+  
+  // Cập nhật UI NGAY LẬP TỨC - chỉ một lần
+  const header = document.querySelector('.chat-header');
+  const animationScreen = document.getElementById('animation-screen');
+  const messagesDiv = document.getElementById('messages');
+  
+  // Ẩn animation và hiển thị loading
+  if (animationScreen) {
+    animationScreen.style.display = 'none';
+  }
+  
+  if (messagesDiv) {
+    messagesDiv.style.display = 'block';
+    messagesDiv.innerHTML = '<div class="loading">Đang tải tin nhắn...</div>';
+  }
 
+  // Cập nhật header TẠM THỜI với thông tin cơ bản
+  if (header) {
+    header.innerHTML = `
+      <div class="group-header">
+        <img src="${defaultGroupAvatar}" 
+            alt="${groupName}" 
+            class="group-avatar-small">
+        <div class="group-name-wrap">
+          <h2 title="${escapeHtml(groupName)}">${groupName}</h2>
+        </div>
+      </div>
+      <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
+        <i class="fi fi-br-bars-staggered"></i>
+      </button>
+    `;
+    
+    // Gắn sự kiện manage button
+    const manageBtn = document.getElementById('manage-group-btn');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', () => {
+        openManageGroupModal(groupId);
+      });
+    }
+  }
+
+  // QUAN TRỌNG: Join group
+  console.log(`[Group] Joining group: ${groupId}`);
+  socket.emit('join_group', { group_id: groupId });
+
+  // THAY ĐỔI QUAN TRỌNG: Load tuần tự thay vì song song
+  loadGroupDataSequentially(groupId, groupName);
+}
+
+// THÊM HÀM MỚI: Load dữ liệu tuần tự để tránh giật
+async function loadGroupDataSequentially(groupId, groupName) {
+  try {
+    console.log(`[Group] Starting sequential load for ${groupId}`);
+    
+    // Bước 1: Load thông tin nhóm
+    const groupInfo = await fetch(`/group_info/${groupId}`).then(res => res.json());
+    
+    // Kiểm tra xem có còn ở group này không
+    if (!currentGroupId || String(currentGroupId) !== String(groupId)) {
+      console.log(`[Group] User switched group during load, ignoring results for ${groupId}`);
+      return;
+    }
+    
+    // Cập nhật header với thông tin đầy đủ
+    updateGroupHeader(groupId, groupName, groupInfo);
+    
+    // Bước 2: Load tin nhắn
+    const messagesData = await fetch(`/group_message?group_id=${groupId}&_=${Date.now()}`).then(res => res.json());
+    
+    // Kiểm tra lại
+    if (!currentGroupId || String(currentGroupId) !== String(groupId)) {
+      console.log(`[Group] User switched group during messages load, ignoring results for ${groupId}`);
+      return;
+    }
+    
+    // Hiển thị tin nhắn
+    displayGroupMessages(messagesData);
+    
+    console.log(`[Group] Successfully loaded group ${groupId} with ${messagesData.messages?.length || 0} messages`);
+    
+  } catch (err) {
+    console.error('Error loading group chat:', err);
+    handleGroupLoadError(groupId, err);
+  }
+}
+
+// THÊM: Hàm cập nhật header
+function updateGroupHeader(groupId, groupName, groupInfo) {
+  const header = document.querySelector('.chat-header');
+  if (!header) return;
+  
+  const groupAvatar = groupInfo.avatar || defaultGroupAvatar;
+  const avatarWithCacheBust = groupAvatar.startsWith('http') 
+      ? `${groupAvatar}?t=${Date.now()}`
+      : groupAvatar;
+
+  header.innerHTML = `
+    <div class="group-header">
+      <img src="${avatarWithCacheBust}" 
+          alt="${groupName}" 
+          class="group-avatar-small">
+      <div class="group-name-wrap">
+        <h2 title="${escapeHtml(groupName)}">${groupName}</h2>
+      </div>
+    </div>
+    <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
+      <i class="fi fi-br-bars-staggered"></i>
+    </button>
+  `;
+  
+  // Gắn sự kiện manage button
+  const manageBtn = document.getElementById('manage-group-btn');
+  if (manageBtn) {
+    manageBtn.addEventListener('click', () => {
+      openManageGroupModal(groupId);
+    });
+  }
+}
+
+// THÊM: Hàm hiển thị tin nhắn
+function displayGroupMessages(messagesData) {
+  const messagesDiv = document.getElementById('messages');
+  if (!messagesDiv) return;
+  
+  messagesDiv.innerHTML = '';
+  
+  if (messagesData.messages && messagesData.messages.length > 0) {
+    // Sử dụng document fragment để tối ưu render
+    const fragment = document.createDocumentFragment();
+    messagesData.messages.forEach(msg => {
+      const messageEl = createGroupMessageElement(msg);
+      if (messageEl) fragment.appendChild(messageEl);
+    });
+    messagesDiv.appendChild(fragment);
+  } else {
+    messagesDiv.innerHTML = '<div class="no-messages">Chưa có tin nhắn nào trong nhóm</div>';
+  }
+  
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// THÊM: Hàm xử lý lỗi
+function handleGroupLoadError(groupId, error) {
+  if (currentGroupId === groupId) {
+    currentGroupId = null;
+    
+    const messagesDiv = document.getElementById('messages');
+    if (messagesDiv) {
+      messagesDiv.innerHTML = '<div class="error">Lỗi tải thông tin nhóm</div>';
+    }
+    
+    const animationScreen = document.getElementById('animation-screen');
+    if (animationScreen) {
+      animationScreen.style.display = 'flex';
+    }
+  }
+}
+// Đảm bảo hàm này cũng được export
+export function selectGroup(groupId, groupName) {
+  console.log(`[Group] Chọn nhóm: ${groupId} - ${groupName}`);
+  
+  // Leave room cũ nếu có
+  if (currentGroupId) {
+    socket.emit('leave_conversation', { conversation_id: currentGroupId });
+    console.log(`[Group] Rời khỏi nhóm cũ: ${currentGroupId}`);
+  }
+  
+  // Cập nhật currentGroupId
+  currentGroupId = groupId;
+  
+  // Join room mới
+  socket.emit('join_group', { group_id: groupId });
+  console.log(`[Group] Tham gia nhóm mới: ${groupId}`);
+  
+  // Cập nhật UI
+  const headerH2 = document.querySelector('.chat-header h2');
+  if (headerH2) headerH2.textContent = groupName;
+  
+  const animationScreen = document.getElementById('animation-screen');
+  if (animationScreen) animationScreen.style.display = 'none';
+  
+  const messagesDiv = document.getElementById('messages');
+  if (messagesDiv) {
+    messagesDiv.style.display = 'block';
+    messagesDiv.innerHTML = ''; // Clear messages khi chuyển group
+  }
+}
 
 export function setupCreateGroupHandler() {
   const createBtn = document.getElementById('create-group-btn');
@@ -342,19 +619,15 @@ async function loadFriendsForGroupCreation() {
   }
 }
 export function addGroupToList(groupId, groupName, avatarUrl) {
-  // Kiểm tra xem nhóm đã tồn tại chưa
   const existingGroup = document.querySelector(`.group-item[data-id="${groupId}"]`);
   
   if (existingGroup) {
-    // Cập nhật avatar và tên nếu nhóm đã tồn tại
     const avatarImg = existingGroup.querySelector('.group-avatar img');
-    if (avatarImg) {
-      avatarImg.src = avatarUrl || defaultGroupAvatar;
-      avatarImg.alt = groupName;
+    if (avatarImg && avatarUrl) {
+      avatarImg.src = avatarUrl + '?_=' + Date.now();
     }
-    
     const nameElement = existingGroup.querySelector('.group-name');
-    if (nameElement) {
+    if (nameElement && groupName) {
       nameElement.textContent = groupName;
     }
     return;
@@ -365,31 +638,46 @@ export function addGroupToList(groupId, groupName, avatarUrl) {
   const groupElement = document.createElement('div');
   groupElement.className = 'group-item';
   groupElement.dataset.id = groupId;
+
+  const avatarToShow = avatarUrl || defaultGroupAvatar;
+
   groupElement.innerHTML = `
     <div class="group-avatar">
-      <img src="${avatarUrl || defaultGroupAvatar}" 
-           alt="${groupName}">
+        <img src="${avatarToShow}" 
+             alt="${groupName}" 
+             class="group-avatar-img">
     </div>
     <div class="group-info">
-      <div class="group-name">${groupName}</div>
+        <div class="group-name">${groupName}</div>
     </div>
   `;
-  
-  groupElement.addEventListener('click', () => {
-    openGroupChat(groupId, groupName);
-  });
+
+  // SỬA: Sử dụng event delegation thay vì gắn trực tiếp
+  groupElement.addEventListener('click', handleGroupClick);
   
   groupsList.appendChild(groupElement);
 }
-
 export function setupGroupMessageSending() {
   const messageInput = document.getElementById('message');
   const sendButton = document.getElementById('send');
 
   function sendGroupMessage() {
     const content = messageInput.value.trim();
-    if (!content || !currentGroupId) return;
+    
+    // KIỂM TRA KỸ: chỉ gửi nếu đang ở group và có nội dung
+    if (!content || !currentGroupId) {
+      console.log('[Group] Cannot send message - no content or not in group');
+      return;
+    }
 
+    // KIỂM TRA THÊM: đảm bảo đang không ở private conversation
+    if (window.currentConversation) {
+      console.log('[Group] Warning: Still in private conversation, resetting...');
+      resetPrivateChat();
+    }
+
+    console.log(`[Group] Sending message to group: ${currentGroupId}`);
+    
     socket.emit('send_group_message', {
       group_id: currentGroupId,
       content: content
@@ -405,10 +693,26 @@ export function setupGroupMessageSending() {
   });
 }
 function loadGroupMessages(groupId) {
+  // Kiểm tra nghiêm ngặt hơn
+  if (!currentGroupId || String(currentGroupId) !== String(groupId)) {
+    console.log(`[Group] Not loading messages for ${groupId} - current group is ${currentGroupId}`);
+    return;
+  }
+  
   const messagesContainer = document.getElementById('messages');
+  if (!messagesContainer) return;
+  
+  // THÊM: Kiểm tra nếu đang loading thì không load lại
+  if (messagesContainer.classList.contains('loading')) {
+    console.log('[Group] Messages are already loading, skipping...');
+    return;
+  }
+  
+  messagesContainer.classList.add('loading');
   messagesContainer.innerHTML = '<div class="loading">Đang tải tin nhắn...</div>';
   
-  fetch(`/group_message?group_id=${groupId}`)
+  // THÊM: Sử dụng cache buster để tránh cache
+  fetch(`/group_message?group_id=${groupId}&_=${Date.now()}`)
     .then(response => {
       if (!response.ok) {
         throw new Error('Không thể tải tin nhắn nhóm');
@@ -416,13 +720,24 @@ function loadGroupMessages(groupId) {
       return response.json();
     })
     .then(data => {
+      messagesContainer.classList.remove('loading');
+      
+      // Kiểm tra lại xem có còn ở group này không
+      if (!currentGroupId || String(currentGroupId) !== String(groupId)) {
+        console.log(`[Group] Ignoring loaded messages for ${groupId} - user switched group`);
+        return;
+      }
+      
       messagesContainer.innerHTML = '';
       
       if (data.messages && data.messages.length > 0) {
-        // SỬA: Gọi appendGroupMessage cho từng tin nhắn
+        // THÊM: Sử dụng document fragment để tối ưu render
+        const fragment = document.createDocumentFragment();
         data.messages.forEach(msg => {
-          appendGroupMessage(msg);
+          const messageEl = createGroupMessageElement(msg);
+          if (messageEl) fragment.appendChild(messageEl);
         });
+        messagesContainer.appendChild(fragment);
       } else {
         messagesContainer.innerHTML = '<div class="no-messages">Chưa có tin nhắn nào trong nhóm</div>';
       }
@@ -431,60 +746,288 @@ function loadGroupMessages(groupId) {
     })
     .catch(error => {
       console.error("Lỗi tải tin nhắn nhóm: ", error);
-      messagesContainer.innerHTML = `<div class="error">${error.message}</div>`;
+      messagesContainer.classList.remove('loading');
+      if (currentGroupId === groupId) {
+        messagesContainer.innerHTML = `<div class="error">${error.message}</div>`;
+      }
     });
 }
-function appendGroupMessage(msg) {
-  const messagesContainer = document.getElementById('messages');
-  const isMe = msg.sender_id === window.session.user_id;
-  
-  const messageElement = document.createElement('div');
-  messageElement.className = `message ${isMe ? 'sent' : 'received'}`;
-  
-  // Sửa: Xử lý cả tin nhắn nhóm và cá nhân
-  const senderName = isMe ? 'Bạn' : msg.sender_name;
-  
-  messageElement.innerHTML = `
-    ${!isMe ? `<div class="sender-info">
-        <img src="${getUserAvatar(msg.sender_id)}" class="avatar-small">
-        <span class="sender-name">${senderName}</span>
-      </div>` : ''}
-    <div class="message-content">${msg.content}</div>
-    <div class="message-time">
-      ${formatTime(msg.timestamp)}
+export function resetGroupChat() {
+  if (currentGroupId) {
+    socket.emit('leave_conversation', { conversation_id: currentGroupId });
+    currentGroupId = null;
+  }
+}
+function createGroupMessageElement(messageData) {
+  const messageEl = document.createElement('div');
+  const isCurrentUser = messageData.sender_id === window.session.user_id;
+  messageEl.className = isCurrentUser ? 'message sent' : 'message received';
+
+  const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
+  const timeString = formatTime(messageData.timestamp);
+
+  let messageType = messageData.message_type || 'text';
+  let parsedContent = messageData.content;
+
+  // ... (phần xử lý message type giữ nguyên)
+
+  let messageContent = '';
+
+  if (messageType === 'file') {
+    const fileInfo = parsedContent;
+    messageContent = `
+      <div class="file-message">
+        <div class="file-info">
+          <div class="file-icon"><i class="fi fi-rr-file"></i></div>
+          <div class="file-details">
+            <div class="file-name">${escapeHtml(fileInfo.name)}</div>
+            <div class="file-size">${formatFileSize(fileInfo.size)}</div>
+          </div>
+        </div>
+        <a href="${fileInfo.url}" class="file-download" download="${escapeHtml(fileInfo.name)}">
+          <i class="fi fi-rr-download"></i> Tải xuống
+        </a>
+      </div>
+    `;
+  } else if (messageType === 'image') {
+    const imageInfo = parsedContent;
+    messageContent = `
+      <div class="image-message">
+        <div class="image-info">
+          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name)}
+        </div>
+        <img src="${imageInfo.thumbnail || imageInfo.url}" 
+             class="uploaded-image" 
+             alt="${escapeHtml(imageInfo.name)}"
+             onclick="openImageModal('${imageInfo.url}')">
+        <div class="image-actions">
+          <a href="${imageInfo.url}" target="_blank" class="view-original">
+            <i class="fi fi-rr-external-link"></i> Xem ảnh gốc
+          </a>
+        </div>
+      </div>
+    `;
+  } else if (messageType === 'sticker') {
+    messageContent = `
+      <div class="sticker-message">${getStickerHTML(parsedContent)}</div>
+    `;
+  } else {
+    messageContent = `
+      <div class="message-text">${escapeHtml(messageData.content)}</div>
+    `;
+  }
+
+  messageEl.innerHTML = `
+    ${!isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+    <div class="message-content-container">
+      <div class="message-content-wrapper">
+        <div class="message-bubble">
+          ${!isCurrentUser ? `<div class="message-header"><span class="sender-name">${messageData.sender_name}</span></div>` : ''}
+          ${messageContent}
+        </div>
+        <span class="message-time">${timeString}</span>
+      </div>
     </div>
+    ${isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
   `;
+
+  return messageEl;
+}
+function appendGroupMessage(messageData) {
+  const messagesContainer = document.getElementById('messages');
+  if (!messagesContainer) return;
+
+  const messageEl = document.createElement('div');
+  const isCurrentUser = messageData.sender_id === window.session.user_id;
+  messageEl.className = isCurrentUser ? 'message sent' : 'message received';
+
+  // Sử dụng avatar từ messageData, fallback về default nếu không có
+  const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
   
-  messagesContainer.appendChild(messageElement);
+  // Format timestamp
+  const timeString = formatTime(messageData.timestamp);
+
+  // QUAN TRỌNG: Xác định message_type và parse content - PHIÊN BẢN MỚI
+  let messageType = messageData.message_type || 'text';
+  let parsedContent = messageData.content;
+
+  console.log('[DEBUG] Processing message:', { 
+    messageType, 
+    content: messageData.content,
+    hasMessageType: !!messageData.message_type
+  });
+
+  // TRƯỜNG HỢP 1: Nếu message_type đã được set đúng
+  if (messageType === 'file' || messageType === 'image') {
+    if (typeof messageData.content === 'string') {
+      try {
+        parsedContent = JSON.parse(messageData.content);
+        console.log('[DEBUG] Parsed content for file/image:', parsedContent);
+      } catch (e) {
+        console.error('Error parsing file/image content:', e);
+        // Fallback: xử lý như text
+        messageType = 'text';
+      }
+    }
+  }
+  // TRƯỜNG HỢP 2: Nếu không có message_type hoặc là text, thử detect
+  else if (!messageData.message_type || messageType === 'text') {
+    // Thử parse JSON để xem có phải file/image không
+    if (typeof messageData.content === 'string') {
+      try {
+        const testParse = JSON.parse(messageData.content);
+        if (testParse && typeof testParse === 'object') {
+          if (testParse.type === 'file') {
+            messageType = 'file';
+            parsedContent = testParse;
+            console.log('[DEBUG] Detected file message:', parsedContent);
+          } else if (testParse.type === 'image') {
+            messageType = 'image';
+            parsedContent = testParse;
+            console.log('[DEBUG] Detected image message:', parsedContent);
+          }
+        }
+      } catch (e) {
+        // Không phải JSON, kiểm tra sticker
+        const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
+        if (stickerCodes.includes(messageData.content)) {
+          messageType = 'sticker';
+          console.log('[DEBUG] Detected sticker message:', messageData.content);
+        }
+      }
+    }
+  }
+
+  // Xử lý các loại tin nhắn đặc biệt
+  let messageContent = '';
+
+  if (messageType === 'file') {
+    const fileInfo = parsedContent;
+    console.log('[DEBUG] Rendering file message:', fileInfo);
+    
+    messageContent = `
+      <div class="file-message">
+        <div class="file-info">
+          <div class="file-icon"><i class="fi fi-rr-file"></i></div>
+          <div class="file-details">
+            <div class="file-name">${escapeHtml(fileInfo.name)}</div>
+            <div class="file-size">${formatFileSize(fileInfo.size)}</div>
+          </div>
+        </div>
+        <a href="${fileInfo.url}" class="file-download" download="${escapeHtml(fileInfo.name)}">
+          <i class="fi fi-rr-download"></i> Tải xuống
+        </a>
+      </div>
+    `;
+  } else if (messageType === 'image') {
+    const imageInfo = parsedContent;
+    console.log('[DEBUG] Rendering image message:', imageInfo);
+    
+    messageContent = `
+      <div class="image-message">
+        <div class="image-info">
+          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name)}
+        </div>
+        <img src="${imageInfo.thumbnail || imageInfo.url}" 
+             class="uploaded-image" 
+             alt="${escapeHtml(imageInfo.name)}"
+             onclick="openImageModal('${imageInfo.url}')">
+        <div class="image-actions">
+          <a href="${imageInfo.url}" target="_blank" class="view-original">
+            <i class="fi fi-rr-external-link"></i> Xem ảnh gốc
+          </a>
+        </div>
+      </div>
+    `;
+  } else if (messageType === 'sticker') {
+    messageContent = `
+      <div class="sticker-message">${getStickerHTML(parsedContent)}</div>
+    `;
+  } else {
+    // Tin nhắn text thông thường - HIỂN THỊ TRỰC TIẾP, KHÔNG PARSE JSON
+    messageContent = `
+      <div class="message-text">${escapeHtml(messageData.content)}</div>
+    `;
+  }
+
+  messageEl.innerHTML = `
+    ${!isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+    <div class="message-content-container">
+      <div class="message-content-wrapper">
+        <div class="message-bubble">
+          ${!isCurrentUser ? `<div class="message-header"><span class="sender-name">${messageData.sender_name}</span></div>` : ''}
+          ${messageContent}
+        </div>
+        <span class="message-time">${timeString}</span>
+      </div>
+    </div>
+    ${isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+  `;
+
+  messagesContainer.appendChild(messageEl);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
-function getUserAvatar(userId, avatarUrl) {
-  return url_for('static', filename='img/default-avatar.png');
-}
-
-export function openGroupChat(groupId, groupName) {
-  currentGroupId = groupId;
+// Thêm hàm mở modal xem ảnh lớn
+function openImageModal(imageUrl) {
+  const modal = document.createElement('div');
+  modal.className = 'image-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    cursor: pointer;
+  `;
   
-  // Ẩn animation, hiển thị tin nhắn
-  document.getElementById('animation-screen').style.display = 'none';
-  document.getElementById('messages').style.display = 'block';
+  modal.innerHTML = `
+    <img src="${imageUrl}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
+    <button style="position: absolute; top: 20px; right: 20px; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer;">×</button>
+  `;
   
-  // Cập nhật header
-  const header = document.querySelector('.chat-header');
-  header.innerHTML = `
-  <h2>${groupName}</h2>
-  <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
-  <i class="fi fi-br-bars-staggered"></i>
-  </button>
-`;
-
-  // Thêm sự kiện quản lý nhóm
-  document.getElementById('manage-group-btn').addEventListener('click', () => {
-    openManageGroupModal(groupId);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal || e.target.tagName === 'BUTTON') {
+      document.body.removeChild(modal);
+    }
   });
-  socket.emit('join_group', { group_id: groupId });
-
+  
+  document.body.appendChild(modal);
 }
+// Thêm các hàm utility nếu chưa có
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function getStickerHTML(stickerCode) {
+  const stickerMap = {
+    'sticker1': '😀',
+    'sticker2': '😂',
+    'sticker3': '😍',
+    'sticker4': '🤔',
+    'sticker5': '👍',
+    'sticker6': '❤️'
+  };
+  return `<span class="sticker">${stickerMap[stickerCode] || stickerCode}</span>`;
+}
+
+function escapeHtml(unsafe = '') {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 document.getElementById('add-member-input').addEventListener('input', (e) => {
   const term = e.target.value.trim();
   if (term.length < 2) return;
@@ -525,22 +1068,45 @@ socket.on('group_history', (data) => {
       });
   }
 });
-
-// Sửa hàm formatTime thành
 function formatTime(dateString) {
   if (!dateString) return '';
   
-  // Sử dụng moment từ đối tượng toàn cục
-  const m = window.moment(dateString);
-  
-  if (!m.isValid()) return '';
-  
-  // Kiểm tra xem moment có hỗ trợ timezone không
-  if (typeof m.tz === 'function') {
-    return m.tz('Asia/Ho_Chi_Minh').format('HH:mm');
-  } else {
-    // Fallback nếu không có timezone
-    return m.format('HH:mm');
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    
+    if (isNaN(date.getTime())) return '';
+
+    // SỬA: Tính chênh lệch thời gian bằng milliseconds UTC
+    const dateUTC = date.getTime();
+    const nowUTC = now.getTime();
+    const diffMs = nowUTC - dateUTC;
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMinutes < 1) {
+      return 'Vừa xong';
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes} phút trước`;
+    } else if (diffHours < 24) {
+      return `${diffHours} giờ trước`;
+    } else if (diffDays === 1) {
+      return 'Hôm qua';
+    } else if (date.getFullYear() === now.getFullYear()) {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      return `${day}/${month}`;
+    } else {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return '';
   }
 }
 function addMemberToGroup(groupId, userId) {
@@ -739,26 +1305,118 @@ document.getElementById('save-group-name')?.addEventListener('click', async (e) 
     alert('Lỗi khi đổi tên nhóm');
   }
 });
-
 socket.on('group_avatar_updated', (data) => {
-  addGroupToList(data.group_id, null, data.new_avatar);
-  if (data.group_id === currentGroupId) {
-      // Cập nhật avatar trong header
-      const headerImg = document.querySelector('.chat-header .group-avatar');
-      if (headerImg) {
-          headerImg.src = data.new_avatar;
-      }
-      
-      // Cập nhật avatar trong sidebar
-      const sidebarImg = document.querySelector(`.group-item[data-id="${data.group_id}"] .group-avatar img`);
-      if (sidebarImg) {
-          sidebarImg.src = data.new_avatar;
-      }
-      
-      // Cập nhật trong modal nếu đang mở
-      const modalImg = document.getElementById('group-avatar-img');
-      if (modalImg) {
-          modalImg.src = data.new_avatar;
-      }
+  console.log('[Socket] group_avatar_updated received:', data);
+
+  const gid = String(data.group_id);
+
+  // 1) Cập nhật trong danh sách groups (sidebar)
+  addGroupToList(gid, null, data.new_avatar);
+
+  // Xử lý cache bust cho avatar
+  let displayAvatar = data.new_avatar;
+  if (typeof displayAvatar === 'string' && displayAvatar.startsWith('http')) {
+    displayAvatar += '?_=' + Date.now();
+  }
+
+  // 2) Nếu đang mở nhóm đó, cập nhật header avatar
+  if (gid === String(currentGroupId)) {
+    const headerImgEl = document.querySelector('.chat-header .group-avatar img');
+    if (headerImgEl) {
+      headerImgEl.src = displayAvatar;
+    }
+
+    // cập nhật trong modal quản lý nhóm nếu đang mở
+    const modalImg = document.getElementById('group-avatar-img');
+    if (modalImg) {
+      modalImg.src = displayAvatar;
+    }
+  }
+
+  // 3) Cập nhật trong danh sách nhóm (sidebar)
+  const groupItem = document.querySelector(`.group-item[data-id="${gid}"] .group-avatar-img`);
+  if (groupItem) {
+    groupItem.src = displayAvatar;
   }
 });
+// Thêm vào cuối file group.js
+window.openImageModal = function(imageUrl) {
+  const modal = document.createElement('div');
+  modal.className = 'image-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    cursor: pointer;
+  `;
+  
+  modal.innerHTML = `
+    <img src="${imageUrl}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
+    <button style="position: absolute; top: 20px; right: 20px; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer;">×</button>
+  `;
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal || e.target.tagName === 'BUTTON') {
+      document.body.removeChild(modal);
+    }
+  });
+  
+  document.body.appendChild(modal);
+};
+function handleGroupClick() {
+  const groupId = this.dataset.id;
+  const groupName = this.querySelector('.group-name').textContent;
+  
+  console.log(`[Group] Group clicked: ${groupId}`);
+  
+  // THÊM: Debounce - chống click nhiều lần
+  if (this.classList.contains('clicked')) {
+    console.log(`[Group] Group ${groupId} is already being processed, skipping...`);
+    return;
+  }
+  
+  this.classList.add('clicked');
+  
+  setTimeout(() => {
+    this.classList.remove('clicked');
+  }, 1000);
+  
+  openGroupChat(groupId, groupName);
+}
+
+// THÊM HÀM MỚI: Setup group click events một lần duy nhất
+export function setupGroupClickEvents() {
+  if (groupClickHandlerAttached) {
+    console.log('[Group] Group click events already attached, skipping...');
+    return;
+  }
+  
+  // Sử dụng event delegation cho các group item mới được thêm sau này
+  document.addEventListener('click', (e) => {
+    const groupItem = e.target.closest('.group-item');
+    if (groupItem) {
+      const groupId = groupItem.dataset.id;
+      const groupName = groupItem.querySelector('.group-name').textContent;
+      
+      // Debounce check
+      if (groupItem.classList.contains('processing')) return;
+      groupItem.classList.add('processing');
+      
+      setTimeout(() => {
+        groupItem.classList.remove('processing');
+      }, 500);
+      
+      openGroupChat(groupId, groupName);
+    }
+  });
+  
+  groupClickHandlerAttached = true;
+  console.log('[Group] Group click events attached');
+}

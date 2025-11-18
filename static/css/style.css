@@ -316,31 +316,6 @@ body {
   padding: 20px;
 }
 
-.message {
-  width: fit-content;
-  max-width: 70%;
-  padding: 15px 20px;
-  border-radius: 18px;
-  background-color: var(--message-bg);
-  word-break: break-word;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-  animation: popIn 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 15px;
-}
-
-
-.message::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary), transparent);
-  opacity: 0.3;
-}
 
 .message.me {
   background-color: var(--message-user-bg);
@@ -553,17 +528,6 @@ body {
     margin-top: 0;
   }
 }
-.message.sent {
-  background-color: var(--message-user-bg); /* xanh nhạt */
-  margin-left: auto;
-  border-radius: 18px 18px 5px 18px;
-}
-
-.message.received {
-  background-color: #ffffff;
-  margin-right: auto;
-  border: 1px solid #eee;
-}
 
 .message-header {
   display: flex;
@@ -683,22 +647,24 @@ body {
 .profile-modal-content {
   background-color: white;
   width: 90%;
-  max-width: 450px;
-  max-height: 90vh;    /* 👈 thêm dòng này để giới hạn chiều cao */
-  overflow-y: auto;    /* 👈 cho phép cuộn nếu nội dung vượt */
+  max-width: 420px;
+  max-height: 88vh;        /* modal không vượt quá chiều cao màn hình */
+  overflow-y: auto;
   border-radius: 12px;
-  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  animation: modalFadeIn 0.4s ease;
+  padding: 15px 18px;      /* giảm padding để modal gọn hơn */
+  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.2);
+  animation: modalFadeIn 0.35s ease;
 }
 
-
 .profile-modal-header {
+  width: 100%;            /* chiếm toàn bộ chiều ngang modal */
   background: var(--primary);
   padding: 20px;
   text-align: center;
   color: white;
   position: relative;
+  display: block;         /* đảm bảo nằm trọn 1 hàng */
+  box-sizing: border-box; /* tránh tràn khi có padding */
 }
 
 .profile-modal-header h2 {
@@ -2109,3 +2075,563 @@ body {
   object-fit: cover;
   border: 2px solid #fff;
 }
+/* Thêm vào file style.css */
+.group-avatar img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ddd;
+}
+
+.group-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 10px;
+}
+/* Hiển thị avatar + tên nhóm nằm ngang, canh giữa, rút gọn tên khi quá dài */
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;               /* khoảng cách avatar - tên */
+  min-width: 0;            /* cho phép con bị tràn và text-overflow hoạt động */
+}
+
+.group-header .group-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 40px;          /* cố định kích thước ảnh */
+  margin: 0;               /* bỏ margin nếu có */
+  border: 2px solid rgba(255,255,255,0.15);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+/* Bao tên để dễ rút gọn */
+.group-header .group-name-wrap {
+  min-width: 0;            /* rất quan trọng để text-overflow hoạt động trong flex */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tên nhóm: rút gọn nếu quá dài */
+.group-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 420px; /* điều chỉnh theo layout — giảm nếu cần trên mobile */
+}
+
+/* Nếu muốn hiện subtitle (số thành viên / trạng thái) */
+.group-header .group-sub {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.85);
+  margin-left: 6px;
+}
+
+/* Trên màn hình nhỏ: giảm kích thước avatar và tên */
+@media (max-width: 768px) {
+  .group-header .group-avatar-small {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+  }
+  .group-header h2 {
+    font-size: 0.95rem;
+    max-width: 220px;
+  }
+}
+/* Tăng chiều cao chat header + phóng to avatar nhóm */
+.chat-header {
+  padding: 22px 30px;      /* tăng padding để header cao hơn */
+  min-height: 76px;        /* đảm bảo chiều cao tối thiểu */
+  align-items: center;     /* canh giữa theo chiều dọc */
+}
+
+/* Group header: avatar + tên */
+.group-header {
+  gap: 16px;               /* nhiều khoảng cách hơn giữa avatar và tên */
+}
+
+/* Avatar nhóm lớn hơn */
+.group-header .group-avatar-small {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 50%;    
+  object-fit: cover;
+  margin: 0;
+  border: 2px solid rgba(255,255,255,0.12);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.14);
+}
+
+.group-header h2 {
+  font-size: 1.5rem;       /* tăng kích thước chữ */
+  font-weight: 800;
+  line-height: 1.05;
+  max-width: 520px;        /* điều chỉnh theo layout */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Điều chỉnh nút quản lý cho cân đối với header cao hơn */
+.btn-manage {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+/* Mobile: giảm kích thước để vừa vặn */
+@media (max-width: 768px) {
+  .chat-header {
+    padding: 16px 18px;
+    min-height: 64px;
+  }
+  .group-header .group-avatar-small {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+  .group-header h2 {
+    font-size: 1rem;
+    max-width: 200px;
+  }
+}
+
+.message {
+  display: flex;
+  margin-bottom: 15px;
+  max-width: 100%;
+}
+
+.message.received {
+  justify-content: flex-start;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 10px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.message.sent .message-avatar {
+  margin-right: 0;
+  margin-left: 10px;
+  order: 2;
+}
+
+.message-content-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+.message-content-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.message.sent .message-content-wrapper {
+  flex-direction: row-reverse;
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 18px;
+  position: relative;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.message.received .message-bubble {
+  background-color: #ffffff;
+  border: 1px solid #e9e9e9;
+  border-bottom-left-radius: 4px;
+}
+
+.message.sent .message-bubble {
+  background-color: var(--message-user-bg);
+  border-bottom-right-radius: 4px;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 4px;
+  align-self: flex-end;
+  opacity: 0.8;
+}
+
+.message.sent .message-time {
+  align-self: flex-start;
+}
+
+.sender-info {
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* Animation for new messages */
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  animation: messageAppear 0.3s ease;
+}
+
+/* Ensure messages container scrolls properly */
+.messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: block;
+  padding: 20px;
+  background-color: #f7f7f7;
+}
+.message.sent {
+  justify-content: flex-end; /* thêm dòng này */
+}
+/* --- Make contact items look like conversation items --- */
+/* Nếu bạn đang dùng cả hai class .contact và .contact-item, giữ cả 2 selector */
+.contact-item,
+.contact {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-speed) ease;
+  margin-bottom: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  gap: 12px;
+  min-width: 0;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* Hover giống conversation */
+.contact-item:hover,
+.contact:hover {
+  background-color: rgba(114, 137, 218, 0.2);
+  transform: translateX(5px);
+}
+
+/* Avatar */
+.contact-item .contact-avatar,
+.contact .contact-avatar {
+  width: 45px;               /* cùng kích thước với conversation-avatar */
+  height: 45px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  margin-right: 15px;
+  background-color: #f0f0f0;
+  flex: 0 0 45px;
+}
+
+/* Info (tên + preview nếu có) */
+.contact-item .contact-info,
+.contact .contact-info {
+  flex: 1;
+  min-width: 0;              /* cho phép text-overflow hoạt động */
+  overflow: hidden;
+}
+
+.contact-item .contact-name,
+.contact .contact-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Thêm dòng preview nhỏ nếu muốn (ví dụ: status hoặc last message) */
+.contact-item .contact-preview,
+.contact .contact-preview {
+  font-size: 0.85rem;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Thời gian / trạng thái bên phải giống conversation-status */
+.contact-item .contact-status,
+.contact .contact-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: 10px;
+  flex: 0 0 auto;
+}
+
+/* Dot online + unread (dùng class hiện tại của bạn) */
+.contact-item .online-dot,
+.contact .online-dot {
+  width: 10px;
+  height: 10px;
+  background-color: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 5px var(--success);
+}
+
+/* Nếu bạn muốn hiển thị số tin nhắn chưa đọc ở contact */
+.contact-item .unread-count,
+.contact .unread-count {
+  background-color: #43b581;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+/* Responsive: giảm avatar trên màn nhỏ */
+@media (max-width: 768px) {
+  .contact-item .contact-avatar,
+  .contact .contact-avatar {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    margin-right: 12px;
+  }
+
+  .contact-item .contact-name,
+  .contact .contact-name {
+    font-size: 0.92rem;
+  }
+}
+.group-preview-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.group-preview {
+  font-size: 12px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.group-time {
+  font-size: 11px;
+  color: #999;
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+.brand { display: inline-block; text-decoration: none; }
+.brand-logo {
+  width: 140px;   /* desktop */
+  height: auto;
+  display: block;
+}
+@media (max-width: 900px) {
+  .brand-logo { width: 110px; }
+}
+
+/* Group message styling */
+.message {
+  display: flex;
+  margin-bottom: 15px;
+  max-width: 100%;
+}
+
+.message.received {
+  justify-content: flex-start;
+}
+
+.message.sent {
+  justify-content: flex-end;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 10px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.message.sent .message-avatar {
+  margin-right: 0;
+  margin-left: 10px;
+  order: 2;
+}
+
+.message-content-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+.message-content-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.message.sent .message-content-wrapper {
+  flex-direction: row-reverse;
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 18px;
+  position: relative;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.message.received .message-bubble {
+  background-color: #ffffff;
+  border: 1px solid #e9e9e9;
+  border-bottom-left-radius: 4px;
+}
+
+.message.sent .message-bubble {
+  background-color: var(--message-user-bg);
+  border-bottom-right-radius: 4px;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 4px;
+  align-self: flex-end;
+  opacity: 0.8;
+}
+
+.message.sent .message-time {
+  align-self: flex-start;
+}
+
+.sender-info {
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* Animation for new messages */
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  animation: messageAppear 0.3s ease;
+}
+
+/* Ensure messages container scrolls properly */
+.messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: block;
+  padding: 20px;
+  background-color: #f7f7f7;
+}
+
+/*call video*/
+
+.call-actions { display:flex; gap:8px; margin-left:auto; }
+  .video-modal { 
+    position:fixed; 
+    inset:0; 
+    background:rgba(0,0,0,.6); 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    z-index:1000; 
+  }
+  .video-wrapper { 
+    position:relative; 
+    width:80vw; 
+    max-width:960px; 
+    background:#000; 
+    border-radius:12px; 
+    overflow:hidden;
+    
+    /* [SỬA LỖI] Thêm 'aspect-ratio' để khung không bị "rút lại" (collapse) */
+    aspect-ratio: 16 / 9;
+    height: auto; /* Chiều cao sẽ tự tính theo aspect-ratio */
+  }
+  #remoteVideo { 
+    width:100%; 
+    height:100%; /* Sửa 'auto' thành '100%' để lấp đầy wrapper */
+    object-fit: cover; /* Lấp đầy khung (có thể cắt xén) */
+    background:#111; 
+    display: block; 
+  }
+  #localVideo { 
+    position:absolute; 
+    right:12px; 
+    bottom:60px; /* Vị trí 60px để né nút bấm */ 
+    width:200px; 
+    max-width: 25%; /* Giới hạn kích thước */
+    height:auto;
+    aspect-ratio: 16 / 9;
+    background:#222; 
+    border:2px solid #fff; 
+    border-radius:8px; 
+  }
+  .video-controls { 
+    position:absolute; 
+    bottom:10px; 
+    left:50%; 
+    transform:translateX(-50%); 
+    display:flex; 
+    gap:10px; 
+    z-index: 10; /* Đảm bảo nút nổi lên trên video */
+  }
+  .video-controls button { 
+    background:#fff; 
+    border:none; 
+    border-radius:999px; 
+    padding:10px 14px; 
+    cursor:pointer; 
+  }
+  .video-controls button.danger { background: #c0392b; color: white; }
+  .video-controls button.danger:hover { background: #e74c3c; }

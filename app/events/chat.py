@@ -357,3 +357,91 @@ def register_chat_events(socketio, mongo):
                 
         except Exception as e:
             print(f"Error getting online status: {str(e)}")
+   
+
+    @socketio.on('pin_message')
+    def handle_pin_message(data):
+        """Xử lý ghim tin nhắn"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'private')
+            user_id = session.get('user_id')
+            
+            if not all([message_id, conversation_id, user_id]):
+                return
+
+            # Gửi thông báo đến tất cả thành viên trong conversation
+            emit('message_pinned', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'pinned_by': user_id
+            }, room=str(conversation_id))
+            
+        except Exception as e:
+            print(f"Error handling pin message: {str(e)}")
+
+    @socketio.on('unpin_message')
+    def handle_unpin_message(data):
+        """Xử lý bỏ ghim tin nhắn"""
+        try:
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'private')
+            user_id = session.get('user_id')
+            
+            if not all([conversation_id, user_id]):
+                return
+
+            # Gửi thông báo đến tất cả thành viên
+            emit('message_unpinned', {
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'unpinned_by': user_id
+            }, room=str(conversation_id))
+            
+        except Exception as e:
+            print(f"Error handling unpin message: {str(e)}")
+
+    @socketio.on('message_edited')
+    def handle_message_edited(data):
+        """Thông báo tin nhắn đã được sửa"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'private')
+            new_content = data.get('new_content')
+            
+            if not all([message_id, conversation_id, new_content]):
+                return
+
+            emit('message_updated', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'new_content': new_content,
+                'edited_at': get_vietnam_time().isoformat()
+            }, room=str(conversation_id))
+            
+        except Exception as e:
+            print(f"Error handling message edited: {str(e)}")
+
+    @socketio.on('message_deleted')
+    def handle_message_deleted(data):
+        """Thông báo tin nhắn đã bị xóa"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'private')
+            
+            if not all([message_id, conversation_id]):
+                return
+
+            emit('message_removed', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type
+            }, room=str(conversation_id))
+            
+        except Exception as e:
+            print(f"Error handling message deleted: {str(e)}")

@@ -5,7 +5,8 @@ import {
   setupChatEvents,
   setupConversationClickEvents,
   setupSendMessage,
-  setupMessageStatus
+  setupMessageStatus,
+  setupMessageContextMenu 
 } from './socket/chat.js';
 
 // Bạn bè
@@ -54,13 +55,20 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGroupMessageSending();
   setupGroupSocketEvents();
   setupMessageStatus(); 
-  
+  setupMessageActions();
   // QUAN TRỌNG: Chỉ setup group click events một lần
   setupGroupClickEvents();
 
   setupTabSwitching();
   bindCallUI();
-  
+
+  if (typeof setupMessageContextMenu === 'function') {
+    console.log('[Main] Setting up message context menu...');
+    setupMessageContextMenu();
+  } else {
+    console.error('[Main] setupMessageContextMenu function not found!');
+  }
+
 // THÊM: Gửi sự kiện user online khi kết nối - SỬA: không cần truyền data
 socket.on('connect', () => {
   console.log('✅ Connected to server, setting user online');
@@ -339,3 +347,12 @@ function updateAllFriendsOnlineStatus(onlineStatus) {
     updateFriendOnlineStatus(friendId, onlineStatus[friendId].online);
   });
 }
+function setupMessageActions() {
+  // Context menu đã được xử lý trong chat.js
+  console.log('Message actions initialized');
+}
+window.pinMessage = pinMessage;
+window.unpinMessage = unpinMessage;
+window.editMessage = editMessage;
+window.deleteMessage = deleteMessage;
+window.startEditMessage = startEditMessage;

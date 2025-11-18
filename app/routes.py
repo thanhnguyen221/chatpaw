@@ -1399,3 +1399,300 @@ def create_message_data(conversation_id, sender_id, content, message_type='text'
         'status': 'sent',  # Trạng thái mặc định
         'read_by': []  # Danh sách người đã đọc
     }
+# Thêm các route sau vào routes.py
+
+@main.route('/pin_message', methods=['POST'])
+def pin_message():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    message_id = data.get('message_id')
+    conversation_id = data.get('conversation_id')
+    conversation_type = data.get('conversation_type')
+    
+    if not all([message_id, conversation_id, conversation_type]):
+        return jsonify({'error': 'Missing parameters'}), 400
+    
+    try:
+        user_id = ObjectId(session['user_id'])
+        message_oid = ObjectId(message_id)
+        conv_oid = ObjectId(conversation_id)
+        
+        # Kiểm tra quyền
+        if conversation_type == 'private':
+            # Trong chat private, cả 2 người đều có thể ghim
+            conv = conversations_col().find_one({'_id': conv_oid})
+            if not conv or str(user_id) not in conv['participants']:
+                return jsonify({'error': 'No permission'}), 403
+        else:
+            # Trong group, chỉ admin hoặc người gửi có thể ghim
+            member = group_members_col().find_one({
+                'group_id': conv_oid,
+                'user_id': user_id
+            })
+            if not member:
+                return jsonify({'error': 'Not a member'}), 403
+            
+            message = messages_col().find_one({'_id': message_oid})
+            if not message:
+                return jsonify({'error': 'Message not found'}), 404
+                
+            # Chỉ admin hoặc người gửi mới được ghim
+            if member.get('role') != 'admin' and str(message.get('sender_id')) != str(user_id):
+                return jsonify({'error': 'No permission to pin'}), 403
+        
+        # Bỏ ghim tin nhắn cũ (nếu có)
+        if conversation_type == 'private':
+            conversations_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': None}}
+            )
+        else:
+            groups_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': None}}
+            )
+        
+        # Ghim tin nhắn mới
+        if conversation_type == 'private':
+            conversations_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': message_oid}}
+            )
+        else:
+            groups_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': message_oid}}
+            )
+        
+        return jsonify({'success': True, 'message': 'Message pinned successfully'})
+        
+    except Exception as e:
+        print(f"Error pinning message: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/unpin_message', methods=['POST'])
+def unpin_message():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    conversation_id = data.get('conversation_id')
+    conversation_type = data.get('conversation_type')
+    
+    if not all([conversation_id, conversation_type]):
+        return jsonify({'error': 'Missing parameters'}), 400
+    
+    try:
+        user_id = ObjectId(session['user_id'])
+        conv_oid = ObjectId(conversation_id)
+        
+        # Kiểm tra quyền (tương tự như ghim)
+        if conversation_type == 'group':
+            member = group_members_col().find_one({
+                'group_id': conv_oid,
+                'user_id': user_id
+            })
+            if not member or member.get('role') != 'admin':
+                return jsonify({'error': 'No permission to unpin'}), 403
+        
+        # Bỏ ghim
+        if conversation_type == 'private':
+            conversations_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': None}}
+            )
+        else:
+            groups_col().update_one(
+                {'_id': conv_oid},
+                {'$set': {'pinned_message': None}}
+            )
+        
+        return jsonify({'success': True, 'message': 'Message unpinned successfully'})
+        
+    except Exception as e:
+        print(f"Error unpinning message: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/edit_message', methods=['POST'])
+def edit_message():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    message_id = data.get('message_id')
+    new_content = data.get('new_content')
+    
+    if not all([message_id, new_content]):
+        return jsonify({'error': 'Missing parameters'}), 400
+    
+    try:
+        user_id = ObjectId(session['user_id'])
+        message_oid = ObjectId(message_id)
+        
+        # Tìm tin nhắn và kiểm tra quyền
+        message = messages_col().find_one({'_id': message_oid})
+        if not message:
+            return jsonify({'error': 'Message not found'}), 404
+            
+        # Chỉ người gửi mới được sửa
+        if str(message.get('sender_id')) != str(user_id):
+            return jsonify({'error': 'No permission to edit'}), 403
+        
+        # Cập nhật tin nhắn
+        messages_col().update_one(
+            {'_id': message_oid},
+            {
+                '$set': {
+                    'content': new_content,
+                    'edited': True,
+                    'edited_at': get_vietnam_time()
+                }
+            }
+        )
+        
+        return jsonify({'success': True, 'message': 'Message edited successfully'})
+        
+    except Exception as e:
+        print(f"Error editing message: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/delete_message', methods=['POST'])
+def delete_message():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    message_id = data.get('message_id')
+    conversation_type = data.get('conversation_type', 'private')
+    
+    if not message_id:
+        return jsonify({'error': 'Missing message_id'}), 400
+    
+    try:
+        user_id = ObjectId(session['user_id'])
+        message_oid = ObjectId(message_id)
+        
+        # Tìm tin nhắn
+        if conversation_type == 'private':
+            message = messages_col().find_one({'_id': message_oid})
+        else:
+            message = group_messages_col().find_one({'_id': message_oid})
+            
+        if not message:
+            return jsonify({'error': 'Message not found'}), 404
+            
+        # Kiểm tra quyền: người gửi hoặc admin (trong group)
+        can_delete = False
+        if str(message.get('sender_id')) == str(user_id):
+            can_delete = True
+        elif conversation_type == 'group':
+            # Kiểm tra nếu là admin group
+            member = group_members_col().find_one({
+                'group_id': message.get('group_id'),
+                'user_id': user_id,
+                'role': 'admin'
+            })
+            if member:
+                can_delete = True
+        
+        if not can_delete:
+            return jsonify({'error': 'No permission to delete'}), 403
+        
+        # Xóa tin nhắn (soft delete)
+        if conversation_type == 'private':
+            messages_col().update_one(
+                {'_id': message_oid},
+                {
+                    '$set': {
+                        'deleted': True,
+                        'deleted_at': get_vietnam_time(),
+                        'content': 'Tin nhắn đã được thu hồi'
+                    }
+                }
+            )
+        else:
+            group_messages_col().update_one(
+                {'_id': message_oid},
+                {
+                    '$set': {
+                        'deleted': True,
+                        'deleted_at': get_vietnam_time(),
+                        'content': 'Tin nhắn đã được thu hồi'
+                    }
+                }
+            )
+        
+        return jsonify({'success': True, 'message': 'Message deleted successfully'})
+        
+    except Exception as e:
+        print(f"Error deleting message: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/get_pinned_message/<conversation_id>')
+def get_pinned_message(conversation_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conversation_type = request.args.get('type', 'private')
+    
+    try:
+        conv_oid = ObjectId(conversation_id)
+        user_id = ObjectId(session['user_id'])
+        
+        # Kiểm tra quyền truy cập
+        if conversation_type == 'private':
+            conv = conversations_col().find_one({'_id': conv_oid})
+            if not conv or str(user_id) not in conv['participants']:
+                return jsonify({'error': 'No access'}), 403
+            
+            pinned_message_id = conv.get('pinned_message')
+            if not pinned_message_id:
+                return jsonify({'pinned_message': None})
+                
+            message = messages_col().find_one({'_id': pinned_message_id})
+        else:
+            # Kiểm tra membership
+            is_member = group_members_col().find_one({
+                'group_id': conv_oid,
+                'user_id': user_id
+            })
+            if not is_member:
+                return jsonify({'error': 'Not a member'}), 403
+            
+            group = groups_col().find_one({'_id': conv_oid})
+            pinned_message_id = group.get('pinned_message')
+            if not pinned_message_id:
+                return jsonify({'pinned_message': None})
+                
+            message = group_messages_col().find_one({'_id': pinned_message_id})
+        
+        if not message:
+            return jsonify({'pinned_message': None})
+        
+        # Lấy thông tin người gửi
+        sender = users_col().find_one({'_id': ObjectId(message['sender_id'])}, {'username': 1, 'avatar': 1})
+        sender_name = sender.get('username', 'Unknown') if sender else 'Unknown'
+        
+        # Xử lý avatar
+        avatar = sender.get('avatar') if sender else None
+        if avatar and not avatar.startswith(('http', 'data:image')):
+            avatar = url_for('static', filename=avatar)
+        sender_avatar = avatar or url_for('static', filename='img/default-avatar.png')
+        
+        return jsonify({
+            'pinned_message': {
+                'message_id': str(message['_id']),
+                'sender_id': str(message['sender_id']),
+                'sender_name': sender_name,
+                'sender_avatar': sender_avatar,
+                'content': message['content'],
+                'message_type': message.get('message_type', 'text'),
+                'timestamp': message['timestamp'].isoformat() if hasattr(message['timestamp'], 'isoformat') else str(message['timestamp'])
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error getting pinned message: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500

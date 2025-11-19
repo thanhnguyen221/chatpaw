@@ -2635,3 +2635,89 @@ body {
   }
   .video-controls button.danger { background: #c0392b; color: white; }
   .video-controls button.danger:hover { background: #e74c3c; }
+
+
+
+  /* --- CALL OVERLAY (KHUNG GỌI) --- */
+.call-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* Nền tối */
+    backdrop-filter: blur(8px);       /* Làm mờ nền sau */
+    z-index: 9999;
+    display: flex; flex-direction: column;
+}
+
+.call-container {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    padding: 20px; box-sizing: border-box;
+}
+
+#video-grid {
+    flex: 1;
+    display: flex; flex-wrap: wrap;
+    justify-content: center; align-items: center;
+    gap: 15px; overflow-y: auto;
+}
+
+.video-box {
+    position: relative;
+    background: #333; border-radius: 12px; overflow: hidden;
+    aspect-ratio: 16/9;
+    flex: 1 1 400px; max-width: 100%; max-height: 100%;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+/* Tự động chỉnh size nếu chỉ có 1 người */
+.video-box:only-child { max-width: 80%; max-height: 80%; }
+
+video { width: 100%; height: 100%; object-fit: cover; }
+#local-video { transform: scaleX(-1); } /* Gương cho cam trước */
+/* Nếu lật sang cam sau thì bỏ gương (xử lý bằng JS sau) */
+#local-video.env-mode { transform: none; }
+
+.user-label {
+    position: absolute; bottom: 10px; left: 10px;
+    background: rgba(0,0,0,0.6); color: white;
+    padding: 4px 10px; border-radius: 4px; font-size: 14px;
+    display: flex; align-items: center; gap: 5px;
+}
+.user-label img { width: 20px; height: 20px; border-radius: 50%; }
+
+#call-controls {
+    height: 80px; display: flex; justify-content: center; align-items: center; gap: 20px;
+}
+
+.btn-control {
+    width: 50px; height: 50px; border-radius: 50%; border: none;
+    font-size: 20px; color: white; background: #444; cursor: pointer; transition: 0.2s;
+}
+.btn-control:hover { background: #555; }
+.btn-danger { background: #ea4335; }
+.btn-danger:hover { background: #d93025; }
+.btn-off { background: #ea4335; position: relative; } /* Trạng thái tắt */
+
+/* --- INCOMING POPUP (LỜI MỜI) --- */
+.incoming-popup {
+    position: fixed; top: 20px; right: 20px;
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 10000; padding: 20px; width: 300px;
+    animation: slideIn 0.3s ease-out;
+}
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+.incoming-content { text-align: center; }
+.caller-avatar { position: relative; width: 60px; height: 60px; margin: 0 auto 10px; }
+.caller-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+/* Hiệu ứng rung chuông */
+.pulse-ring {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 50%; border: 3px solid #4caf50;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+.incoming-actions { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
+.btn-accept { background: #4caf50; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+.btn-decline { background: #f44336; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }

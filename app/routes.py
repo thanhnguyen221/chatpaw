@@ -1696,3 +1696,13 @@ def get_pinned_message(conversation_id):
     except Exception as e:
         print(f"Error getting pinned message: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+    
+
+
+# --- THÊM VÀO CUỐI FILE app/routes.py ---
+
+@main.route('/call')
+def call_view():
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+    return render_template('call.html')

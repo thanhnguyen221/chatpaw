@@ -1,413 +1,384 @@
-// static/js/socket/call.js
-// PHIÊN BẢN HOÀN CHỈNH (TURN, Sửa addTrack, Sửa Bật/Tắt âm thanh)
+import { socket } from "./index.js";
 
-import { socket } from './index.js';
+// --- BIẾN TOÀN CỤC ---
+const peers = {}; // QUAN TRỌNG: Lưu nhiều kết nối thay vì 1 biến pc
+let localStream = null;
+let currentCallId = null;
+let currentFacingMode = 'user'; // 'user' (trước) | 'environment' (sau)
+let isMicOn = true;
+let isCamOn = true;
 
-let pc;
-let localStream;
-let currentConversationId = null; 
-let isCaller = false;
-let incomingCallData = null; 
-
-
-let currentFacingMode = 'user'; // [MỚI] 'user' (trước), 'environment' (sau)
-
-// [FIX 1] rtcConfig MỚI với STUN + TURN để sửa lỗi màn hình đen (khi test 4G/Wi-Fi Isolation)
+// Cấu hình TURN/STUN (Để chạy qua Ngrok/4G)
 const rtcConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelay',
-      credential: 'openrelay'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelay',
-      credential: 'openrelay'
-    }
-  ]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelay', credential: 'openrelay' }
+    ]
 };
 
-export function setCurrentConversation(id) {
-  console.log('[Call] Đã chuyển sang hội thoại:', id);
-  currentConversationId = id;
+// ==================================================
+// 1. LOGIC KHỞI TẠO & ĐIỀU KHIỂN (Giao diện Overlay)
+// ==================================================
+
+// Hàm này được gọi từ group.js (khi bấm nút gọi) hoặc từ Popup lời mời
+export async function startGroupCall(conversationId) {
+    console.log("[Call] Starting call for:", conversationId);
+    currentCallId = conversationId;
+    
+    // 1. Hiển thị Overlay (Khung gọi đè lên trang)
+    const overlay = document.getElementById('call-overlay');
+    if(overlay) overlay.style.display = 'flex';
+    
+    // 2. Kiểm tra Mobile để hiện nút Lật Cam
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        const btnFlip = document.getElementById('btn-flip');
+        if(btnFlip) btnFlip.style.display = 'inline-block';
+    }
+
+    try {
+        // 3. Lấy stream (mặc định cam trước)
+        await getMedia('user');
+        
+        // 4. Join room socket
+        socket.emit('call:join', { conversation_id: conversationId });
+        
+    } catch (e) {
+        console.error("Lỗi lấy Media:", e);
+        alert('Không thể truy cập Camera/Mic. Hãy kiểm tra quyền truy cập.');
+        endCall();
+    }
 }
 
-export function bindCallUI() {
-  console.log('[Call] bindCallUI() đang chạy...');
-  const startBtn = document.getElementById('start-video-call');
-  const endBtn = document.getElementById('end-video-call');
-  const modal = document.getElementById('video-call-modal');
-  const hangupBtn = document.getElementById('hangup');
-  const toggleMic = document.getElementById('toggle-mic');
-  const toggleCam = document.getElementById('toggle-cam');
-  const flipBtn = document.getElementById('flip-cam'); // [MỚI] Nút Lật Cam
-
-  // Nút cho modal lời mời
-  const acceptBtn = document.getElementById('accept-call');
-  const declineBtn = document.getElementById('decline-call');
-  const incomingModal = document.getElementById('incoming-call-modal');
-  const ringtone = document.getElementById('ringtone-audio'); // [THÊM MỚI]
-
-  if (startBtn) {
-    startBtn.addEventListener('click', startCall);
-    console.log('[Call] Đã gán sự kiện click cho startBtn');
-  } else {
-    console.error('[Call] Lỗi: Không tìm thấy #start-video-call');
-  }
-
-  endBtn?.addEventListener('click', endCall);
-  hangupBtn?.addEventListener('click', endCall);
-
-  toggleMic?.addEventListener('click', () => {
-    if (!localStream) return;
-    const track = localStream.getAudioTracks()[0];
-    if (track) track.enabled = !track.enabled;
-  });
-
-  toggleCam?.addEventListener('click', () => {
-    if (!localStream) return;
-    const track = localStream.getVideoTracks()[0];
-    if (track) track.enabled = !track.enabled;
-  });
-  // [THÊM MỚI] Toàn bộ logic Lật Cam
-  flipBtn?.addEventListener('click', async () => {
-    if (!pc || !localStream) {
-      console.log('Chưa trong cuộc gọi, không thể lật');
-      return;
+// Hàm lấy Media (Hỗ trợ lật cam)
+async function getMedia(facingMode) {
+    // Nếu đang có stream cũ thì dừng các track
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
     }
 
-    // 1. Tắt camera cũ
-    localStream.getVideoTracks().forEach(track => {
-      track.stop();
+    console.log("[Call] Getting media with mode:", facingMode);
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: facingMode }
     });
 
-    // 2. Đảo chế độ
-    currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+    // Gắn vào video của mình
+    const videoEl = document.getElementById('local-video');
+    if(videoEl) {
+        videoEl.srcObject = localStream;
+        // Xử lý gương: Cam trước thì lật, Cam sau không lật
+        if (facingMode === 'user') {
+            videoEl.classList.remove('env-mode'); // Class CSS xử lý gương
+            videoEl.style.transform = 'scaleX(-1)';
+        } else {
+            videoEl.classList.add('env-mode');
+            videoEl.style.transform = 'none';
+        }
+    }
 
-    let newVideoTrack;
-    try {
-      // 3. Lấy stream camera mới (chỉ cần video)
-      const newStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: currentFacingMode } 
-      });
-      newVideoTrack = newStream.getVideoTracks()[0];
-    } catch (err) {
-      console.error("Lỗi lật camera:", err);
-      // Nếu lỗi, thử quay lại camera cũ
-      currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-      return;
+    // Đồng bộ trạng thái Mic/Cam với nút bấm hiện tại
+    localStream.getAudioTracks()[0].enabled = isMicOn;
+    localStream.getVideoTracks()[0].enabled = isCamOn;
+
+    // Nếu đang trong cuộc gọi (tức là đang lật cam giữa chừng), cần cập nhật track cho đối phương
+    if (Object.keys(peers).length > 0) {
+        replaceTrackInPeers();
+    }
+}
+
+// Thay thế video track gửi đi (khi lật cam) cho TẤT CẢ kết nối
+function replaceTrackInPeers() {
+    const newVideoTrack = localStream.getVideoTracks()[0];
+    for (let sid in peers) {
+        const sender = peers[sid].getSenders().find(s => s.track.kind === 'video');
+        if (sender) {
+            sender.replaceTrack(newVideoTrack);
+        }
+    }
+}
+
+// Hàm kết thúc gọi (Dọn dẹp)
+export function endCall() {
+    console.log("[Call] Ending call...");
+    
+    if (currentCallId) {
+        socket.emit('call:leave', { conversation_id: currentCallId });
     }
     
-    // 4. Tìm bộ gửi (sender) và thay thế track
-    const sender = pc.getSenders().find(s => s.track.kind === 'video');
-    if (sender) {
-      sender.replaceTrack(newVideoTrack);
+    // Dừng Camera/Mic
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
     }
     
-    // 5. Cập nhật stream cục bộ
-    localStream.removeTrack(localStream.getVideoTracks()[0]);
-    localStream.addTrack(newVideoTrack);
+    // Đóng kết nối WebRTC
+    for (let sid in peers) {
+        peers[sid].close();
+        delete peers[sid];
+    }
     
-    const localVideo = document.getElementById('localVideo');
-    if (localVideo) localVideo.srcObject = localStream;
-  });
-
-  // Xử lý nút Chấp nhận
-  acceptBtn?.addEventListener('click', async () => {
-    if (!incomingCallData) return;
-    ringtone?.pause(); // [THÊM MỚI] Dừng nhạc chuông
+    // Xóa video của người khác trên màn hình
+    document.querySelectorAll('.video-box:not(#local-box)').forEach(el => el.remove());
     
-    const convId = incomingCallData.conversation_id;
-    console.log('[Call] Đã chấp nhận cuộc gọi từ phòng:', convId);
-
-    if (incomingModal) incomingModal.style.display = 'none';
-    setCurrentConversation(convId);
-
-    await ensurePC();
-    await openLocalMedia(); // Mở media và add tracks LẦN 1
-    showModal(true); 
-
-    socket.emit('call:accept', { 
-        conversation_id: convId
-    });
+    // Ẩn Overlay
+    const overlay = document.getElementById('call-overlay');
+    if(overlay) overlay.style.display = 'none';
     
-    incomingCallData = null;
-  });
+    currentCallId = null;
+}
 
-  // Xử lý nút Từ chối
-  declineBtn?.addEventListener('click', () => {
-    ringtone?.pause(); // [THÊM MỚI] Dừng nhạc chuông
-    console.log('[Call] Đã từ chối cuộc gọi');
-    if (incomingModal) incomingModal.style.display = 'none';
-    
-    if (incomingCallData) {
-        socket.emit('call:decline', { 
-            conversation_id: incomingCallData.conversation_id 
+// ==================================================
+// 2. LOGIC SOCKET WEBRTC (MESH TOPOLOGY - Sửa lỗi InvalidStateError)
+// ==================================================
+
+// A. Vào phòng -> Nhận danh sách người đang có mặt -> Gọi cho họ
+socket.on('call:all_users', data => {
+    console.log("[Call] Users in room:", data.users);
+    data.users.forEach(uid => createPeer(uid, true)); // true = mình là người gọi (Initiator)
+});
+
+// B. Có người mới vào -> Chuẩn bị nhận cuộc gọi
+socket.on('call:user_joined', data => {
+    console.log("[Call] User joined:", data.user_info);
+    createPeer(data.signal_initiator_sid, false); // false = mình là người nhận
+    addVideoBox(data.signal_initiator_sid, data.user_info);
+});
+
+// C. Tín hiệu OFFER
+socket.on('webrtc:offer', async data => {
+    const peer = peers[data.from];
+    if (peer) {
+        // FIX LỖI: Kiểm tra trạng thái trước khi set remote
+        if (peer.signalingState !== "stable") {
+             // Nếu đang bận, rollback hoặc ignore để tránh lỗi
+             await Promise.all([
+                peer.setLocalDescription({type: "rollback"}),
+                peer.setRemoteDescription(new RTCSessionDescription(data.sdp))
+            ]);
+        } else {
+            await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        }
+        
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        socket.emit('webrtc:answer', { to: data.from, sdp: answer });
+        
+        if(data.user_info) addVideoBox(data.from, data.user_info);
+    }
+});
+
+// D. Tín hiệu ANSWER (FIX LỖI InvalidStateError tại đây)
+socket.on('webrtc:answer', async data => {
+    const peer = peers[data.from];
+    if (peer) {
+        // FIX LỖI: Nếu đã stable rồi thì không set answer nữa
+        if (peer.signalingState === 'stable') {
+            console.warn("[Call] Ignored answer because state is stable");
+            return;
+        }
+        await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    }
+});
+
+// E. Tín hiệu CANDIDATE
+socket.on('webrtc:candidate', async data => {
+    const peer = peers[data.from];
+    if (peer) {
+        try { 
+            await peer.addIceCandidate(new RTCIceCandidate(data.candidate)); 
+        } catch(e) { console.error(e); }
+    }
+});
+
+// F. Người khác rời đi
+socket.on('call:user_left', data => {
+    removePeer(data.sid);
+});
+
+
+// ==================================================
+// 3. CÁC HÀM HỖ TRỢ WEBRTC & UI
+// ==================================================
+
+function createPeer(targetSid, initiator) {
+    // Nếu đã tồn tại kết nối, dùng lại (tránh tạo trùng)
+    if (peers[targetSid]) return peers[targetSid];
+
+    const peer = new RTCPeerConnection(rtcConfig);
+    peers[targetSid] = peer;
+
+    // Thêm track của mình vào kết nối
+    if (localStream) {
+        localStream.getTracks().forEach(t => peer.addTrack(t, localStream));
+    }
+
+    // Gửi ICE Candidate
+    peer.onicecandidate = e => {
+        if (e.candidate) socket.emit('webrtc:candidate', { to: targetSid, candidate: e.candidate });
+    };
+
+    // Khi nhận được Stream của đối phương
+    peer.ontrack = e => {
+        const div = document.getElementById(`c-${targetSid}`) || createVideoDiv(targetSid);
+        const vid = div.querySelector('video');
+        if(vid && vid.srcObject !== e.streams[0]) {
+            vid.srcObject = e.streams[0];
+        }
+    };
+
+    // Tạo Offer nếu là người chủ động
+    if (initiator) {
+        peer.createOffer().then(offer => {
+            peer.setLocalDescription(offer);
+            socket.emit('webrtc:offer', { to: targetSid, sdp: offer });
         });
     }
-    incomingCallData = null;
-  });
+    return peer;
+}
 
-
-  // Socket signaling handlers
-  // [FIX 2] Sửa logic incoming call
-  socket.on('call:incoming', async ({ conversation_id, caller_id }) => {
-    console.log(`[Call] Nhận được lời mời từ ${caller_id} cho phòng ${conversation_id}`);
+// Tạo khung video cho người khác
+function addVideoBox(sid, info) {
+    let div = document.getElementById(`c-${sid}`);
+    if (!div) div = createVideoDiv(sid);
     
-    if (pc) {
-      console.log('[Call] Đang bận (pc exists), tự động từ chối');
-      return;
+    const avatar = info.avatar || '/static/img/default-avatar.png';
+    const name = info.username || 'User';
+    
+    // Cập nhật label và thêm container Reaction nếu chưa có
+    div.querySelector('.user-label').innerHTML = `<img src="${avatar}" style="width:20px;height:20px;border-radius:50%"> ${name}`;
+    
+    if (!div.querySelector('.reaction-container')) {
+        const rc = document.createElement('div');
+        rc.className = 'reaction-container';
+        div.appendChild(rc);
     }
-    if (incomingCallData) {
-      console.log('[Call] Đang có lời mời khác, bỏ qua');
-      return;
-    }
+}
 
-    incomingCallData = { conversation_id, caller_id };
+function createVideoDiv(sid) {
+    const div = document.createElement('div');
+    div.className = 'video-box'; // Class trùng với CSS mới
+    div.id = `c-${sid}`;
+    div.innerHTML = `
+        <video autoplay playsinline></video>
+        <div class="user-label">Đang kết nối...</div>
+        <div class="reaction-container"></div>
+    `;
+    document.getElementById('video-grid').appendChild(div);
+    return div;
+}
 
-    const incomingModal = document.getElementById('incoming-call-modal');
-    if (incomingModal) {
-      const callerNameEl = document.getElementById('caller-name');
-      if (callerNameEl) callerNameEl.textContent = 'Ai đó'; 
-      incomingModal.style.display = 'block';
-      console.log('[Call] Đã hiển thị modal lời mời.');
-      try {
-        await ringtone?.play();
-      } catch (e) {
-        console.warn('Không thể tự động phát chuông (chờ người dùng click):', e);
-      }
-    } else {
-      console.error('[Call] LỖI NGHIÊM TRỌNG: KHÔNG TÌM THẤY #incoming-call-modal TRONG HTML');
-    }
-  });
+function removePeer(sid) {
+    if (peers[sid]) { peers[sid].close(); delete peers[sid]; }
+    document.getElementById(`c-${sid}`)?.remove();
+}
 
+// ==================================================
+// 4. GẮN SỰ KIỆN VÀO WINDOW (Để HTML gọi được)
+// ==================================================
 
-  socket.on('call:accepted', async ({ conversation_id }) => {
-    console.log('[Call] Người nhận đã chấp nhận');
-    if (!isCaller || conversation_id !== currentConversationId) {
-      console.warn('[Call] Bỏ qua "call:accepted" (không phải người gọi hoặc sai phòng)');
-      return;
-    }
-    console.log('[Call] Đang tạo offer...');
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit('webrtc:offer', {
-      conversation_id: currentConversationId,
-      sdp: offer
+// Bật/Tắt Mic
+window.toggleMic = () => {
+    isMicOn = !isMicOn;
+    if (localStream) localStream.getAudioTracks()[0].enabled = isMicOn;
+    
+    const btn = document.getElementById('btn-mic');
+    btn.classList.toggle('btn-off', !isMicOn);
+    btn.innerHTML = isMicOn ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+};
+
+// Bật/Tắt Camera
+window.toggleCam = () => {
+    isCamOn = !isCamOn;
+    if (localStream) localStream.getVideoTracks()[0].enabled = isCamOn;
+    
+    const btn = document.getElementById('btn-cam');
+    btn.classList.toggle('btn-off', !isCamOn);
+    btn.innerHTML = isCamOn ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+};
+
+// Lật Camera (Cam trước/sau)
+window.flipCamera = async () => {
+    currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+    await getMedia(currentFacingMode);
+};
+
+// Gửi Reaction
+window.sendReaction = function(emoji) {
+    if (!currentCallId) return;
+    socket.emit('call:send_reaction', {
+        conversation_id: currentCallId,
+        emoji: emoji
     });
-  });
+};
 
-  socket.on('call:declined', ({ conversation_id }) => {
-    if (conversation_id === currentConversationId && isCaller) {
-        alert('Người dùng đã từ chối cuộc gọi.');
-        cleanup(); // Tắt cuộc gọi phía người gọi
-    }
-  });
+// Kết thúc gọi
+window.endCall = endCall;
 
-  // [FIX 3] Sửa lỗi addTrack (xóa 'openLocalMedia')
-  socket.on('webrtc:offer', async ({ sdp }) => {
-    console.log('[Call] Nhận được offer, đang tạo answer...');
-    await ensurePC();
-        
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket.emit('webrtc:answer', { conversation_id: currentConversationId, sdp: answer });
-  });
+// Expose startGroupCall để file group.js gọi
+window.startGroupCall = startGroupCall;
 
-  socket.on('webrtc:answer', async ({ sdp }) => {
-    console.log('[Call] Nhận được answer.');
-    if (!pc) return;
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-  });
+// ==================================================
+// 5. XỬ LÝ LỜI MỜI & REACTION
+// ==================================================
 
-  socket.on('webrtc:candidate', async ({ candidate }) => {
-    if (!pc || !candidate) return;
-    try {
-      await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (e) {
-      console.error('addIceCandidate error:', e);
-    }
-  });
+socket.on('call:incoming_notification', (data) => {
+    const popup = document.getElementById('incoming-call-popup');
+    const avatar = document.getElementById('incoming-avatar');
+    const name = document.getElementById('incoming-name');
+    const btnAccept = document.getElementById('btn-accept-call');
+    const btnDecline = document.getElementById('btn-decline-call');
+    const ringtone = document.getElementById('ringtone-audio');
 
-  socket.on('call:ended', () => cleanup());
+    if (popup && avatar && name) {
+        avatar.src = data.caller.avatar || '/static/img/default-avatar.png';
+        name.textContent = data.caller.username;
+        popup.style.display = 'block';
 
-  
-
-  console.log('[Call] bindCallUI() đã chạy xong.');
-}
-
-async function startCall() {
-  if (!currentConversationId) {
-    alert('Hãy chọn hội thoại trước');
-    return;
-  }
-  console.log('[Call] Bắt đầu gọi phòng:', currentConversationId);
-  isCaller = true;
-  await ensurePC();
-  await openLocalMedia(); // Người gọi mở media ngay
-  showModal(true);
-  socket.emit('call:invite', {
-    conversation_id: currentConversationId,
-    conversation_type: 'private'
-  });
-}
-
-function endCall() {
-  console.log('[Call] Người dùng nhấn kết thúc cuộc gọi');
-  if (!currentConversationId) return;
-  socket.emit('call:end', { conversation_id: currentConversationId });
-  cleanup();
-}
-
-function showModal(show) {
-  // Sửa lại để dùng CSS class mới
-  const modal = document.getElementById('video-call-modal');
-  if(modal) modal.style.display = show ? 'flex' : 'none';
-  // [THÊM MỚI] Reset lớp phủ bật tiếng khi Mở/Tắt modal
-  const overlay = document.getElementById('unmute-overlay');
-  if(overlay) overlay.style.display = show ? 'flex' : 'none';
-  // [KẾT THÚC THÊM MỚI]
-  
-  const startBtn = document.getElementById('start-video-call');
-  const endBtn = document.getElementById('end-video-call');
-  if(startBtn) startBtn.style.display = show ? 'none' : 'inline-block';
-  if(endBtn) endBtn.style.display = show ? 'inline-block' : 'none';
-}
-
-async function ensurePC() {
-  if (pc) return pc;
-  console.log('[Call] Đang tạo RTCPeerConnection mới...');
-  pc = new RTCPeerConnection(rtcConfig); // Dùng rtcConfig MỚI
-
-  pc.onicecandidate = (e) => {
-    if (e.candidate && currentConversationId) {
-      socket.emit('webrtc:candidate', {
-        conversation_id: currentConversationId,
-        candidate: e.candidate
-      });
-    }
-  };
-
-  // [THAY THẾ] Toàn bộ hàm pc.ontrack này
-  pc.ontrack = (e) => {
-    console.log('[Call] Nhận được remote track (video của đối phương)!');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const overlay = document.getElementById('unmute-overlay'); // [SỬA]
-
-    if (remoteVideo && e.streams && e.streams[0]) {
-      remoteVideo.srcObject = e.streams[0];
-
-      // [SỬA] Logic Bật tiếng mạnh mẽ hơn
-      const unmute = () => {
-        remoteVideo.muted = false; // Bắt buộc Bật tiếng
-        remoteVideo.play().catch(e => console.error("Lỗi khi play video:", e)); // Thử play (cho Safari)
-        
-        if (overlay) overlay.style.display = 'none'; // Ẩn lớp phủ
-        
-        // Bỏ sự kiện đi sau khi đã bấm
-        if (overlay) overlay.removeEventListener('click', unmute);
-        remoteVideo.removeEventListener('click', unmute);
-      };
-
-      if (overlay) overlay.addEventListener('click', unmute);
-      remoteVideo.addEventListener('click', unmute); 
-    }
-  };
-
-  return pc;
-}
-
-async function openLocalMedia() {
-  if (localStream) {
-    console.log('[Call] Đã có local media, đang add tracks...');
-    try {
-      // [FIX 3.1] Sửa logic addTrack
-      const senders = pc.getSenders();
-      localStream.getTracks().forEach(track => {
-        const senderExists = senders.some(sender => sender.track === track);
-        if (!senderExists) {
-          pc.addTrack(track, localStream);
-          console.log('[Call] Đã add track:', track.kind);
+        if(ringtone) {
+            ringtone.currentTime = 0;
+            ringtone.play().catch(e => console.log("Autoplay blocked"));
         }
-      });
-    } catch (e) {
-      console.error('[Call] Lỗi khi addTrack:', e);
+
+        btnAccept.onclick = () => {
+            popup.style.display = 'none';
+            if(ringtone) ringtone.pause();
+            startGroupCall(data.conversation_id);
+        };
+
+        btnDecline.onclick = () => {
+            popup.style.display = 'none';
+            if(ringtone) ringtone.pause();
+            socket.emit('call:decline', { conversation_id: data.conversation_id });
+        };
     }
-    return localStream;
-  }
-  
-  try {
-    console.log('[Call] Đang xin quyền camera/mic...');
-   // Sửa thành
-    localStream = await navigator.mediaDevices.getUserMedia({ 
-      audio: true, 
-      video: { facingMode: currentFacingMode } 
-    });
-    checkAndShowFlipButton();
-    const localVideo = document.getElementById('localVideo');
-    if (localVideo) localVideo.srcObject = localStream;
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    console.log('[Call] Đã lấy được media và add tracks.');
-    return localStream;
-  } catch (err) {
-    console.error('[Call] LỖI KHI LẤY MEDIA (getUserMedia):', err);
-    alert('Không thể truy cập camera/micro. Vui lòng kiểm tra quyền truy cập.');
-  }
-}
+});
 
-function cleanup() {
-  console.log('[Call] Dọn dẹp cuộc gọi (cleanup)...');
-  showModal(false);
-  document.getElementById('ringtone-audio')?.pause(); // [THÊM MỚI]
-  
-  const startBtn = document.getElementById('start-video-call');
-  const endBtn = document.getElementById('end-video-call');
-  if (startBtn) startBtn.style.display = 'inline-block';
-  if (endBtn) endBtn.style.display = 'none';
-
-  if (pc) {
-    pc.getSenders().forEach(s => { try { s.track && s.track.stop(); } catch {} });
-    try { pc.close(); } catch {}
-  }
-  if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
-  }
-
-  const incomingModal = document.getElementById('incoming-call-modal');
-  if (incomingModal) incomingModal.style.display = 'none';
-  
-  pc = null;
-  localStream = null;
-  isCaller = false;
-  // Sửa thành
-  incomingCallData = null;
-  currentFacingMode = 'user'; // [MỚI] Reset camera về mặc định
-}
-
-// [THÊM MỚI] Hàm kiểm tra camera và ẩn/hiện nút lật
-async function checkAndShowFlipButton() {
-  const flipBtn = document.getElementById('flip-cam');
-  if (!flipBtn) return;
-
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+// Nhận Reaction bong bóng
+socket.on('call:receive_reaction', (data) => {
+    let containerId = (data.from_sid === socket.id) ? 'local-box' : `c-${data.from_sid}`;
+    const videoBox = document.getElementById(containerId);
     
-    // Chỉ hiện nút lật cam nếu có nhiều hơn 1 camera
-    if (videoDevices.length > 1) {
-      console.log('[Call] Phát hiện nhiều camera, hiển thị nút lật cam.');
-      flipBtn.style.display = 'inline-block';
-    } else {
-      console.log('[Call] Chỉ có 1 camera, ẩn nút lật cam.');
-      flipBtn.style.display = 'none';
+    if (videoBox) {
+        let rc = videoBox.querySelector('.reaction-container');
+        if (!rc) {
+            rc = document.createElement('div');
+            rc.className = 'reaction-container';
+            videoBox.appendChild(rc);
+        }
+        
+        // Tạo hiệu ứng bong bóng
+        const count = Math.floor(Math.random() * 5) + 10; 
+        for (let i = 0; i < count; i++) {
+            const span = document.createElement('span');
+            span.className = 'floating-emoji';
+            span.textContent = data.emoji;
+            span.style.left = `${Math.random() * 100}%`;
+            span.style.animationDelay = `${Math.random() * 0.5}s`;
+            span.style.animationDuration = `${1.5 + Math.random()}s`;
+            rc.appendChild(span);
+            setTimeout(() => span.remove(), 2000);
+        }
     }
-  } catch (e) {
-    console.error('Không thể liệt kê thiết bị:', e);
-    flipBtn.style.display = 'none'; // Ẩn nếu có lỗi
-  }
-}
+});

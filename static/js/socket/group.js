@@ -27,6 +27,35 @@ function resetPrivateChat() {
 }
 
 export function setupGroupSocketEvents() {
+
+
+  // [MỚI] Hiển thị thông báo nổi (Toast) khi có người Tham gia/Từ chối
+  socket.on('call:notification', (data) => {
+      // data.message ví dụ: "🔴 Nguyễn Văn A đã từ chối cuộc gọi"
+      
+      const toast = document.createElement('div');
+      toast.textContent = data.message;
+      toast.style.cssText = `
+          position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.8); color: white; padding: 10px 20px;
+          border-radius: 30px; z-index: 10000; font-size: 14px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+          animation: fadeInOut 3s forwards;
+          display: flex; align-items: center; gap: 8px;
+      `;
+      document.body.appendChild(toast);
+
+      // Tự xóa sau 3s
+      setTimeout(() => toast.remove(), 3000);
+  });
+
+  // [MỚI] Đổi trạng thái nút Gọi thành "Tham gia" nếu cuộc gọi đang diễn ra
+  socket.on('call:status_update', (data) => {
+      // Chỉ đổi nếu đang mở đúng nhóm đó
+      if (currentGroupId && String(currentGroupId) === String(data.conversation_id)) {
+          updateCallButtonState(data.is_active);
+      }
+  });
   // Trong setupGroupSocketEvents
   socket.on('user_left_group', (data) => {
     if (data.user_id === window.session.user_id) {
@@ -46,6 +75,7 @@ export function setupGroupSocketEvents() {
       }
     }
   });
+
   socket.on('group_history', (data) => {
     console.log('[Socket] Nhận lịch sử tin nhắn:', data);
     // KIỂM TRA KỸ: chỉ xử lý nếu đang ở đúng group
@@ -431,37 +461,61 @@ async function loadGroupDataSequentially(groupId, groupName) {
   }
 }
 
-// THÊM: Hàm cập nhật header
 function updateGroupHeader(groupId, groupName, groupInfo) {
-  const header = document.querySelector('.chat-header');
-  if (!header) return;
-  
-  const groupAvatar = groupInfo.avatar || defaultGroupAvatar;
-  const avatarWithCacheBust = groupAvatar.startsWith('http') 
-      ? `${groupAvatar}?t=${Date.now()}`
-      : groupAvatar;
+    const header = document.querySelector('.chat-header');
+    const avatarUrl = groupInfo.avatar || defaultGroupAvatar;
+    
+    // Cache bust avatar để tránh lưu cache cũ
+    const displayAvatar = avatarUrl.startsWith('http') ? `${avatarUrl}?t=${Date.now()}` : avatarUrl;
 
-  header.innerHTML = `
-    <div class="group-header">
-      <img src="${avatarWithCacheBust}" 
-          alt="${groupName}" 
-          class="group-avatar-small">
-      <div class="group-name-wrap">
-        <h2 title="${escapeHtml(groupName)}">${groupName}</h2>
+    // 1. CẬP NHẬT HTML HEADER (Thêm nút id="btn-group-call")
+    header.innerHTML = `
+      <div class="group-header">
+        <img src="${displayAvatar}" alt="${groupName}" class="group-avatar-small">
+        <div class="group-name-wrap">
+          <h2 title="${escapeHtml(groupName)}">${escapeHtml(groupName)}</h2>
+          <span style="font-size: 0.8rem; color: #888;">${groupInfo.members ? groupInfo.members.length : 0} thành viên</span>
+        </div>
       </div>
-    </div>
-    <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
-      <i class="fi fi-br-bars-staggered"></i>
-    </button>
-  `;
-  
-  // Gắn sự kiện manage button
-  const manageBtn = document.getElementById('manage-group-btn');
-  if (manageBtn) {
-    manageBtn.addEventListener('click', () => {
-      openManageGroupModal(groupId);
-    });
-  }
+      
+      <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+          <button id="btn-group-call" class="btn-icon" title="Gọi nhóm" style="font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;">
+            <i class="fas fa-video"></i>
+          </button>
+
+          <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
+            <i class="fi fi-br-bars-staggered"></i>
+          </button>
+      </div>
+    `;
+
+    // 2. GẮN SỰ KIỆN CHO NÚT GỌI
+    const btnCall = document.getElementById('btn-group-call');
+    if (btnCall) {
+        btnCall.addEventListener('click', () => {
+            console.log("[Group] Bấm nút gọi nhóm:", groupId);
+
+            // Gửi thông báo mời cho mọi người trong nhóm
+            socket.emit('call:invite_group', { 
+                conversation_id: groupId, 
+                conversation_type: 'group' 
+            });
+            
+            // Gọi hàm mở Overlay (Hàm này nằm bên file group_call.js và đã được gán vào window)
+            if (window.startGroupCall) {
+                window.startGroupCall(groupId);
+            } else {
+                console.error("Lỗi: Không tìm thấy hàm window.startGroupCall. Hãy kiểm tra file group_call.js");
+                alert("Chưa tải được chức năng gọi video.");
+            }
+        });
+    }
+
+    // 3. GẮN SỰ KIỆN NÚT QUẢN LÝ (Giữ nguyên logic cũ)
+    const manageBtn = document.getElementById('manage-group-btn');
+    if (manageBtn) {
+        manageBtn.addEventListener('click', () => openManageGroupModal(groupId));
+    }
 }
 
 // THÊM: Hàm hiển thị tin nhắn
@@ -759,6 +813,14 @@ export function resetGroupChat() {
   }
 }
 function createGroupMessageElement(messageData) {
+  // [MỚI] Xử lý tin nhắn hệ thống (Ví dụ: "Cuộc gọi đã bắt đầu")
+  if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
+      const div = document.createElement('div');
+      div.className = 'system-message';
+      div.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
+      div.innerHTML = `<span>${escapeHtml(messageData.content)}</span>`;
+      return div;
+  }
   const messageEl = document.createElement('div');
   const isCurrentUser = messageData.sender_id === window.session.user_id;
   messageEl.className = isCurrentUser ? 'message sent' : 'message received';
@@ -1420,3 +1482,46 @@ export function setupGroupClickEvents() {
   groupClickHandlerAttached = true;
   console.log('[Group] Group click events attached');
 }
+
+
+// --- CÁC HÀM HỖ TRỢ GỌI VIDEO ---
+
+// Hàm cập nhật giao diện nút gọi
+function updateCallButtonState(isActive) {
+    const btn = document.getElementById('btn-group-call');
+    if (!btn) return;
+
+    if (isActive) {
+        // Trạng thái: Đang có cuộc gọi -> Hiển thị "Tham gia" xanh lá
+        btn.innerHTML = '<i class="fi fi-rr-enter"></i> Tham gia';
+        btn.style.cssText = `
+            background-color: #2ecc71; color: white; border: none; 
+            padding: 5px 15px; border-radius: 20px; font-size: 14px; cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+            animation: pulse-green 2s infinite;
+        `;
+        btn.title = "Đang có cuộc gọi diễn ra. Bấm để tham gia!";
+    } else {
+        // Trạng thái: Bình thường -> Hiển thị icon Camera
+        btn.innerHTML = '<i class="fas fa-video"></i>';
+        btn.style.cssText = "font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;";
+        btn.title = "Gọi nhóm";
+    }
+}
+
+// Thêm Animation cho Toast và Nút tham gia (Inject CSS vào trang)
+const styleCall = document.createElement('style');
+styleCall.innerHTML = `
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, 20px); }
+    10% { opacity: 1; transform: translate(-50%, 0); }
+    90% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -20px); }
+}
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+}
+`;
+document.head.appendChild(styleCall);

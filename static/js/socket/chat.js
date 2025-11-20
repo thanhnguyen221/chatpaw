@@ -210,16 +210,59 @@ function resetPrivateChatHeader() {
   header.appendChild(privateHeader);
 }
 
-// THÊM HÀM MỚI: Cập nhật header với thông tin cuộc trò chuyện
+// --- DÁN ĐOẠN NÀY VÀO FILE chat.js (Nên để gần các hàm update UI khác) ---
+
 function updatePrivateChatHeader(conversationId) {
-  const selectedConversation = document.querySelector(
-    `.conversation-item[data-id="${conversationId}"] .conversation-name`
-  );
-  const headerTitle = document.querySelector('.chat-header h2');
-  
-  if (selectedConversation && headerTitle) {
-    headerTitle.textContent = selectedConversation.textContent;
-  }
+    const header = document.querySelector('.chat-header');
+    // Tìm thông tin từ danh sách bên trái để hiển thị lên header
+    const convItem = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
+    
+    const name = convItem ? convItem.querySelector('.conversation-name').textContent : 'Người dùng';
+    const avatar = convItem ? convItem.querySelector('.conversation-avatar').src : (window.defaultUserAvatar || '/static/img/default-avatar.png');
+
+    // 1. CẬP NHẬT HTML HEADER (QUAN TRỌNG: THÊM NÚT GỌI Ở ĐÂY)
+    header.innerHTML = `
+      <div class="chat-header-user" style="display:flex; align-items:center; gap:10px;">
+        <img src="${avatar}" class="header-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+        <div class="header-info">
+          <h2 style="margin:0;font-size:16px;">${name}</h2>
+          <span class="status-text" style="font-size:12px;color:#888;">Đang hoạt động</span>
+        </div>
+      </div>
+      
+      <div class="header-actions" style="display:flex; align-items:center; gap:10px;">
+        <button id="btn-private-call" class="btn-icon" title="Gọi video" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
+            <i class="fas fa-video"></i>
+        </button>
+        
+        <button class="btn-icon" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
+            <i class="fi fi-rr-menu-dots"></i>
+        </button>
+      </div>
+    `;
+
+    // 2. GẮN SỰ KIỆN CLICK CHO NÚT GỌI
+    const btnCall = document.getElementById('btn-private-call');
+    if (btnCall) {
+        btnCall.addEventListener('click', () => {
+            console.log("[Chat] Gọi 1vs1 cho:", conversationId);
+            
+            // Gửi lời mời (Lưu ý: type='private')
+            if(socket) {
+                socket.emit('call:invite_group', { 
+                    conversation_id: conversationId, 
+                    conversation_type: 'private' 
+                });
+            }
+            
+            // Mở Overlay Video (Hàm này nằm bên group_call.js)
+            if (window.startGroupCall) {
+                window.startGroupCall(conversationId);
+            } else {
+                alert("Chức năng gọi chưa sẵn sàng (Chưa load group_call.js)");
+            }
+        });
+    }
 }
 // ====== PINNED MESSAGE FUNCTIONS ======
 async function loadPinnedMessage(conversationId, type) {

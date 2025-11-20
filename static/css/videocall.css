@@ -1,0 +1,244 @@
+/* --- 1. CALL OVERLAY (KHUNG GỌI ĐÈ LÊN) --- */
+.call-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.9); /* Nền đen mờ */
+    backdrop-filter: blur(5px);       /* Hiệu ứng làm mờ kính */
+    z-index: 9999;                    /* Luôn nằm trên cùng */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.call-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* --- 2. GRID VIDEO (LƯỚI CHIA Ô) --- */
+#video-grid {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    overflow-y: auto;
+    width: 100%;
+}
+
+.video-box {
+    position: relative;
+    background: #222;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    /* Logic chia cột tự động: */
+    flex: 1 1 400px; 
+    max-width: 100%; 
+    max-height: 100%;
+    border: 1px solid #444;
+}
+
+/* Nếu chỉ có 1 người (mình) thì phóng to */
+.video-box:only-child {
+    max-width: 90%;
+    max-height: 85%;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Cam của mình thì lật gương, cam sau (env-mode) thì không lật */
+#local-video { transform: scaleX(-1); }
+#local-video.env-mode { transform: none; }
+
+.user-label {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.user-label img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #fff;
+}
+
+/* --- 3. THANH ĐIỀU KHIỂN (CONTROLS) --- */
+#call-controls {
+    height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 10px;
+}
+
+.btn-control {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    border: none;
+    font-size: 22px;
+    color: white;
+    background: #3c4043;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-control:hover {
+    background: #505559;
+    transform: scale(1.1);
+}
+
+.btn-control:active {
+    transform: scale(0.95);
+}
+
+.btn-danger {
+    background: #ea4335;
+}
+.btn-danger:hover {
+    background: #d93025;
+}
+
+/* Trạng thái Tắt Mic/Cam (Gạch chéo / Đỏ) */
+.btn-off {
+    background: #ea4335; 
+    position: relative;
+}
+
+/* --- 4. POPUP LỜI MỜI (INCOMING CALL) --- */
+.incoming-popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    z-index: 10000;
+    padding: 25px;
+    width: 320px;
+    animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid #eee;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.incoming-content {
+    text-align: center;
+}
+
+.caller-avatar {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 15px;
+}
+
+.caller-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+    z-index: 2;
+}
+
+/* Hiệu ứng sóng rung chuông */
+.pulse-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid #4caf50;
+    animation: pulse 1.5s infinite;
+    z-index: 1;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+.incoming-content h3 {
+    margin: 0 0 5px;
+    font-size: 18px;
+    color: #333;
+}
+
+.incoming-content p {
+    margin: 0 0 20px;
+    color: #666;
+    font-size: 14px;
+}
+
+.incoming-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.btn-accept, .btn-decline {
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.2s;
+    color: white;
+}
+
+.btn-accept {
+    background: linear-gradient(45deg, #2ecc71, #27ae60);
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+}
+
+.btn-decline {
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+}
+
+.btn-accept:hover, .btn-decline:hover {
+    transform: translateY(-2px);
+}

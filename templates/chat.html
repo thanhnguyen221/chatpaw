@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>PAW TALK</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css">
@@ -15,7 +16,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/video-call.css') }}">
 
   <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-
   <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 </head>
 <body>
@@ -54,7 +54,7 @@
           <h2>Danh sách bạn bè</h2>
           <div id="contacts">
             {% for friend in friends %}
-              <div class="contact" data-id="{{ friend._id }}">
+              <div class="contact-item" data-user-id="{{ friend._id }}">
                 <img src="{{ friend.avatar | get_avatar_url }}" alt="{{ friend.username }}" class="contact-avatar">
                 <div class="contact-info">
                   <div class="contact-name">{{ friend.username }}</div>
@@ -66,11 +66,11 @@
             {% endfor %}
           </div>
         </section>
+
         <section id="tab-conversations" class="tab-section">
           <h2>Hội thoại</h2>
           <div id="conversations">
             {% for conv in conversations %}
-<!-- Trong chat.html - phần conversation item -->
             <div class="conversation-item" data-id="{{ conv._id }}"
                 data-last-message="{{ conv.last_message|tojson|forceescape }}"
                 data-last-message-type="{{ conv.last_message_type }}"
@@ -84,16 +84,18 @@
                 </div>
               </div>
               <div class="conversation-status">
-  <div class="conversation-time" data-time="{{ (conv.last_message_time or conv.created_at)|to_iso_string }}">
-    {{ conv.last_message_time|format_time if conv.last_message_time else conv.created_at|format_time }}
-  </div> {% if conv.unread_count > 0 %}
-  <div class="unread-count">{{ conv.unread_count }}</div>
-  {% endif %}
-</div>
+                <div class="conversation-time" data-time="{{ (conv.last_message_time or conv.created_at)|to_iso_string }}">
+                  {{ conv.last_message_time|format_time if conv.last_message_time else conv.created_at|format_time }}
+                </div> 
+                {% if conv.unread_count > 0 %}
+                  <div class="unread-count">{{ conv.unread_count }}</div>
+                {% endif %}
+              </div>
             </div>
             {% endfor %}
           </div>
         </section>
+
         <section id="tab-groups" class="tab-section">
           <div class="groups-header">
             <h2>Danh sách nhóm</h2>
@@ -109,15 +111,7 @@
     <main class="chat-area">
       <header class="chat-header">
         <h2>Messages</h2>
-
-        <div class="call-controls">
-          <button id="start-video-call" style="display:none" title="Gọi video 1-1">
-            <i class="fi fi-rr-video-camera-alt"></i>
-          </button>
-          <button id="end-video-call" style="display:none" title="Kết thúc cuộc gọi">
-            <i class="fi fi-rr-call-incoming"></i>
-          </button>
-        </div>
+        <div class="header-actions"></div>
       </header>
       
       <div id="animation-screen" class="animation-screen">
@@ -134,19 +128,11 @@
       <div id="messages" class="messages"></div>
 
       <div class="message-input">
-        <button id="attach-file" title="Đính kèm file">
-          <i class="fi fi-rr-folder-open"></i>
-        </button>
-        <button id="attach-image" title="Gửi hình ảnh">
-          <i class="fi fi-rr-picture"></i>
-        </button>
-        <button id="show-stickers" title="Gửi sticker">
-          <i class="fi fi-rr-smile"></i>
-        </button>
+        <button id="attach-file" title="Đính kèm file"><i class="fi fi-rr-folder-open"></i></button>
+        <button id="attach-image" title="Gửi hình ảnh"><i class="fi fi-rr-picture"></i></button>
+        <button id="show-stickers" title="Gửi sticker"><i class="fi fi-rr-smile"></i></button>
         <input id="message" type="text" placeholder="Nhập tin nhắn và nhấn Enter...">
-        <button id="send">
-          <i class="fi fi-br-paper-plane"></i>
-        </button>
+        <button id="send"><i class="fi fi-br-paper-plane"></i></button>
       </div>
 
       <input type="file" id="file-upload" style="display:none" accept="*/*">
@@ -163,18 +149,13 @@
           <div class="sticker" data-sticker="sticker4">🤔</div>
           <div class="sticker" data-sticker="sticker5">👍</div>
           <div class="sticker" data-sticker="sticker6">❤️</div>
-          <div class="sticker" data-sticker="sticker1">😎</div>
-          <div class="sticker" data-sticker="sticker2">🥹</div>
-          <div class="sticker" data-sticker="sticker3">😤</div>
-          <div class="sticker" data-sticker="sticker4">😓</div>
-          <div class="sticker" data-sticker="sticker5">🤬</div>
-          <div class="sticker" data-sticker="sticker6">🤯</div>
         </div>
       </div>
     </main>
   </div>
 
   <input type="hidden" id="user-id" value="{{ user_id }}">
+
   <div class="profile-modal" id="profile-modal">
     <div class="profile-modal-content">
       <div class="profile-modal-header">
@@ -184,7 +165,7 @@
       <div class="profile-modal-body">
         <div class="avatar-section">
           <div class="avatar-preview" id="avatar-preview">
-            <img src="https://randomuser.me/api/portraits/men/41.jpg" alt="Avatar">
+            <img src="{{ user_avatar }}" alt="Avatar">
           </div>
           <button class="change-avatar-btn" id="change-avatar-btn">
             <i class="fi fi-rr-camera"></i> Thay đổi ảnh đại diện
@@ -195,23 +176,23 @@
         <form class="profile-form" id="profile-form">
           <div class="form-group">
             <label for="full-name">Họ và tên</label>
-            <input type="text" id="full-name" value="Nguyễn Văn A" required>
+            <input type="text" id="full-name" required>
           </div>
           <div class="form-group">
             <label for="username">Tên đăng nhập</label>
-            <input type="text" id="username" value="nguyenvana" required>
+            <input type="text" id="username" required>
           </div>
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" value="nguyenvana@example.com" required>
+            <input type="email" id="email" required>
           </div>
           <div class="form-group">
             <label for="phone">Số điện thoại</label>
-            <input type="tel" id="phone" value="0987654321">
+            <input type="tel" id="phone">
           </div>
           <div class="form-group">
             <label for="dob">Ngày sinh</label>
-            <input type="date" id="dob" value="1990-01-15">
+            <input type="date" id="dob">
           </div>
           <div class="form-group">
             <label for="gender">Giới tính</label>
@@ -283,37 +264,61 @@
 
   <div class="overlay" id="sidebar-overlay"></div>
 
-  <div id="video-call-modal" class="video-modal" style="display:none;">
-  <div class="video-wrapper">
-    <video id="remoteVideo" autoplay playsinline muted></video>
-    <div id="unmute-overlay" class="unmute-overlay">
-        Bấm vào video để bật tiếng
-      </div>
-    
-    <video id="localVideo" autoplay playsinline muted></video>
-    
-    <div class="video-controls">
-      <button id="toggle-mic" title="Bật/Tắt micro"><i class="fi fi-rr-microphone"></i></button>
-      <button id="toggle-cam" title="Bật/Tắt camera"><i class="fi fi-rr-camera"></i></button>
-      <button id="flip-cam" title="Lật camera" style="display: none;"><i class="fi fi-rr-sync"></i></button>
-      <button id="hangup" class="danger" title="Kết thúc"><i class="fi fi-rr-call-end"></i></button>
+  <div id="call-overlay" class="call-overlay" style="display: none;">
+    <div class="call-container">
+        <div id="video-grid">
+            <div class="video-box" id="local-box">
+                <video id="local-video" autoplay playsinline muted></video>
+                <div class="user-label">Bạn</div>
+                <div class="reaction-container"></div> 
+            </div>
+        </div>
+
+        <div class="reaction-bar">
+            <button onclick="window.sendReaction('❤️')" title="Yêu thích">❤️</button>
+            <button onclick="window.sendReaction('👍')" title="Like">👍</button>
+            <button onclick="window.sendReaction('😂')" title="Haha">😂</button>
+            <button onclick="window.sendReaction('😮')" title="Wow">😮</button>
+            <button onclick="window.sendReaction('😢')" title="Buồn">😢</button>
+            <button onclick="window.sendReaction('🎉')" title="Chúc mừng">🎉</button>
+        </div>
+
+        <div id="call-controls">
+            <button class="btn-control" id="btn-mic" onclick="toggleMic()" title="Bật/Tắt Mic">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="btn-control" id="btn-cam" onclick="toggleCam()" title="Bật/Tắt Camera">
+                <i class="fas fa-video"></i>
+            </button>
+            
+            <button class="btn-control" id="btn-flip" onclick="flipCamera()" title="Lật Cam" style="display: none;">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+
+            <button class="btn-control btn-danger" onclick="endCall()" title="Kết thúc">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
     </div>
   </div>
-</div>
 
-  <div id="incoming-call-modal" class="incoming-call-modal" style="display:none;">
-      <div class="incoming-call-content">
-          <h3>Cuộc gọi đến...</h3>
-          <p><span id="caller-name">Một người</span> đang gọi cho bạn.</p>
-          <div class="incoming-call-actions">
-              <button id="accept-call" class="accept-btn">
-                  <i class="fi fi-rr-phone-call"></i> Nghe
-              </button>
-              <button id="decline-call" class="decline-btn">
-                  <i class="fi fi-rr-call-end"></i> Từ chối
-              </button>
-          </div>
-      </div>
+  <div id="incoming-call-popup" class="incoming-popup" style="display: none;">
+    <div class="incoming-content">
+        <div class="caller-avatar">
+            <img id="incoming-avatar" src="/static/img/default-avatar.png" alt="">
+            <div class="pulse-ring"></div>
+        </div>
+        <h3 id="incoming-name">Người dùng...</h3>
+        <p>Đang gọi cho nhóm...</p>
+        <div class="incoming-actions">
+            <button class="btn-accept" id="btn-accept-call">
+                <i class="fas fa-phone"></i> Trả lời
+            </button>
+            <button class="btn-decline" id="btn-decline-call">
+                <i class="fas fa-times"></i> Từ chối
+            </button>
+        </div>
+    </div>
   </div>
 
   <audio id="ringtone-audio" 
@@ -322,35 +327,34 @@
          loop>
   </audio>
 
-<!-- XÓA TẤT CẢ CÁC DÒNG SCRIPT SAU DÒNG audio VÀ THAY THẾ BẰNG: -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
 
-<!-- CHỈ GIỮ LẠI 1 BỘ MOMENT.JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
-
-<!-- IMPORT CÁC FILE JAVASCRIPT CỦA ỨNG DỤNG -->
-<script type="module" src="{{ url_for('static', filename='js/socket/index.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/chat_input.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/socket/user.js') }}"></script>
-
-<script>
-  window.session = { user_id: "{{ user_id }}" };
-  window.defaultUserAvatar = "{{ url_for('static', filename='img/default-avatar.png') }}";
-  window.defaultGroupAvatar = "{{ url_for('static', filename='img/default-group.png') }}";
+  <script type="module" src="{{ url_for('static', filename='js/socket/index.js') }}"></script>
   
-  // KIỂM TRA AN TOÀN TRƯỚC KHI GỌI moment.tz
-  if (typeof moment !== 'undefined' && typeof moment.tz !== 'undefined') {
-    moment.tz.setDefault('Asia/Ho_Chi_Minh');
-    console.log('Moment-timezone initialized successfully');
-  } else {
-    console.warn('Moment-timezone not loaded properly - using fallback date formatting');
-  }
-</script>
+  <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/chat_input.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}"></script>
+
+  <script type="module" src="{{ url_for('static', filename='js/socket/group_call.js') }}"></script>
+  
+  <script type="module" src="{{ url_for('static', filename='js/socket/user.js') }}"></script>
+
+  <script>
+    // Biến Global
+    window.session = { user_id: "{{ user_id }}" };
+    window.defaultUserAvatar = "{{ url_for('static', filename='img/default-avatar.png') }}";
+    window.defaultGroupAvatar = "{{ url_for('static', filename='img/default-group.png') }}";
+    
+    // Init MomentJS
+    if (typeof moment !== 'undefined' && typeof moment.tz !== 'undefined') {
+      moment.tz.setDefault('Asia/Ho_Chi_Minh');
+    } else {
+      console.warn('Moment-timezone not loaded properly');
+    }
+  </script>
 </body>
 </html>

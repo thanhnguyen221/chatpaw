@@ -21,21 +21,21 @@ import {
 // Người dùng
 import './socket/user.js';
 
-// Chat nhóm - SỬA LỖI IMPORT Ở ĐÂY
+// Chat nhóm
 import {
   setupCreateGroupHandler,
   setupGroupMessageSending,
   setupGroupSocketEvents,
-  openGroupChat,  // ĐẢM BẢO CÓ DÒNG NÀY
+  openGroupChat,
   addGroupToList,
-  selectGroup     // THÊM NẾU CẦN
+  setupGroupClickEvents 
 } from './socket/group.js';
 
 // QUAN TRỌNG: Import từ chat_input.js
 import { initFileSharing, setCurrentConversation as setFileConversation } from './chat_input.js';
 
-// Video call (WebRTC signaling)
-import { bindCallUI, setCurrentConversation as setCallConversation } from './socket/call.js';
+// --- LƯU Ý: ĐÃ XÓA IMPORT CALL.JS CŨ ĐỂ TRÁNH LỖI ---
+
 // ====== DOM đã sẵn sàng ======
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[Main] DOM loaded');
@@ -47,7 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initFileSharing();
   setupFriendEvents();
   setupContactClickEvents();
+  
+  // Gắn callback khi mở hội thoại
   setupConversationClickEvents(onOpenConversation);
+  
   setupSendMessage();
   setupSearchInput();
   fetchFriendRequests();
@@ -56,11 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGroupSocketEvents();
   setupMessageStatus(); 
   setupMessageActions();
-  // QUAN TRỌNG: Chỉ setup group click events một lần
+  
+  // Setup sự kiện click nhóm
   setupGroupClickEvents();
 
   setupTabSwitching();
-  bindCallUI();
+  
+  // ĐÃ XÓA: bindCallUI(); (Không dùng nữa)
 
   if (typeof setupMessageContextMenu === 'function') {
     console.log('[Main] Setting up message context menu...');
@@ -69,45 +74,36 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('[Main] setupMessageContextMenu function not found!');
   }
 
-// THÊM: Gửi sự kiện user online khi kết nối - SỬA: không cần truyền data
-socket.on('connect', () => {
-  console.log('✅ Connected to server, setting user online');
-  socket.emit('user_online'); // Không truyền data
+  // Socket Events cơ bản
+  socket.on('connect', () => {
+    console.log('✅ Connected to server, setting user online');
+    socket.emit('user_online');
+  });
+
+  window.addEventListener('beforeunload', () => {
+    socket.emit('user_offline');
+  });
+
+  socket.on('friend_online_status', (data) => {
+    console.log('[Online Status] Friend status changed:', data);
+    updateFriendOnlineStatus(data.user_id, data.is_online);
+  });
+
+  socket.on('online_status_update', (onlineStatus) => {
+    updateAllFriendsOnlineStatus(onlineStatus);
+  });
+
+  socket.emit('get_online_status');
 });
 
-// THÊM: Gửi sự kiện user offline trước khi đóng tab/trình duyệt
-window.addEventListener('beforeunload', () => {
-  console.log('🔄 Setting user offline before unload');
-  socket.emit('user_offline'); // Không truyền data
-});
 
-// THÊM: Lắng nghe cập nhật trạng thái online của bạn bè
-socket.on('friend_online_status', (data) => {
-  console.log('[Online Status] Friend status changed:', data);
-  updateFriendOnlineStatus(data.user_id, data.is_online);
-});
-
-// THÊM: Lắng nghe cập nhật danh sách trạng thái online
-socket.on('online_status_update', (onlineStatus) => {
-  console.log('[Online Status] Received online status update:', onlineStatus);
-  updateAllFriendsOnlineStatus(onlineStatus);
-});
-
-// THÊM: Yêu cầu trạng thái online khi load trang
-socket.emit('get_online_status');
-});
-
-// Gọi hàm setup group click events khi DOM ready
-document.addEventListener('DOMContentLoaded', setupGroupClickEvents);
-// ====== TIME FORMATTING UTILITIES ======
+// ====== CÁC HÀM TIỆN ÍCH & LOGIC CHUYỂN TAB ======
 
 function formatConversationTime(timestamp) {
   if (!timestamp) return '';
-  
   try {
     const messageDate = new Date(timestamp);
     const now = new Date();
-    
     if (isNaN(messageDate.getTime())) return 'Vừa xong';
 
     const diffMs = now - messageDate;
@@ -115,76 +111,40 @@ function formatConversationTime(timestamp) {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMinutes < 1) {
-      return 'Vừa xong';
-    } else if (diffMinutes < 60) {
-      return `${diffMinutes}p`;
-    } else if (diffHours < 24) {
-      return `${diffHours}g`;
-    } else if (diffDays === 1) {
-      return 'Hôm qua';
-    } else if (messageDate.getFullYear() === now.getFullYear()) {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      return `${day}/${month}`;
+    if (diffMinutes < 1) return 'Vừa xong';
+    if (diffMinutes < 60) return `${diffMinutes}p`;
+    if (diffHours < 24) return `${diffHours}g`;
+    if (diffDays === 1) return 'Hôm qua';
+    if (messageDate.getFullYear() === now.getFullYear()) {
+      return `${messageDate.getDate().toString().padStart(2,'0')}/${(messageDate.getMonth()+1).toString().padStart(2,'0')}`;
     } else {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      const year = messageDate.getFullYear().toString().slice(-2);
-      return `${day}/${month}/${year}`;
+      return `${messageDate.getDate()}/${messageDate.getMonth()+1}/${messageDate.getFullYear().toString().slice(-2)}`;
     }
-  } catch (error) {
-    console.error('Error formatting conversation time:', error);
-    return 'Vừa xong';
-  }
+  } catch (error) { return 'Vừa xong'; }
 }
 
 function initializeTimeUtils() {
-  console.log('Initializing time utils...');
-  
-  // Format lại tất cả thời gian ban đầu
   document.querySelectorAll('.conversation-time').forEach(el => {
     const isoTime = el.dataset.time;
-    if (isoTime) {
-      const formatted = formatConversationTime(isoTime);
-      if (formatted) {
-        el.textContent = formatted;
-      }
-    }
+    if (isoTime) el.textContent = formatConversationTime(isoTime);
   });
 }
 
-// ====== END TIME FORMATTING UTILITIES ======
 let groupsLoading = false;
-
 async function loadUserGroups() {
-  // Kiểm tra nếu đang loading thì không load lại
-  if (groupsLoading) {
-    console.log('[Main] Groups already loading, skipping...');
-    return;
-  }
-  
+  if (groupsLoading) return;
   try {
     groupsLoading = true;
-    console.log('[Main] Loading user groups...');
-    
     const response = await fetch('/user_groups');
     const data = await response.json();
     const groupsList = document.getElementById('groups-list');
     
-    if (!groupsList) {
-      console.error('[Main] Groups list element not found');
-      return;
-    }
-    
-    // Clear chỉ khi có dữ liệu mới
+    if (!groupsList) return;
     groupsList.innerHTML = '';
 
     data.groups.forEach(group => {
       addGroupToList(group._id, group.name, group.avatar);
     });
-    
-    console.log(`[Main] Loaded ${data.groups.length} groups`);
   } catch (err) {
     console.error('Lỗi tải danh sách nhóm:', err);
   } finally {
@@ -192,57 +152,34 @@ async function loadUserGroups() {
   }
 }
 
-// Gắn openGroupChat vào global để gọi từ HTML - ĐẢM BẢO HÀM NÀY TỒN TẠI
+// Gắn openGroupChat vào global
 window.openGroupChat = (groupId, groupName) => {
-  // Hàm cũ của bạn
   openGroupChat(groupId, groupName);
-
-  // Sau khi mở group chat, set conversation cho file sharing và call
   onOpenConversation(groupId, 'group');
 };
-// ===== MINI SIDEBAR: chuyển tab =====
-// Trong setupTabSwitching
+
 function setupTabSwitching() {
-  let currentTab = 'conversations'; // Tab mặc định
+  let currentTab = 'conversations';
   
   document.querySelectorAll('.mini-sidebar button').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
-      
-      // Nếu đang ở cùng tab thì không làm gì
       if (currentTab === tab) return;
-      
       currentTab = tab;
-      console.log(`[TabSwitch] Switching to ${tab}`);
 
-      // Ẩn tất cả tab
-      document.querySelectorAll('.tab-section').forEach(sec => {
-        sec.classList.remove('active');
-      });
-
-      // Hiện tab được chọn
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
       const selected = document.getElementById('tab-' + tab);
-      if (selected) {
-        selected.classList.add('active');
-      }
+      if (selected) selected.classList.add('active');
 
-      // Fetch dữ liệu theo tab
-      if (tab === 'contacts') {
-        console.log('[TabSwitch] Fetching friends');
-        fetchFriends();
-      } else if (tab === 'requests') {
-        fetchFriendRequests();
-      } else if (tab === 'groups') {
-        console.log('[TabSwitch] Loading groups');
-        loadUserGroups();
-      }
+      if (tab === 'contacts') fetchFriends();
+      else if (tab === 'requests') fetchFriendRequests();
+      else if (tab === 'groups') loadUserGroups();
     });
   });
 }
+
 /**
  * Callback được gọi khi mở 1 hội thoại.
- * @param {string} conversationId
- * @param {('private'|'group')} conversationType
  */
 function onOpenConversation(conversationId, conversationType = 'private') {
   console.log(`[Main] Opening conversation: ${conversationId}, type: ${conversationType}`);
@@ -250,109 +187,50 @@ function onOpenConversation(conversationId, conversationType = 'private') {
   // QUAN TRỌNG: Set conversation cho module file sharing
   setFileConversation(conversationId, conversationType);
 
-  // Set conversation cho module call
-  setCallConversation(conversationId);
-
-  // Ẩn/hiện nút call tuỳ theo loại phòng
-  toggleCallButtons(conversationType === 'private');
+  // ĐÃ XÓA: setCallConversation(conversationId); (Không cần nữa)
+  // ĐÃ XÓA: toggleCallButtons(...) (Không cần nữa)
 }
-
-function toggleCallButtons(enable) {
-  const startBtn = document.getElementById('start-video-call');
-  const endBtn = document.getElementById('end-video-call');
-
-  if (!startBtn || !endBtn) return;
-
-  // Khi chưa trong cuộc gọi, chỉ hiển thị nút "start"
-  if (enable) {
-    if (startBtn.style.display === 'none' && endBtn.style.display === 'none') {
-      // đang trạng thái trung lập, mở start
-      startBtn.style.display = 'inline-block';
-      endBtn.style.display = 'none';
-    } else if (endBtn.style.display === 'inline-block') {
-      // đang trong call, giữ nguyên end
-      // no-op
-    } else {
-      startBtn.style.display = 'inline-block';
-      endBtn.style.display = 'none';
-    }
-    startBtn.disabled = false;
-  } else {
-    // Không cho phép call ở group (nếu bạn muốn cho phép, hãy bật enable = true ở onOpenConversation)
-    startBtn.style.display = 'none';
-    endBtn.style.display = 'none';
-    startBtn.disabled = true;
-  }
-}
-
-// THÊM HÀM NÀY NẾU CHƯA CÓ - để xử lý khi click vào group item
-function setupGroupClickEvents() {
-  document.addEventListener('click', (e) => {
-    const groupItem = e.target.closest('.group-item');
-    if (groupItem) {
-      const groupId = groupItem.dataset.id;
-      const groupName = groupItem.querySelector('.group-name').textContent;
-      openGroupChat(groupId, groupName);
-    }
-  });
-}
-
-// Gọi hàm setup group click events khi DOM ready
-document.addEventListener('DOMContentLoaded', setupGroupClickEvents);
 
 // ===== Sticker panel toggle =====
 const showStickersBtn = document.getElementById("show-stickers");
 const stickerPanel = document.getElementById("sticker-panel");
 const closeStickersBtn = document.getElementById("close-stickers");
 
-// Nhấn icon mặt cười → mở panel
-showStickersBtn.addEventListener("click", () => {
-  stickerPanel.style.display = "block";
-});
+if(showStickersBtn) showStickersBtn.addEventListener("click", () => stickerPanel.style.display = "block");
+if(closeStickersBtn) closeStickersBtn.addEventListener("click", () => stickerPanel.style.display = "none");
 
-// Nhấn nút X → đóng panel
-closeStickersBtn.addEventListener("click", () => {
-  stickerPanel.style.display = "none";
-});
-
-// Click ngoài panel → đóng panel
 document.addEventListener("click", (e) => {
-  if (!stickerPanel.contains(e.target) && e.target !== showStickersBtn) {
+  if (stickerPanel && !stickerPanel.contains(e.target) && e.target !== showStickersBtn) {
     stickerPanel.style.display = "none";
   }
 });
+
 function updateFriendOnlineStatus(friendId, isOnline) {
-  // Cập nhật trong danh sách bạn bè
   const friendElement = document.querySelector(`[data-user-id="${friendId}"]`);
   if (friendElement) {
-    const onlineIndicator = friendElement.querySelector('.online-indicator');
-    if (onlineIndicator) {
-      onlineIndicator.style.display = isOnline ? 'block' : 'none';
-    }
+    const onlineIndicator = friendElement.querySelector('.online-indicator'); // Hoặc .contact-status
+    // Tùy vào HTML của bạn, nếu dùng span class="online-dot"
+    const statusDiv = friendElement.querySelector('.contact-status');
+    if(statusDiv) statusDiv.innerHTML = isOnline ? '<span class="online-dot"></span>' : '';
   }
   
   // Cập nhật trong danh sách hội thoại
-  const conversationElement = document.querySelector(`.conversation-item[data-friend-id="${friendId}"]`);
-  if (conversationElement) {
-    const onlineIndicator = conversationElement.querySelector('.online-indicator');
-    if (onlineIndicator) {
-      onlineIndicator.style.display = isOnline ? 'block' : 'none';
-    }
-  }
+  // Lưu ý: Cần đảm bảo item hội thoại có data-friend-id hoặc logic tương tự
 }
 
-// THÊM: Hàm cập nhật tất cả trạng thái online
 function updateAllFriendsOnlineStatus(onlineStatus) {
   Object.keys(onlineStatus).forEach(friendId => {
     updateFriendOnlineStatus(friendId, onlineStatus[friendId].online);
   });
 }
+
 function setupMessageActions() {
-  // Context menu đã được xử lý trong chat.js
   console.log('Message actions initialized');
 }
-window.pinMessage = pinMessage;
-window.unpinMessage = unpinMessage;
-window.editMessage = editMessage;
-window.deleteMessage = deleteMessage;
-window.startEditMessage = startEditMessage;
+
+// Export globals
+window.pinMessage = window.pinMessage || function(){};
+window.unpinMessage = window.unpinMessage || function(){};
+window.editMessage = window.editMessage || function(){};
+window.deleteMessage = window.deleteMessage || function(){};
+window.startEditMessage = window.startEditMessage || function(){};

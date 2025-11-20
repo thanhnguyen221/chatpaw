@@ -322,3 +322,90 @@ def register_group_events(socketio, mongo):
             leave_room(str(conversation_id))
             leave_room(f"group_{conversation_id}")  # Thử cả 2 format
             print(f"User {user_id} left room: {conversation_id}")
+
+    @socketio.on('pin_message')
+    def handle_pin_message(data):
+        """Xử lý ghim tin nhắn nhóm"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'group')
+            user_id = session.get('user_id')
+            
+            if not all([message_id, conversation_id, user_id]):
+                return
+
+            # Gửi thông báo đến tất cả thành viên trong group
+            emit('message_pinned', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'pinned_by': user_id
+            }, room=f"group_{conversation_id}")
+            
+        except Exception as e:
+            print(f"Error handling pin message: {str(e)}")
+
+    @socketio.on('unpin_message')
+    def handle_unpin_message(data):
+        """Xử lý bỏ ghim tin nhắn nhóm"""
+        try:
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'group')
+            user_id = session.get('user_id')
+            
+            if not all([conversation_id, user_id]):
+                return
+
+            # Gửi thông báo đến tất cả thành viên
+            emit('message_unpinned', {
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'unpinned_by': user_id
+            }, room=f"group_{conversation_id}")
+            
+        except Exception as e:
+            print(f"Error handling unpin message: {str(e)}")
+
+    @socketio.on('message_edited')
+    def handle_message_edited(data):
+        """Thông báo tin nhắn nhóm đã được sửa"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'group')
+            new_content = data.get('new_content')
+            
+            if not all([message_id, conversation_id, new_content]):
+                return
+
+            emit('message_updated', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'new_content': new_content,
+                'edited_at': get_vietnam_time().isoformat()
+            }, room=f"group_{conversation_id}")
+            
+        except Exception as e:
+            print(f"Error handling message edited: {str(e)}")
+
+    @socketio.on('message_deleted')
+    def handle_message_deleted(data):
+        """Thông báo tin nhắn nhóm đã bị xóa"""
+        try:
+            message_id = data.get('message_id')
+            conversation_id = data.get('conversation_id')
+            conversation_type = data.get('conversation_type', 'group')
+            
+            if not all([message_id, conversation_id]):
+                return
+
+            emit('message_removed', {
+                'message_id': message_id,
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type
+            }, room=f"group_{conversation_id}")
+            
+        except Exception as e:
+            print(f"Error handling message deleted: {str(e)}")

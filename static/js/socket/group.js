@@ -357,6 +357,7 @@ function openManageGroupModal(groupId) {
       alert('Không thể tải thông tin nhóm');
     });
 }
+
 export function openGroupChat(groupId, groupName) {
   console.log(`[Group] Opening group chat: ${groupId}`);
   
@@ -375,7 +376,10 @@ export function openGroupChat(groupId, groupName) {
   if (typeof setCurrentConversation === 'function') {
     setCurrentConversation(groupId, 'group');
   }
+  loadGroupPinnedMessage(groupId);
   
+  // THÊM: Setup context menu cho group
+  setupGroupMessageContextMenu();
   // Cập nhật UI NGAY LẬP TỨC - chỉ một lần
   const header = document.querySelector('.chat-header');
   const animationScreen = document.getElementById('animation-screen');
@@ -390,7 +394,11 @@ export function openGroupChat(groupId, groupName) {
     messagesDiv.style.display = 'block';
     messagesDiv.innerHTML = '<div class="loading">Đang tải tin nhắn...</div>';
   }
-
+  console.log(`[Group] Loading pinned message for group: ${groupId}`);
+  loadGroupPinnedMessage(groupId);
+  
+  // QUAN TRỌNG: Setup context menu cho group messages
+  setupGroupMessageContextMenu();
   // Cập nhật header TẠM THỜI với thông tin cơ bản
   if (header) {
     header.innerHTML = `
@@ -902,6 +910,7 @@ function appendGroupMessage(messageData) {
   const messageEl = document.createElement('div');
   const isCurrentUser = messageData.sender_id === window.session.user_id;
   messageEl.className = isCurrentUser ? 'message sent' : 'message received';
+  messageEl.dataset.messageId = messageData.message_id; 
 
   // Sử dụng avatar từ messageData, fallback về default nếu không có
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
@@ -1483,7 +1492,545 @@ export function setupGroupClickEvents() {
   console.log('[Group] Group click events attached');
 }
 
+// ====== PINNED MESSAGE FUNCTIONS FOR GROUP ======
+let pinnedGroupMessage = null;
 
+async function loadGroupPinnedMessage(groupId) {
+  try {
+    if (!groupId) {
+      console.error('Group ID is required to load pinned message');
+      hideGroupPinnedMessage();
+      return;
+    }
+    
+    const response = await fetch(`/get_pinned_message/${groupId}?type=group`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.pinned_message) {
+      console.log('Loaded pinned message for group:', data.pinned_message);
+      pinnedGroupMessage = data.pinned_message;
+      displayGroupPinnedMessage(pinnedGroupMessage);
+    } else {
+      console.log('No pinned message found for group');
+      hideGroupPinnedMessage();
+    }
+  } catch (error) {
+    console.error('Error loading pinned message for group:', error);
+    hideGroupPinnedMessage();
+  }
+}
+function displayGroupPinnedMessage(message) {
+  let pinnedSection = document.getElementById('pinned-message-section');
+  
+  if (!pinnedSection) {
+    pinnedSection = document.createElement('div');
+    pinnedSection.id = 'pinned-message-section';
+    pinnedSection.className = 'pinned-message-section';
+    
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer && messagesContainer.parentNode) {
+      messagesContainer.parentNode.insertBefore(pinnedSection, messagesContainer);
+    } else {
+      console.error('Messages container not found');
+      return;
+    }
+  }
+  
+  // SỬA: Đảm bảo message tồn tại trước khi sử dụng
+  if (!message) {
+    console.error('Pinned message is null or undefined');
+    hideGroupPinnedMessage();
+    return;
+  }
+  
+  const previewText = getMessagePreview({
+    content: message.content,
+    message_type: message.message_type
+  });
+  
+  // SỬA: Đảm bảo các thuộc tính tồn tại
+  const senderAvatar = message.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
+  const senderName = message.sender_name || 'Unknown';
+  
+  pinnedSection.innerHTML = `
+    <div class="pinned-message-header">
+      <i class="fi fi-rr-pin"></i>
+      <span>Tin nhắn được ghim</span>
+      <button class="unpin-btn" onclick="unpinGroupMessage()">
+        <i class="fi fi-rr-cross"></i>
+      </button>
+    </div>
+    <div class="pinned-message-content" onclick="scrollToGroupPinnedMessage('${message.message_id}')">
+      <img src="${senderAvatar}" class="pinned-sender-avatar" alt="${senderName}">
+      <div class="pinned-message-info">
+        <div class="pinned-sender-name">${senderName}</div>
+        <div class="pinned-message-text">${previewText}</div>
+      </div>
+    </div>
+  `;
+  
+  pinnedSection.style.display = 'block';
+  pinnedGroupMessage = message;
+}
+function hideGroupPinnedMessage() {
+  const pinnedSection = document.getElementById('pinned-message-section');
+  if (pinnedSection) {
+    pinnedSection.style.display = 'none';
+  }
+  pinnedGroupMessage = null;
+}
+
+export async function pinGroupMessage(messageId) {
+  if (!currentGroupId || !messageId) return;
+  
+  try {
+    const response = await fetch('/pin_message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: messageId,
+        conversation_id: currentGroupId,
+        conversation_type: 'group'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      socket.emit('pin_message', {
+        message_id: messageId,
+        conversation_id: currentGroupId,
+        conversation_type: 'group'
+      });
+      alert('Đã ghim tin nhắn');
+    } else {
+      alert('Lỗi khi ghim tin nhắn: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error pinning group message:', error);
+    alert('Lỗi khi ghim tin nhắn');
+  }
+}
+
+export async function unpinGroupMessage() {
+  if (!currentGroupId) return;
+  
+  try {
+    const response = await fetch('/unpin_message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: currentGroupId,
+        conversation_type: 'group'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      socket.emit('unpin_message', {
+        conversation_id: currentGroupId,
+        conversation_type: 'group'
+      });
+      hideGroupPinnedMessage();
+    } else {
+      alert('Lỗi khi bỏ ghim: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error unpinning group message:', error);
+    alert('Lỗi khi bỏ ghim');
+  }
+}
+
+// ====== MESSAGE EDIT/DELETE FUNCTIONS FOR GROUP ======
+export async function editGroupMessage(messageId, newContent) {
+  if (!messageId || !newContent) return;
+  
+  try {
+    const response = await fetch('/edit_message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: messageId,
+        new_content: newContent,
+        conversation_type: 'group'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      socket.emit('message_edited', {
+        message_id: messageId,
+        conversation_id: currentGroupId,
+        conversation_type: 'group',
+        new_content: newContent
+      });
+      updateGroupMessageUI(messageId, newContent);
+    } else {
+      alert('Lỗi khi sửa tin nhắn: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error editing group message:', error);
+    alert('Lỗi khi sửa tin nhắn');
+  }
+}
+
+export async function deleteGroupMessage(messageId) {
+  if (!messageId) return;
+  
+  if (!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
+  
+  try {
+    const response = await fetch('/delete_message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: messageId,
+        conversation_type: 'group'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      socket.emit('message_deleted', {
+        message_id: messageId,
+        conversation_id: currentGroupId,
+        conversation_type: 'group'
+      });
+      removeGroupMessageUI(messageId);
+    } else {
+      alert('Lỗi khi xóa tin nhắn: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error deleting group message:', error);
+    alert('Lỗi khi xóa tin nhắn');
+  }
+}
+
+function updateGroupMessageUI(messageId, newContent) {
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (messageElement) {
+    const messageText = messageElement.querySelector('.message-text');
+    if (messageText) {
+      messageText.innerHTML = escapeHtml(newContent) + ' <span class="edited-badge">(đã chỉnh sửa)</span>';
+    }
+  }
+}
+
+function removeGroupMessageUI(messageId) {
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (messageElement) {
+    messageElement.remove();
+  }
+}
+
+// ====== CONTEXT MENU FOR GROUP MESSAGES ======
+export function setupGroupMessageContextMenu() {
+  console.log('[Group Context Menu] Setting up group message context menu...');
+  
+  document.addEventListener('contextmenu', (e) => {
+    console.log('[Group Context Menu] Right-click detected');
+    
+    const messageElement = e.target.closest('.message');
+    console.log('[Group Context Menu] Message element found:', messageElement);
+    
+    if (messageElement && messageElement.dataset.messageId) {
+      e.preventDefault();
+      console.log('[Group Context Menu] Showing context menu for message:', messageElement.dataset.messageId);
+      
+      const messageId = messageElement.dataset.messageId;
+      const isMyMessage = messageElement.classList.contains('sent');
+      
+      showGroupMessageContextMenu(e.clientX, e.clientY, messageId, isMyMessage);
+    } else {
+      console.log('[Group Context Menu] No message element found or missing messageId');
+    }
+  });
+  
+  // Ẩn menu khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#message-context-menu')) {
+      hideGroupMessageContextMenu();
+    }
+  });
+
+  // Ẩn menu khi nhấn ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideGroupMessageContextMenu();
+    }
+  });
+}
+
+function showGroupMessageContextMenu(x, y, messageId, isMyMessage) {
+  hideGroupMessageContextMenu();
+  
+  const contextMenu = document.createElement('div');
+  contextMenu.id = 'message-context-menu';
+  contextMenu.className = 'context-menu';
+  contextMenu.style.cssText = `
+    position: fixed;
+    left: ${x}px;
+    top: ${y}px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10000;
+    min-width: 160px;
+    padding: 4px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+  
+  let menuItems = '';
+  
+  if (isMyMessage) {
+    menuItems += `
+      <div class="context-menu-item" data-action="edit" data-message-id="${messageId}">
+        <i class="fi fi-rr-edit" style="margin-right: 8px;"></i>Sửa tin nhắn
+      </div>
+      <div class="context-menu-item" data-action="delete" data-message-id="${messageId}">
+        <i class="fi fi-rr-trash" style="margin-right: 8px;"></i>Xóa tin nhắn
+      </div>
+      <div class="context-menu-divider"></div>
+    `;
+  }
+  
+  menuItems += `
+    <div class="context-menu-item" data-action="pin" data-message-id="${messageId}">
+      <i class="fi fi-rr-thumbtack" style="margin-right: 8px;"></i>Ghim tin nhắn
+    </div>
+  `;
+  
+  contextMenu.innerHTML = menuItems;
+  document.body.appendChild(contextMenu);
+  
+  // Thêm event listeners cho các menu item
+  contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = item.dataset.action;
+      const msgId = item.dataset.messageId;
+      
+      console.log('[Group Context Menu] Action clicked:', action, 'for message:', msgId);
+      
+      switch (action) {
+        case 'edit':
+          startEditGroupMessage(msgId);
+          break;
+        case 'delete':
+          deleteGroupMessage(msgId);
+          break;
+        case 'pin':
+          pinGroupMessage(msgId);
+          break;
+      }
+      
+      hideGroupMessageContextMenu();
+    });
+  });
+
+  // Đảm bảo menu không vượt ra ngoài màn hình
+  const rect = contextMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    contextMenu.style.left = (x - rect.width) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    contextMenu.style.top = (y - rect.height) + 'px';
+  }
+  
+  console.log('[Group Context Menu] Context menu shown');
+}
+
+function hideGroupMessageContextMenu() {
+  const existingMenu = document.getElementById('message-context-menu');
+  if (existingMenu) {
+    existingMenu.remove();
+    console.log('[Group Context Menu] Context menu hidden');
+  }
+}
+
+window.startEditGroupMessage = function(messageId) {
+  console.log('[Group Context Menu] Starting edit for group message:', messageId);
+  
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (!messageElement) {
+    console.error('[Group Context Menu] Message element not found for editing');
+    return;
+  }
+  
+  const messageText = messageElement.querySelector('.message-text');
+  if (!messageText) {
+    console.error('[Group Context Menu] Message text not found for editing');
+    return;
+  }
+  
+  // Lấy nội dung hiện tại (loại bỏ badge đã chỉnh sửa nếu có)
+  let currentContent = messageText.textContent;
+  if (currentContent.includes('(đã chỉnh sửa)')) {
+    currentContent = currentContent.replace('(đã chỉnh sửa)', '').trim();
+  }
+  
+  const newContent = prompt('Sửa tin nhắn:', currentContent);
+  if (newContent && newContent !== currentContent) {
+    console.log('[Group Context Menu] Editing message with new content:', newContent);
+    editGroupMessage(messageId, newContent);
+  } else {
+    console.log('[Group Context Menu] Edit cancelled or no changes');
+  }
+  
+  hideGroupMessageContextMenu();
+};
+
+// ====== SOCKET EVENT LISTENERS FOR GROUP ======
+socket.on('message_pinned', (data) => {
+  if (data.conversation_type === 'group' && data.conversation_id === currentGroupId) {
+    loadGroupPinnedMessage(data.conversation_id);
+  }
+});
+
+socket.on('message_unpinned', (data) => {
+  if (data.conversation_type === 'group' && data.conversation_id === currentGroupId) {
+    hideGroupPinnedMessage();
+  }
+});
+
+socket.on('message_updated', (data) => {
+  if (data.conversation_type === 'group' && data.conversation_id === currentGroupId) {
+    updateGroupMessageUI(data.message_id, data.new_content);
+  }
+});
+
+socket.on('message_removed', (data) => {
+  if (data.conversation_type === 'group' && data.conversation_id === currentGroupId) {
+    removeGroupMessageUI(data.message_id);
+  }
+});
+
+// ====== SCROLL TO PINNED MESSAGE FOR GROUP ======
+window.scrollToGroupPinnedMessage = function(messageId) {
+  if (!messageId) return;
+  
+  console.log(`[Group Pinned Message] Scrolling to message: ${messageId}`);
+  
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  
+  if (messageElement) {
+    messageElement.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'center' 
+    });
+    
+    messageElement.classList.add('highlight-message');
+    
+    setTimeout(() => {
+      messageElement.classList.remove('highlight-message');
+    }, 3000);
+  } else {
+    console.log(`[Group Pinned Message] Message ${messageId} not found in current view`);
+    loadGroupMessageAndScroll(messageId);
+  }
+};
+
+async function loadGroupMessageAndScroll(messageId) {
+  try {
+    const response = await fetch(`/get_message/${messageId}`);
+    const data = await response.json();
+    
+    if (data.success && data.message) {
+      const message = data.message;
+      
+      if (message.group_id === currentGroupId) {
+        alert(`Tin nhắn được ghim không nằm trong phạm vi hiện tại. Cần tải thêm tin nhắn.`);
+      } else {
+        console.warn(`[Group Pinned Message] Message ${messageId} does not belong to current group`);
+        alert('Tin nhắn được ghim không thuộc nhóm hiện tại.');
+      }
+    } else {
+      console.error(`[Group Pinned Message] Failed to load message ${messageId}:`, data.error);
+      alert('Không thể tải tin nhắn được ghim.');
+    }
+  } catch (error) {
+    console.error(`[Group Pinned Message] Error loading message ${messageId}:`, error);
+    alert('Lỗi khi tải tin nhắn được ghim.');
+  }
+}
+// ====== THÊM HÀM getMessagePreview VÀO group.js ======
+function getMessagePreview(message) {
+  if (!message || !message.content) return 'Bắt đầu trò chuyện';
+
+  let messageType = message.message_type || 'text';
+  let content = message.content;
+
+  if (messageType === 'file') {
+    try {
+      const fileInfo = typeof content === 'string' ? JSON.parse(content) : content;
+      const fileName = fileInfo.name || fileInfo.filename || 'File';
+      return `📎 ${fileName}`;
+    } catch (e) {
+      console.error('Error parsing file preview:', e);
+      return '📎 File';
+    }
+  } else if (messageType === 'image') {
+    try {
+      const imageInfo = typeof content === 'string' ? JSON.parse(content) : content;
+      const imageName = imageInfo.name || imageInfo.filename || 'Hình ảnh';
+      return `🖼️ ${imageName}`;
+    } catch (e) {
+      console.error('Error parsing image preview:', e);
+      return '🖼️ Hình ảnh';
+    }
+  } else if (messageType === 'sticker') {
+    return '😊 Sticker';
+  } else {
+    if (typeof content === 'string') {
+      // Thử parse JSON để xem có phải file/image không
+      if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
+        try {
+          const data = JSON.parse(content);
+          if (typeof data === 'object') {
+            if (data.type === 'file') {
+              const fileName = data.name || data.filename || 'File';
+              return `📎 ${fileName}`;
+            } else if (data.type === 'image') {
+              const imageName = data.name || data.filename || 'Hình ảnh';
+              return `🖼️ ${imageName}`;
+            }
+          }
+        } catch (e) {
+          // Continue as text
+        }
+      }
+      
+      // Kiểm tra sticker
+      const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
+      if (stickerCodes.includes(content)) {
+        return '😊 Sticker';
+      }
+    }
+    
+    let text = typeof content === 'string' ? content : String(content);
+    text = text.replace('\r', ' ').replace('\n', ' ').trim();
+    
+    if (!text) return 'Bắt đầu trò chuyện';
+    
+    const max = 35;
+    return text.length > max ? text.substring(0, max) + '...' : text;
+  }
+}
+// ====== GLOBAL EXPORTS FOR GROUP ======
+window.pinGroupMessage = pinGroupMessage;
+window.unpinGroupMessage = unpinGroupMessage;
+window.editGroupMessage = editGroupMessage;
+window.deleteGroupMessage = deleteGroupMessage;
+window.scrollToGroupPinnedMessage = scrollToGroupPinnedMessage;
 // --- CÁC HÀM HỖ TRỢ GỌI VIDEO ---
 
 // Hàm cập nhật giao diện nút gọi

@@ -9,7 +9,14 @@ base_dir = os.path.abspath(os.path.dirname(__file__))
 static_dir = os.path.join(base_dir, '../static')
 templates_dir = os.path.join(base_dir, '../templates')
 
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(
+    cors_allowed_origins="*",
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=100 * 1024 * 1024,  # 100MB
+    engineio_logger=False,
+    logger=False
+)
 mongo = PyMongo()
 
 def format_time(value):

@@ -323,9 +323,8 @@ def register_chat_events(socketio, mongo):
             set_user_offline(user_id)
 
     # ====== THÊM SỰ KIỆN ĐỂ CLIENT REQUEST DANH SÁCH ONLINE ======
-
     @socketio.on('get_online_status')
-    def handle_get_online_status(data):
+    def handle_get_online_status(data=None):  # THÊM data=None
         """Client yêu cầu trạng thái online của bạn bè"""
         user_id = session.get('user_id')
         if not user_id:
@@ -357,7 +356,7 @@ def register_chat_events(socketio, mongo):
                 
         except Exception as e:
             print(f"Error getting online status: {str(e)}")
-   
+    
 
     @socketio.on('pin_message')
     def handle_pin_message(data):

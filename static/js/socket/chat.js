@@ -94,19 +94,25 @@ export function setupSendMessage() {
     }
   }
 }
-
 export function joinConversation(conversationId) {
   if (!conversationId) return;
   if (currentConversation === conversationId) return;
 
   resetGroupState();
 
+  // QUAN TRỌNG: Ẩn hoàn toàn UI của nhóm khi chuyển về chat 1-1
+  hideAllGroupUI();
+
   if (typeof setCurrentConversation === 'function') {
     setCurrentConversation(conversationId, 'private');
   }
 
   currentConversationType = 'private';
+  
+  // QUAN TRỌNG: Load pinned message NGAY LẬP TỨC
+  console.log(`[Chat] Loading pinned message for conversation: ${conversationId}`);
   loadPinnedMessage(conversationId, 'private');
+  
   markMessagesAsRead(conversationId);
 
   if (currentConversation) {
@@ -115,13 +121,17 @@ export function joinConversation(conversationId) {
 
   currentConversation = conversationId;
   socket.emit('join_conversation', { conversation_id: conversationId });
-
+  
+  // Cập nhật UI conversation
   document.querySelectorAll('.conversation-item').forEach(el => {
     el.classList.remove('active');
     if (el.dataset.id === conversationId) {
       el.classList.add('active');
     }
   });
+
+  // QUAN TRỌNG: Reset header về dạng chat 1-1
+  resetPrivateChatHeader();
 
   fetch(`/conversation/${conversationId}`)
     .then(res => res.json())
@@ -143,27 +153,93 @@ export function joinConversation(conversationId) {
 
       if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
 
-      const selectedConversation = document.querySelector(
-        `.conversation-item[data-id="${conversationId}"] .conversation-name`
-      );
-      const headerTitle = document.querySelector('.chat-header h2');
-      if (selectedConversation && headerTitle) {
-        headerTitle.textContent = selectedConversation.textContent;
-      }
+      // Cập nhật header với tên người dùng (không phải tên nhóm)
+      updatePrivateChatHeader(conversationId);
     })
     .catch(err => console.error('Error loading messages:', err));
 }
 
+// THÊM HÀM MỚI: Ẩn tất cả UI của nhóm
+function hideAllGroupUI() {
+  console.log('[Chat] Hiding all group UI elements');
+  
+  // Ẩn nút quản lý nhóm
+  const manageBtn = document.getElementById('manage-group-btn');
+  if (manageBtn) {
+    manageBtn.style.display = 'none';
+  }
+  
+  // Ẩn nút gọi nhóm
+  const callBtn = document.getElementById('btn-group-call');
+  if (callBtn) {
+    callBtn.style.display = 'none';
+  }
+  
+  // Ẩn header actions của nhóm
+  const headerActions = document.querySelector('.header-actions');
+  if (headerActions) {
+    headerActions.style.display = 'none';
+  }
+  
+  // Ẩn group header
+  const groupHeader = document.querySelector('.group-header');
+  if (groupHeader) {
+    groupHeader.style.display = 'none';
+  }
+}
+
+// THÊM HÀM MỚI: Reset header về dạng chat 1-1
+function resetPrivateChatHeader() {
+  const header = document.querySelector('.chat-header');
+  if (!header) return;
+  
+  // Kiểm tra xem header đã ở dạng private chưa
+  const existingPrivateHeader = header.querySelector('.private-chat-header');
+  if (existingPrivateHeader) return;
+  
+  // Xóa tất cả nội dung header hiện tại
+  header.innerHTML = '';
+  
+  // Tạo header mới cho chat 1-1
+  const privateHeader = document.createElement('div');
+  privateHeader.className = 'private-chat-header';
+  privateHeader.innerHTML = `
+    <h2>Messages</h2>
+  `;
+  
+  header.appendChild(privateHeader);
+}
+
+// THÊM HÀM MỚI: Cập nhật header với thông tin cuộc trò chuyện
+function updatePrivateChatHeader(conversationId) {
+  const selectedConversation = document.querySelector(
+    `.conversation-item[data-id="${conversationId}"] .conversation-name`
+  );
+  const headerTitle = document.querySelector('.chat-header h2');
+  
+  if (selectedConversation && headerTitle) {
+    headerTitle.textContent = selectedConversation.textContent;
+  }
+}
 // ====== PINNED MESSAGE FUNCTIONS ======
 async function loadPinnedMessage(conversationId, type) {
   try {
+    console.log(`[Pinned Message] Loading pinned message for: ${conversationId}, type: ${type}`);
+    
     const response = await fetch(`/get_pinned_message/${conversationId}?type=${type}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
     
     if (data.pinned_message) {
+      console.log(`[Pinned Message] Found pinned message:`, data.pinned_message);
       pinnedMessage = data.pinned_message;
       displayPinnedMessage(pinnedMessage);
     } else {
+      console.log(`[Pinned Message] No pinned message found for: ${conversationId}`);
       hidePinnedMessage();
     }
   } catch (error) {
@@ -171,7 +247,6 @@ async function loadPinnedMessage(conversationId, type) {
     hidePinnedMessage();
   }
 }
-
 function displayPinnedMessage(message) {
   let pinnedSection = document.getElementById('pinned-message-section');
   
@@ -284,7 +359,6 @@ function hidePinnedMessage() {
   }
   pinnedMessage = null;
 }
-
 export async function pinMessage(messageId) {
   if (!currentConversation || !messageId) return;
   
@@ -307,6 +381,11 @@ export async function pinMessage(messageId) {
         conversation_id: currentConversation,
         conversation_type: currentConversationType
       });
+      
+      // QUAN TRỌNG: Load lại pinned message ngay lập tức
+      console.log(`[Pin Message] Reloading pinned message for: ${currentConversation}`);
+      await loadPinnedMessage(currentConversation, currentConversationType);
+      
       alert('Đã ghim tin nhắn');
     } else {
       alert('Lỗi khi ghim tin nhắn: ' + data.error);
@@ -504,7 +583,7 @@ function showMessageContextMenu(x, y, messageId, isMyMessage) {
   
   menuItems += `
     <div class="context-menu-item" data-action="pin" data-message-id="${messageId}">
-      <i class="fi fi-rr-pin" style="margin-right: 8px;"></i>Ghim tin nhắn
+      <i class="fi fi-rr-thumbtack" style="margin-right: 8px;"></i>Ghim tin nhắn
     </div>
   `;
   
@@ -589,17 +668,19 @@ window.startEditMessage = function(messageId) {
 };
 // ====== SOCKET EVENT LISTENERS ======
 socket.on('message_pinned', (data) => {
+  console.log(`[Socket] Message pinned in conversation: ${data.conversation_id}`);
   if (data.conversation_id === currentConversation) {
+    // Load lại pinned message ngay lập tức khi nhận sự kiện từ socket
     loadPinnedMessage(data.conversation_id, data.conversation_type);
   }
 });
 
 socket.on('message_unpinned', (data) => {
+  console.log(`[Socket] Message unpinned in conversation: ${data.conversation_id}`);
   if (data.conversation_id === currentConversation) {
     hidePinnedMessage();
   }
 });
-
 socket.on('message_updated', (data) => {
   if (data.conversation_id === currentConversation) {
     updateMessageUI(data.message_id, data.new_content);

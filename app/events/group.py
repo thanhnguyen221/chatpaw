@@ -39,15 +39,18 @@ def register_group_events(socketio, mongo):
         user_id = session.get('user_id')
         if not group_id or not user_id:
             return
+
         room = f"group_{group_id}"
         join_room(room)
         print(f"User {user_id} joined group {group_id}")
+
         messages = list(messages_col.find(
             {'group_id': ObjectId(group_id)},
             sort=[('timestamp', -1)],
             limit=50
         ))
         messages.reverse()  # Hiển thị từ cũ đến mới
+
         emit('group_history', {
             'group_id': group_id,
             'messages': [
@@ -55,8 +58,9 @@ def register_group_events(socketio, mongo):
                     'message_id': str(msg['_id']),
                     'sender_id': str(msg['sender_id']),
                     'sender_name': get_user_info(msg['sender_id'])['username'],
-                    'sender_avatar': get_user_info(msg['sender_id'])['avatar'],  # THÊM AVATAR
+                    'sender_avatar': get_user_info(msg['sender_id'])['avatar'],
                     'content': msg['content'],
+                    'message_type': msg.get('message_type', 'text'),
                     'timestamp': msg['timestamp'].isoformat()
                 } for msg in messages
             ]
@@ -106,7 +110,7 @@ def register_group_events(socketio, mongo):
     def handle_send_group_message(data):
         group_id = data.get('group_id')
         content = data.get('content')
-        message_type = data.get('message_type', 'text')  # THÊM DÒNG NÀY
+        message_type = data.get('message_type', 'text')
         user_id = session.get('user_id')
         
         print(f"[DEBUG] Received group message: group_id={group_id}, content={content}, message_type={message_type}, user_id={user_id}")
@@ -131,7 +135,7 @@ def register_group_events(socketio, mongo):
             print(f"[DEBUG] User {user_id} is not a member of group {group_id}")
             return
 
-        # QUAN TRỌNG: Sử dụng cùng hàm get_vietnam_time()
+        # Sử dụng giờ Việt Nam
         now = get_vietnam_time()
 
         sender = users_col.find_one({'_id': user_oid})
@@ -143,7 +147,7 @@ def register_group_events(socketio, mongo):
             'group_id': group_oid,
             'sender_id': user_oid,
             'content': content,
-            'message_type': message_type,  # THÊM DÒNG NÀY
+            'message_type': message_type,
             'timestamp': now,
             'read_by': [user_oid]
         }
@@ -153,14 +157,14 @@ def register_group_events(socketio, mongo):
         message_id = inserted.inserted_id
         print(f"[DEBUG] Message inserted with ID: {message_id}")
 
-        # Emit tới room - THÊM message_type
+        # Emit tới room
         emit_data = {
             'group_id': group_id,
             'message_id': str(message_id),
             'sender_id': str(user_id),
             'sender_name': sender_name,
             'content': content,
-            'message_type': message_type,  # THÊM DÒNG NÀY
+            'message_type': message_type,
             'timestamp': now.isoformat(),
             'sender_avatar': sender_avatar,
         }
@@ -311,6 +315,7 @@ def register_group_events(socketio, mongo):
             print(f'Error updating group avatar: {str(e)}')
             return {'ok': False, 'error': 'Internal server error'}
 
+    # ------------------ LEAVE CONVERSATION ROOM (PRIVATE + GROUP) ------------------
     @socketio.on('leave_conversation')
     def handle_leave_conversation_room(data):
         """Xử lý rời khỏi room conversation (dùng cho cả group và individual chat)"""
@@ -318,14 +323,14 @@ def register_group_events(socketio, mongo):
         user_id = session.get('user_id')
         
         if conversation_id:
-            # Có thể là group room hoặc conversation room
             leave_room(str(conversation_id))
             leave_room(f"group_{conversation_id}")  # Thử cả 2 format
             print(f"User {user_id} left room: {conversation_id}")
 
+    # ------------------ PIN / UNPIN / EDIT / DELETE MESSAGE (PRIVATE + GROUP) ------------------
     @socketio.on('pin_message')
     def handle_pin_message(data):
-        """Xử lý ghim tin nhắn nhóm"""
+        """Xử lý ghim tin nhắn (cả private & group)"""
         try:
             message_id = data.get('message_id')
             conversation_id = data.get('conversation_id')
@@ -335,20 +340,21 @@ def register_group_events(socketio, mongo):
             if not all([message_id, conversation_id, user_id]):
                 return
 
-            # Gửi thông báo đến tất cả thành viên trong group
+            room_name = f"group_{conversation_id}" if conversation_type == 'group' else str(conversation_id)
+
             emit('message_pinned', {
                 'message_id': message_id,
                 'conversation_id': conversation_id,
                 'conversation_type': conversation_type,
                 'pinned_by': user_id
-            }, room=f"group_{conversation_id}")
+            }, room=room_name)
             
         except Exception as e:
             print(f"Error handling pin message: {str(e)}")
 
     @socketio.on('unpin_message')
     def handle_unpin_message(data):
-        """Xử lý bỏ ghim tin nhắn nhóm"""
+        """Xử lý bỏ ghim tin nhắn (cả private & group)"""
         try:
             conversation_id = data.get('conversation_id')
             conversation_type = data.get('conversation_type', 'group')
@@ -357,19 +363,20 @@ def register_group_events(socketio, mongo):
             if not all([conversation_id, user_id]):
                 return
 
-            # Gửi thông báo đến tất cả thành viên
+            room_name = f"group_{conversation_id}" if conversation_type == 'group' else str(conversation_id)
+
             emit('message_unpinned', {
                 'conversation_id': conversation_id,
                 'conversation_type': conversation_type,
                 'unpinned_by': user_id
-            }, room=f"group_{conversation_id}")
+            }, room=room_name)
             
         except Exception as e:
             print(f"Error handling unpin message: {str(e)}")
 
     @socketio.on('message_edited')
     def handle_message_edited(data):
-        """Thông báo tin nhắn nhóm đã được sửa"""
+        """Thông báo tin nhắn đã được sửa (cả private & group)"""
         try:
             message_id = data.get('message_id')
             conversation_id = data.get('conversation_id')
@@ -379,20 +386,22 @@ def register_group_events(socketio, mongo):
             if not all([message_id, conversation_id, new_content]):
                 return
 
+            room_name = f"group_{conversation_id}" if conversation_type == 'group' else str(conversation_id)
+
             emit('message_updated', {
                 'message_id': message_id,
                 'conversation_id': conversation_id,
                 'conversation_type': conversation_type,
                 'new_content': new_content,
                 'edited_at': get_vietnam_time().isoformat()
-            }, room=f"group_{conversation_id}")
+            }, room=room_name)
             
         except Exception as e:
             print(f"Error handling message edited: {str(e)}")
 
     @socketio.on('message_deleted')
     def handle_message_deleted(data):
-        """Thông báo tin nhắn nhóm đã bị xóa"""
+        """Thông báo tin nhắn đã bị xóa (cả private & group)"""
         try:
             message_id = data.get('message_id')
             conversation_id = data.get('conversation_id')
@@ -401,11 +410,13 @@ def register_group_events(socketio, mongo):
             if not all([message_id, conversation_id]):
                 return
 
+            room_name = f"group_{conversation_id}" if conversation_type == 'group' else str(conversation_id)
+
             emit('message_removed', {
                 'message_id': message_id,
                 'conversation_id': conversation_id,
                 'conversation_type': conversation_type
-            }, room=f"group_{conversation_id}")
+            }, room=room_name)
             
         except Exception as e:
             print(f"Error handling message deleted: {str(e)}")

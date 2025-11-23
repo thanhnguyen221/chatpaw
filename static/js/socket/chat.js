@@ -4,8 +4,11 @@ import { resetGroupChat } from './group.js';
 
 let currentConversation = null;
 let currentConversationType = 'private';
-let pinnedMessage = null; 
+let pinnedMessage = null;
+let pinnedConversationType = 'private';
+
 let onOpenPrivateConversationCb = null;
+
 
 function resetGroupState() {
   if (typeof resetGroupChat === 'function') {
@@ -109,6 +112,7 @@ export function joinConversation(conversationId) {
 
   currentConversationType = 'private';
   
+  
   // QUAN TRỌNG: Load pinned message NGAY LẬP TỨC
   console.log(`[Chat] Loading pinned message for conversation: ${conversationId}`);
   loadPinnedMessage(conversationId, 'private');
@@ -120,6 +124,7 @@ export function joinConversation(conversationId) {
   }
 
   currentConversation = conversationId;
+  window.currentConversation = conversationId; 
   socket.emit('join_conversation', { conversation_id: conversationId });
   
   // Cập nhật UI conversation
@@ -213,57 +218,42 @@ function resetPrivateChatHeader() {
 // --- DÁN ĐOẠN NÀY VÀO FILE chat.js (Nên để gần các hàm update UI khác) ---
 
 function updatePrivateChatHeader(conversationId) {
-    const header = document.querySelector('.chat-header');
-    // Tìm thông tin từ danh sách bên trái để hiển thị lên header
-    const convItem = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
-    
-    const name = convItem ? convItem.querySelector('.conversation-name').textContent : 'Người dùng';
-    const avatar = convItem ? convItem.querySelector('.conversation-avatar').src : (window.defaultUserAvatar || '/static/img/default-avatar.png');
+  const header = document.querySelector('.chat-header');
+  if (!header) return;
 
-    // 1. CẬP NHẬT HTML HEADER (QUAN TRỌNG: THÊM NÚT GỌI Ở ĐÂY)
-    header.innerHTML = `
-      <div class="chat-header-user" style="display:flex; align-items:center; gap:10px;">
-        <img src="${avatar}" class="header-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
-        <div class="header-info">
-          <h2 style="margin:0;font-size:16px;">${name}</h2>
-          <span class="status-text" style="font-size:12px;color:#888;">Đang hoạt động</span>
-        </div>
-      </div>
-      
-      <div class="header-actions" style="display:flex; align-items:center; gap:10px;">
-        <button id="btn-private-call" class="btn-icon" title="Gọi video" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
-            <i class="fas fa-video"></i>
-        </button>
-        
-        <button class="btn-icon" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
-            <i class="fi fi-rr-menu-dots"></i>
-        </button>
-      </div>
-    `;
+  const convItem = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
+  const name = convItem ? convItem.querySelector('.conversation-name').textContent : 'Người dùng';
+  const avatar = convItem ? convItem.querySelector('.conversation-avatar').src : (window.defaultUserAvatar || '/static/img/default-avatar.png');
 
-    // 2. GẮN SỰ KIỆN CLICK CHO NÚT GỌI
-    const btnCall = document.getElementById('btn-private-call');
-    if (btnCall) {
-        btnCall.addEventListener('click', () => {
-            console.log("[Chat] Gọi 1vs1 cho:", conversationId);
-            
-            // Gửi lời mời (Lưu ý: type='private')
-            if(socket) {
-                socket.emit('call:invite_group', { 
-                    conversation_id: conversationId, 
-                    conversation_type: 'private' 
-                });
-            }
-            
-            // Mở Overlay Video (Hàm này nằm bên group_call.js)
-            if (window.startGroupCall) {
-                window.startGroupCall(conversationId);
-            } else {
-                alert("Chức năng gọi chưa sẵn sàng (Chưa load group_call.js)");
-            }
-        });
-    }
+  header.innerHTML = `
+    <div class="chat-header-user" style="display:flex; align-items:center; gap:10px;">
+      <img src="${avatar}" class="header-avatar" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+      <div class="header-info">
+        <h2 style="margin:0;font-size:16px;">${name}</h2>
+        <span class="status-text" style="font-size:12px;color:#888;">Đang hoạt động</span>
+      </div>
+    </div>
+    <div class="header-actions" style="display:flex; align-items:center; gap:10px;">
+      <button id="btn-private-call" class="btn-icon" title="Gọi video" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
+        <i class="fas fa-video"></i>
+      </button>
+      <button class="btn-icon" style="font-size:1.2rem;border:none;background:none;cursor:pointer;color:#555;">
+        <i class="fi fi-rr-menu-dots"></i>
+      </button>
+    </div>
+  `;
+
+  const btnCall = document.getElementById('btn-private-call');
+  if (btnCall) {
+    btnCall.addEventListener('click', () => {
+      // 🔥 DÙNG CHUNG HELPER 1v1
+      startPrivateCall(conversationId);
+    });
+  }
 }
+
+
+
 // ====== PINNED MESSAGE FUNCTIONS ======
 async function loadPinnedMessage(conversationId, type) {
   try {
@@ -279,10 +269,12 @@ async function loadPinnedMessage(conversationId, type) {
     
     if (data.pinned_message) {
       console.log(`[Pinned Message] Found pinned message:`, data.pinned_message);
+      pinnedConversationType = type || 'private';
       pinnedMessage = data.pinned_message;
       displayPinnedMessage(pinnedMessage);
     } else {
       console.log(`[Pinned Message] No pinned message found for: ${conversationId}`);
+      pinnedConversationType = type || 'private';
       hidePinnedMessage();
     }
   } catch (error) {
@@ -402,8 +394,18 @@ function hidePinnedMessage() {
   }
   pinnedMessage = null;
 }
+function getMessageConversationType(messageId) {
+  const el = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (el && el.dataset.conversationType) {
+    return el.dataset.conversationType;
+  }
+  return currentConversationType || 'private';
+}
+
 export async function pinMessage(messageId) {
   if (!currentConversation || !messageId) return;
+
+  const convType = getMessageConversationType(messageId);
   
   try {
     const response = await fetch('/pin_message', {
@@ -412,7 +414,7 @@ export async function pinMessage(messageId) {
       body: JSON.stringify({
         message_id: messageId,
         conversation_id: currentConversation,
-        conversation_type: currentConversationType
+        conversation_type: convType
       })
     });
     
@@ -422,12 +424,11 @@ export async function pinMessage(messageId) {
       socket.emit('pin_message', {
         message_id: messageId,
         conversation_id: currentConversation,
-        conversation_type: currentConversationType
+        conversation_type: convType
       });
       
-      // QUAN TRỌNG: Load lại pinned message ngay lập tức
       console.log(`[Pin Message] Reloading pinned message for: ${currentConversation}`);
-      await loadPinnedMessage(currentConversation, currentConversationType);
+      await loadPinnedMessage(currentConversation, convType);
       
       alert('Đã ghim tin nhắn');
     } else {
@@ -439,6 +440,7 @@ export async function pinMessage(messageId) {
   }
 }
 
+
 export async function unpinMessage() {
   if (!currentConversation) return;
   
@@ -448,7 +450,7 @@ export async function unpinMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         conversation_id: currentConversation,
-        conversation_type: currentConversationType
+        conversation_type: pinnedConversationType || currentConversationType
       })
     });
     
@@ -457,9 +459,10 @@ export async function unpinMessage() {
     if (data.success) {
       socket.emit('unpin_message', {
         conversation_id: currentConversation,
-        conversation_type: currentConversationType
+        conversation_type: pinnedConversationType || currentConversationType
       });
       hidePinnedMessage();
+
     } else {
       alert('Lỗi khi bỏ ghim: ' + data.error);
     }
@@ -474,24 +477,31 @@ export async function editMessage(messageId, newContent) {
   if (!messageId || !newContent) return;
   
   try {
+    // LẤY LOẠI CUỘC TRÒ CHUYỆN (private / group) TỪ DOM
+    const convType = getMessageConversationType(messageId);
+
     const response = await fetch('/edit_message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message_id: messageId,
-        new_content: newContent
+        new_content: newContent,
+        conversation_type: convType      // 🔥 GỬI KÈM LOẠI CONVERSATION
       })
     });
     
     const data = await response.json();
     
     if (data.success) {
+      // Báo cho tất cả client trong phòng
       socket.emit('message_edited', {
         message_id: messageId,
         conversation_id: currentConversation,
-        conversation_type: currentConversationType,
+        conversation_type: convType,
         new_content: newContent
       });
+
+      // Cập nhật UI local
       updateMessageUI(messageId, newContent);
     } else {
       alert('Lỗi khi sửa tin nhắn: ' + data.error);
@@ -502,29 +512,32 @@ export async function editMessage(messageId, newContent) {
   }
 }
 
+
 export async function deleteMessage(messageId) {
   if (!messageId) return;
   
   if (!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
   
   try {
-    const response = await fetch('/delete_message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message_id: messageId,
-        conversation_type: currentConversationType
-      })
-    });
+    const convType = getMessageConversationType(messageId);
+
+const response = await fetch('/delete_message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    message_id: messageId,
+    conversation_type: convType
+  })
+});
     
     const data = await response.json();
     
-    if (data.success) {
-      socket.emit('message_deleted', {
-        message_id: messageId,
-        conversation_id: currentConversation,
-        conversation_type: currentConversationType
-      });
+   if (data.success) {
+  socket.emit('message_deleted', {
+    message_id: messageId,
+    conversation_id: currentConversation,
+    conversation_type: convType
+  });
       removeMessageUI(messageId);
     } else {
       alert('Lỗi khi xóa tin nhắn: ' + data.error);
@@ -739,7 +752,8 @@ socket.on('message_removed', (data) => {
 // ====== MESSAGE DISPLAY FUNCTIONS ======
 export function addMessageToUI(msg) {
   const myId = getUserId();
-  const isMe = msg.sender_id === myId;
+  // QUAN TRỌNG: Chuyển về String để so sánh chính xác
+  const isMe = String(msg.sender_id) === String(myId);
   const messagesEl = document.getElementById('messages');
   if (!messagesEl) return;
 
@@ -748,38 +762,53 @@ export function addMessageToUI(msg) {
 
   const messageEl = document.createElement('div');
   messageEl.classList.add('message', isMe ? 'sent' : 'received');
+  messageEl.dataset.messageId = msg.message_id; // Gắn ID để update status sau này
+  messageEl.dataset.conversationType = msg.conversation_type || currentConversationType || 'private';
+
 
   const timeString = formatMessageTime(msg.timestamp);
 
+  // --- XỬ LÝ LOGIC PARSE CONTENT ---
   let messageType = msg.message_type || 'text';
   let parsedContent = msg.content;
 
+  // 1. Nếu type là file/image mà content là string -> Parse JSON
   if (messageType === 'file' || messageType === 'image') {
     if (typeof msg.content === 'string') {
       try {
         parsedContent = JSON.parse(msg.content);
-      } catch {
-        messageType = 'text';
+      } catch (e) {
+        console.error('Error parsing content JSON:', e);
+        messageType = 'text'; // Fallback về text nếu lỗi
       }
     }
-  } else if (!msg.message_type || messageType === 'text') {
+  } 
+  // 2. Nếu type chưa rõ hoặc là text, thử detect xem có phải JSON không
+  else if (!msg.message_type || messageType === 'text') {
     if (typeof msg.content === 'string') {
-      try {
-        const testParse = JSON.parse(msg.content);
-        if (testParse?.type === 'file') {
-          messageType = 'file';
-          parsedContent = testParse;
-        } else if (testParse?.type === 'image') {
-          messageType = 'image';
-          parsedContent = testParse;
+      // Check nhanh xem có giống JSON không
+      if (msg.content.trim().startsWith('{')) {
+        try {
+          const testParse = JSON.parse(msg.content);
+          if (testParse?.type === 'file') {
+            messageType = 'file';
+            parsedContent = testParse;
+          } else if (testParse?.type === 'image') {
+            messageType = 'image';
+            parsedContent = testParse;
+          }
+        } catch {
+          // Không phải JSON, bỏ qua
         }
-      } catch {
-        const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
-        if (stickerCodes.includes(msg.content)) messageType = 'sticker';
       }
+      
+      // Check Sticker
+      const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
+      if (stickerCodes.includes(msg.content)) messageType = 'sticker';
     }
   }
 
+  // --- TẠO HTML CONTENT ---
   let messageContent = '';
 
   if (messageType === 'file') {
@@ -788,20 +817,24 @@ export function addMessageToUI(msg) {
         <div class="file-info">
           <div class="file-icon"><i class="fi fi-rr-file"></i></div>
           <div class="file-details">
-            <div class="file-name">${escapeHtml(parsedContent.name)}</div>
-            <div class="file-size">${formatFileSize(parsedContent.size)}</div>
+            <div class="file-name">${escapeHtml(parsedContent.name || 'File')}</div>
+            <div class="file-size">${formatFileSize(parsedContent.size || 0)}</div>
           </div>
         </div>
         <a href="${parsedContent.url}" class="file-download" download>Tải xuống</a>
       </div>
     `;
   } else if (messageType === 'image') {
+    // THÊM: onclick để mở modal xem ảnh
     messageContent = `
       <div class="image-message">
         <div class="image-info">
-          <i class="fi fi-rr-picture"></i> ${escapeHtml(parsedContent.name)}
+          <i class="fi fi-rr-picture"></i> ${escapeHtml(parsedContent.name || 'Hình ảnh')}
         </div>
-        <img src="${parsedContent.thumbnail || parsedContent.url}" class="uploaded-image" alt="${escapeHtml(parsedContent.name)}"
+        <img src="${parsedContent.thumbnail || parsedContent.url}" 
+             class="uploaded-image" 
+             alt="${escapeHtml(parsedContent.name)}"
+             onclick="window.openImageModal('${parsedContent.url}')"
              onerror="this.src='${parsedContent.url}'; this.onerror=null;">
         <div class="image-actions">
           <a href="${parsedContent.url}" target="_blank" class="view-original">Xem ảnh gốc</a>
@@ -814,35 +847,43 @@ export function addMessageToUI(msg) {
     messageContent = `<div class="message-text">${escapeHtml(msg.content)}</div>`;
   }
 
-  let statusText = getStatusText(msg.status || 'sent');
-  let statusClass = `status-${msg.status || 'sent'}`;
+  // --- TẠO HTML STATUS ---
+  let statusHTML = '';
+  
+  if (isMe) {
+    let statusText = getStatusText(msg.status || 'sent');
+    let statusClass = `status-${msg.status || 'sent'}`;
+    
+    statusHTML = `
+      <div class="message-status-container">
+        <span class="message-time" title="${msg.timestamp}">${timeString}</span>
+        <span class="message-status ${statusClass}">${statusText}</span>
+      </div>
+    `;
+  } else {
+    statusHTML = `<span class="message-time" title="${msg.timestamp}">${timeString}</span>`;
+  }
+
+  // --- LẮP RÁP HTML CUỐI CÙNG ---
+  // Lưu ý: sender-name chỉ hiện cho tin nhắn người khác (và thường là trong group)
+  const showSenderName = !isMe && (currentConversationType === 'group' || msg.conversation_type === 'group');
 
   messageEl.innerHTML = `
-      ${!isMe ? `<img src="${avatarUrl}" class="message-avatar" alt="${senderName}">` : ''}
+      ${!isMe ? `<img src="${avatarUrl}" class="message-avatar" alt="${senderName}" title="${senderName}">` : ''}
       <div class="message-content-container">
-          ${!isMe ? `<div class="sender-info">${senderName}</div>` : ''}
+          ${showSenderName ? `<div class="sender-info">${senderName}</div>` : ''}
           <div class="message-content-wrapper">
               <div class="message-bubble">${messageContent}</div>
-              ${
-                isMe
-                  ? `
-                    <div class="message-status-container">
-                      <span class="message-time">${timeString}</span>
-                      <span class="message-status ${statusClass}">${statusText}</span>
-                    </div>
-                    `
-                  : `<span class="message-time">${timeString}</span>`
-              }
+              ${statusHTML}
           </div>
       </div>
-      ${isMe ? `<img src="${avatarUrl}" class="message-avatar" alt="${senderName}">` : ''}
   `;
 
-  messageEl.dataset.messageId = msg.message_id;
   messagesEl.appendChild(messageEl);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   messageEl.classList.add('message-item');
 
+  // Tự động đánh dấu đã đọc nếu là tin nhắn người khác
   if (!isMe && msg.status !== 'read') {
     markMessageAsRead(msg.message_id);
   }
@@ -951,8 +992,20 @@ export function addNewConversationToList(conversationId) {
             ${displayTime}
           </div>
           ${data.unread_count > 0 ? `<div class="unread-count">${data.unread_count}</div>` : ''}
+          <button class="conv-call-btn" title="Gọi nhanh 1v1" style="border:none;background:none;cursor:pointer;font-size:1.1rem;">
+            <i class="fas fa-video"></i>
+          </button>
         </div>
       `;
+
+      // 🔥 NÚT GỌI NHANH 1v1 NGAY TRONG LIST
+      const quickCallBtn = convEl.querySelector('.conv-call-btn');
+      if (quickCallBtn) {
+        quickCallBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // Không mở chat khi bấm nút call
+          startPrivateCall(conversationId);
+        });
+      }
 
       convEl.addEventListener('click', () => {
         const anim = document.getElementById('animation-screen');
@@ -973,6 +1026,7 @@ export function addNewConversationToList(conversationId) {
     })
     .catch(err => console.error('Error creating conversation item:', err));
 }
+
 
 function sortConversationsList() {
   const conversationsContainer = document.getElementById('conversations');
@@ -1007,86 +1061,72 @@ function sortConversationsList() {
 }
 
 // ====== UTILITY FUNCTIONS ======
+// --- 1. THAY THẾ HÀM formatMessageTime ---
 function formatMessageTime(timestamp) {
   if (!timestamp) return '';
   
-  try {
-    const messageDate = new Date(timestamp);
-    const now = new Date();
+  // Nếu có moment.js thì dùng cho chuẩn
+  if (window.moment) {
+    const m = moment(timestamp);
+    const now = moment();
     
-    if (isNaN(messageDate.getTime())) return 'Vừa xong';
-
-    const messageDateUTC = messageDate.getTime();
-    const nowUTC = now.getTime();
-    const diffMs = nowUTC - messageDateUTC;
+    if (!m.isValid()) return 'Vừa xong';
     
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMinutes < 1) {
-      return 'Vừa xong';
-    } else if (diffMinutes < 60) {
-      return `${diffMinutes} phút trước`;
-    } else if (diffHours < 24) {
-      return `${diffHours} giờ trước`;
-    } else if (diffDays === 1) {
-      return 'Hôm qua';
-    } else if (messageDate.getFullYear() === now.getFullYear()) {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      return `${day}/${month}`;
-    } else {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      const year = messageDate.getFullYear();
-      return `${day}/${month}/${year}`;
+    // Nếu nhỏ hơn 1 phút
+    if (now.diff(m, 'seconds') < 60) return 'Vừa xong';
+    
+    // Nếu trong ngày hôm nay: "10:30"
+    if (m.isSame(now, 'day')) {
+      return m.format('HH:mm');
     }
-  } catch (error) {
-    console.error('Error formatting message time:', error);
-    return 'Vừa xong';
+    
+    // Nếu là hôm qua: "Hôm qua 10:30"
+    if (m.isSame(now.clone().subtract(1, 'days'), 'day')) {
+      return 'Hôm qua ' + m.format('HH:mm');
+    }
+    
+    // Nếu trong năm nay: "20/11 10:30"
+    if (m.isSame(now, 'year')) {
+      return m.format('DD/MM HH:mm');
+    }
+    
+    // Khác năm: "20/11/2023"
+    return m.format('DD/MM/YYYY');
+  }
+
+  // Fallback nếu không có moment (Javascript thuần)
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '';
   }
 }
 
+// --- 2. THAY THẾ HÀM formatConversationTime (Cho danh sách bên trái) ---
 function formatConversationTime(timestamp) {
   if (!timestamp) return '';
   
-  try {
-    const messageDate = new Date(timestamp);
-    const now = new Date();
+  if (window.moment) {
+    const m = moment(timestamp);
+    const now = moment();
     
-    if (isNaN(messageDate.getTime())) return 'Vừa xong';
-
-    const messageDateUTC = messageDate.getTime();
-    const nowUTC = now.getTime();
-    const diffMs = nowUTC - messageDateUTC;
+    if (!m.isValid()) return '';
     
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMinutes < 1) {
-      return 'Vừa xong';
-    } else if (diffMinutes < 60) {
-      return `${diffMinutes}p`;
-    } else if (diffHours < 24) {
-      return `${diffHours}g`;
-    } else if (diffDays === 1) {
-      return 'Hôm qua';
-    } else if (messageDate.getFullYear() === now.getFullYear()) {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      return `${day}/${month}`;
-    } else {
-      const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-      const year = messageDate.getFullYear().toString().slice(-2);
-      return `${day}/${month}/${year}`;
-    }
-  } catch (error) {
-    console.error('Error formatting conversation time:', error);
-    return 'Vừa xong';
+    const diffMinutes = now.diff(m, 'minutes');
+    
+    if (diffMinutes < 1) return 'Vừa xong';
+    if (diffMinutes < 60) return `${diffMinutes}p`; // 5p
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes/60)}g`; // 2g
+    
+    if (m.isSame(now, 'day')) return m.format('HH:mm');
+    if (m.isSame(now.clone().subtract(1, 'days'), 'day')) return 'Hôm qua';
+    
+    if (m.isSame(now, 'year')) return m.format('DD/MM');
+    return m.format('DD/MM/YY');
   }
+  
+  return '';
 }
 function getMessagePreview(message) {
   if (!message || !message.content) return 'Bắt đầu trò chuyện';
@@ -1186,17 +1226,7 @@ export function setupMessageStatus() {
   });
 }
 
-export function updateMessageStatusUI(messageId, status) {
-  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-  if (!messageElement) return;
-
-  const statusElement = messageElement.querySelector('.message-status');
-  if (statusElement) {
-      statusElement.textContent = getStatusText(status);
-      statusElement.className = `message-status status-${status}`;
-  }
-}
-
+// --- 3. THAY THẾ HÀM getStatusText ---
 function getStatusText(status) {
   const statusMap = {
       'sent': 'Đã gửi',
@@ -1204,6 +1234,30 @@ function getStatusText(status) {
       'read': 'Đã xem'
   };
   return statusMap[status] || 'Đã gửi';
+}
+
+// --- 4. THAY THẾ HÀM updateMessageStatusUI ---
+export function updateMessageStatusUI(messageId, status) {
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (!messageElement) return;
+
+  // Tìm element hiển thị status
+  const statusElement = messageElement.querySelector('.message-status');
+  const container = messageElement.querySelector('.message-status-container');
+
+  if (statusElement) {
+      statusElement.textContent = getStatusText(status);
+      
+      // Xóa các class cũ
+      statusElement.classList.remove('status-sent', 'status-delivered', 'status-read');
+      // Thêm class mới
+      statusElement.classList.add(`status-${status}`);
+      
+      // Nếu là "read", có thể thêm icon check đôi nếu muốn (tùy CSS)
+      if (status === 'read') {
+        // Logic phụ: Nếu muốn ẩn chữ "Đã xem" sau vài giây thì code ở đây
+      }
+  }
 }
 
 export function markMessageAsRead(messageId) {
@@ -1247,7 +1301,33 @@ export function getUserId() {
 
 export function resetCurrentConversation() {
   currentConversation = null;
+   window.currentConversation = null;
 }
+// ====== PRIVATE CALL HELPER ======
+export function startPrivateCall(conversationId) {
+  if (!conversationId) return;
+
+  console.log('[Call] Start 1v1 call:', conversationId);
+
+  if (socket) {
+    socket.emit('call:invite_group', {
+      conversation_id: conversationId,
+      conversation_type: 'private'
+      // ❌ BỎ dòng room_name: roomName
+    });
+  }
+
+  if (window.startGroupCall) {
+    // Dùng luôn conversationId làm “room”
+    window.startGroupCall(conversationId, 'private');
+  } else {
+    alert("Chức năng gọi chưa sẵn sàng (Chưa load group_call.js)");
+  }
+}
+
+// Cho phép gọi từ HTML / file khác
+window.startPrivateCall = startPrivateCall;
+
 
 // ====== INITIALIZATION ======
 function startTimeRefresher() {
@@ -1294,3 +1374,4 @@ window.unpinMessage = unpinMessage;
 window.editMessage = editMessage;
 window.deleteMessage = deleteMessage;
 window.scrollToPinnedMessage = scrollToPinnedMessage;
+

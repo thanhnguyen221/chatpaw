@@ -3,38 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <title>Cuộc gọi</title>
+
+    <!-- Socket.IO client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+    <!-- Font Awesome icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
     <style>
-        body { background: #202124; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-family: sans-serif; }
-        #video-grid { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 10px; overflow-y: auto; }
-        .video-container { position: relative; background: #3c4043; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; flex: 1 1 400px; max-width: 90%; max-height: 90%; display: flex; justify-content: center; align-items: center; }
-        /* Nếu chỉ có 1 video (gọi 1-1) thì phóng to */
-        .video-container:only-child { max-width: 100%; max-height: 100%; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        #local-video { transform: scaleX(-1); }
-        .label { position: absolute; bottom: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 4px 8px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; gap: 5px; z-index: 10; }
-        .label img { width: 20px; height: 20px; border-radius: 50%; }
-        #controls { height: 70px; background: #1a1a1a; display: flex; justify-content: center; align-items: center; gap: 15px; }
-        .btn { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 20px; cursor: pointer; color: white; background: #3c4043; transition: 0.2s; }
-        .btn:hover { background: #505559; }
-        .btn-danger { background: #ea4335; } .btn-danger:hover { background: #d93025; }
-        .btn-off { background: #ea4335; position: relative; }
-        .btn-off::after { content: '/'; position: absolute; font-size: 28px; left: 18px; top: 8px; }
+        body {
+            background: #202124;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        #call-overlay {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #video-grid {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .video-box {
+            position: relative;
+            background: #3c4043;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            flex: 1 1 400px;
+            max-width: 90%;
+            max-height: 90%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .video-box:only-child {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .env-mode {
+            transform: none !important;
+        }
+
+        .user-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .user-label img {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+
+        .reaction-container {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .floating-emoji {
+            position: absolute;
+            bottom: 0;
+            font-size: 24px;
+            animation: floatUp 2s ease-out forwards;
+        }
+
+        @keyframes floatUp {
+            0%   { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-120px) scale(1.2); opacity: 0; }
+        }
+
+        #controls {
+            height: 70px;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: white;
+            background: #3c4043;
+            transition: 0.2s;
+        }
+
+        .btn:hover {
+            background: #505559;
+        }
+
+        .btn-danger {
+            background: #ea4335;
+        }
+
+        .btn-danger:hover {
+            background: #d93025;
+        }
+
+        .btn-off {
+            background: #ea4335;
+        }
     </style>
 </head>
 <body>
-    <div id="video-grid">
-        <div class="video-container" id="local-container">
-            <video id="local-video" autoplay playsinline muted></video>
-            <div class="label">Bạn</div>
+    <div id="call-overlay">
+        <div id="video-grid">
+            <!-- LOCAL VIDEO -->
+            <div class="video-box" id="local-box">
+                <video id="local-video" autoplay playsinline muted></video>
+                <div class="user-label">
+                    <img src="/static/img/default-avatar.png" alt="">
+                    <span>Bạn</span>
+                </div>
+                <div class="reaction-container"></div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button class="btn" id="btn-mic" onclick="toggleMic()">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="btn" id="btn-cam" onclick="toggleCam()">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="btn btn-danger" onclick="endCall()">
+                <i class="fas fa-phone-slash"></i>
+            </button>
         </div>
     </div>
-    <div id="controls">
-        <button class="btn" id="btn-mic" onclick="toggleMic()"><i class="fas fa-microphone"></i></button>
-        <button class="btn" id="btn-cam" onclick="toggleCam()"><i class="fas fa-video"></i></button>
-        <button class="btn btn-danger" onclick="leave()"><i class="fas fa-phone-slash"></i></button>
-    </div>
+
+    <!-- 🔴 FIX: Thêm chuông gọi khớp với group_call.js -->
+    <audio id="ringtone-audio" src="/static/sounds/ringtone.mp3" preload="auto"></audio>
+
     <script type="module" src="{{ url_for('static', filename='js/socket/group_call.js') }}"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-gro
 
 let currentGroupId = null;
 let groupClickHandlerAttached = false; 
+let groupContextMenuAttached = false; 
 
 function resetPrivateChat() {
   // QUAN TRỌNG: Chỉ reset nếu đang có conversation private
@@ -118,6 +119,7 @@ export function setupGroupSocketEvents() {
   });
   socket.on('group_member_removed', (data) => {
     if (data.group_id === currentGroupId) {
+      const sidebar = document.getElementById('manage-group-sidebar');
       // Nếu modal đang mở, làm mới nó
       if (document.getElementById('manage-group-sidebar').style.display === 'block') {
         openManageGroupModal(data.group_id);
@@ -361,31 +363,27 @@ function openManageGroupModal(groupId) {
 export function openGroupChat(groupId, groupName) {
   console.log(`[Group] Opening group chat: ${groupId}`);
   
-  // QUAN TRỌNG: Kiểm tra nếu đang mở cùng group thì không làm gì
+  // Nếu đang mở đúng group rồi thì thôi
   if (currentGroupId && String(currentGroupId) === String(groupId)) {
     console.log(`[Group] Group ${groupId} is already open, skipping...`);
     return;
   }
   
-  // QUAN TRỌNG: Reset chat cá nhân trước
+  // Reset chat cá nhân trước khi vào group
   resetPrivateChat();
   
   currentGroupId = groupId;
   
-  // QUAN TRỌNG: Set conversation cho file sharing
+  // Set conversation cho file sharing
   if (typeof setCurrentConversation === 'function') {
     setCurrentConversation(groupId, 'group');
   }
-  loadGroupPinnedMessage(groupId);
-  
-  // THÊM: Setup context menu cho group
-  setupGroupMessageContextMenu();
-  // Cập nhật UI NGAY LẬP TỨC - chỉ một lần
+
+  // UI: ẩn màn hình animation, show khung messages
   const header = document.querySelector('.chat-header');
   const animationScreen = document.getElementById('animation-screen');
   const messagesDiv = document.getElementById('messages');
   
-  // Ẩn animation và hiển thị loading
   if (animationScreen) {
     animationScreen.style.display = 'none';
   }
@@ -394,12 +392,8 @@ export function openGroupChat(groupId, groupName) {
     messagesDiv.style.display = 'block';
     messagesDiv.innerHTML = '<div class="loading">Đang tải tin nhắn...</div>';
   }
-  console.log(`[Group] Loading pinned message for group: ${groupId}`);
-  loadGroupPinnedMessage(groupId);
-  
-  // QUAN TRỌNG: Setup context menu cho group messages
-  setupGroupMessageContextMenu();
-  // Cập nhật header TẠM THỜI với thông tin cơ bản
+
+  // Header tạm thời
   if (header) {
     header.innerHTML = `
       <div class="group-header">
@@ -407,7 +401,7 @@ export function openGroupChat(groupId, groupName) {
             alt="${groupName}" 
             class="group-avatar-small">
         <div class="group-name-wrap">
-          <h2 title="${escapeHtml(groupName)}">${groupName}</h2>
+          <h2 title="${escapeHtml(groupName)}">${escapeHtml(groupName)}</h2>
         </div>
       </div>
       <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
@@ -415,7 +409,6 @@ export function openGroupChat(groupId, groupName) {
       </button>
     `;
     
-    // Gắn sự kiện manage button
     const manageBtn = document.getElementById('manage-group-btn');
     if (manageBtn) {
       manageBtn.addEventListener('click', () => {
@@ -424,13 +417,21 @@ export function openGroupChat(groupId, groupName) {
     }
   }
 
-  // QUAN TRỌNG: Join group
+  // Join group room
   console.log(`[Group] Joining group: ${groupId}`);
   socket.emit('join_group', { group_id: groupId });
 
-  // THAY ĐỔI QUAN TRỌNG: Load tuần tự thay vì song song
+  // Gắn context menu cho message group (chỉ 1 lần nhờ flag)
+  setupGroupMessageContextMenu();
+
+  // Load tin nhắn ghim 1 lần duy nhất
+  console.log(`[Group] Loading pinned message for group: ${groupId}`);
+  loadGroupPinnedMessage(groupId);
+
+  // Load dữ liệu chi tiết (info + messages) tuần tự
   loadGroupDataSequentially(groupId, groupName);
 }
+
 
 // THÊM HÀM MỚI: Load dữ liệu tuần tự để tránh giật
 async function loadGroupDataSequentially(groupId, groupName) {
@@ -511,8 +512,9 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
             
             // Gọi hàm mở Overlay (Hàm này nằm bên file group_call.js và đã được gán vào window)
             if (window.startGroupCall) {
-                window.startGroupCall(groupId);
-            } else {
+    window.startGroupCall(groupId, 'group');
+} else {
+
                 console.error("Lỗi: Không tìm thấy hàm window.startGroupCall. Hãy kiểm tra file group_call.js");
                 alert("Chưa tải được chức năng gọi video.");
             }
@@ -568,16 +570,12 @@ function handleGroupLoadError(groupId, error) {
 export function selectGroup(groupId, groupName) {
   console.log(`[Group] Chọn nhóm: ${groupId} - ${groupName}`);
   
-  // Leave room cũ nếu có
-  if (currentGroupId) {
-    socket.emit('leave_conversation', { conversation_id: currentGroupId });
-    console.log(`[Group] Rời khỏi nhóm cũ: ${currentGroupId}`);
+  // KHÔNG emit leave_group nữa, chỉ log nếu đổi nhóm
+  if (currentGroupId && String(currentGroupId) !== String(groupId)) {
+    console.log(`[Group] Switch from group ${currentGroupId} to ${groupId}`);
   }
-  
-  // Cập nhật currentGroupId
+
   currentGroupId = groupId;
-  
-  // Join room mới
   socket.emit('join_group', { group_id: groupId });
   console.log(`[Group] Tham gia nhóm mới: ${groupId}`);
   
@@ -815,11 +813,11 @@ function loadGroupMessages(groupId) {
     });
 }
 export function resetGroupChat() {
-  if (currentGroupId) {
-    socket.emit('leave_conversation', { conversation_id: currentGroupId });
-    currentGroupId = null;
-  }
+  // Chỉ reset state phía client, KHÔNG báo server là rời nhóm
+  currentGroupId = null;
 }
+
+
 function createGroupMessageElement(messageData) {
   // [MỚI] Xử lý tin nhắn hệ thống (Ví dụ: "Cuộc gọi đã bắt đầu")
   if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
@@ -832,6 +830,7 @@ function createGroupMessageElement(messageData) {
   const messageEl = document.createElement('div');
   const isCurrentUser = messageData.sender_id === window.session.user_id;
   messageEl.className = isCurrentUser ? 'message sent' : 'message received';
+  messageEl.dataset.messageId = messageData.message_id;
 
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
   const timeString = formatTime(messageData.timestamp);
@@ -869,7 +868,7 @@ function createGroupMessageElement(messageData) {
         <img src="${imageInfo.thumbnail || imageInfo.url}" 
              class="uploaded-image" 
              alt="${escapeHtml(imageInfo.name)}"
-             onclick="openImageModal('${imageInfo.url}')">
+             onclick="window.openImageModal('${imageInfo.url}')">
         <div class="image-actions">
           <a href="${imageInfo.url}" target="_blank" class="view-original">
             <i class="fi fi-rr-external-link"></i> Xem ảnh gốc
@@ -1038,37 +1037,7 @@ function appendGroupMessage(messageData) {
   messagesContainer.appendChild(messageEl);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
-// Thêm hàm mở modal xem ảnh lớn
-function openImageModal(imageUrl) {
-  const modal = document.createElement('div');
-  modal.className = 'image-modal';
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    cursor: pointer;
-  `;
-  
-  modal.innerHTML = `
-    <img src="${imageUrl}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
-    <button style="position: absolute; top: 20px; right: 20px; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer;">×</button>
-  `;
-  
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal || e.target.tagName === 'BUTTON') {
-      document.body.removeChild(modal);
-    }
-  });
-  
-  document.body.appendChild(modal);
-}
+
 // Thêm các hàm utility nếu chưa có
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes';
@@ -1099,7 +1068,7 @@ function escapeHtml(unsafe = '') {
     .replace(/'/g, "&#039;");
 }
 
-document.getElementById('add-member-input').addEventListener('input', (e) => {
+/*document.getElementById('add-member-input').addEventListener('input', (e) => {
   const term = e.target.value.trim();
   if (term.length < 2) return;
   
@@ -1127,18 +1096,9 @@ document.getElementById('add-member-input').addEventListener('input', (e) => {
         });
       });
     });
-});
+});*/
 
-socket.on('group_history', (data) => {
-  if (data.group_id === currentGroupId) {
-      const messagesEl = document.getElementById('messages');
-      messagesEl.innerHTML = '';
-      
-      data.messages.forEach(msg => {
-          appendGroupMessage(msg);
-      });
-  }
-});
+
 function formatTime(dateString) {
   if (!dateString) return '';
   
@@ -1201,40 +1161,54 @@ function setupAddMemberSearch() {
   const addMemberInput = document.getElementById('add-member-input');
   if (!addMemberInput) return;
 
-  addMemberInput.addEventListener('input', debounce((e) => {
+  addMemberInput.addEventListener('input', debounce(function(e) {
     const term = e.target.value.trim();
     if (term.length < 2) {
-      document.getElementById('add-member-results').innerHTML = '';
+      const resultsEl = document.getElementById('add-member-results');
+      if (resultsEl) resultsEl.innerHTML = '';
       return;
     }
-    
-    const groupId = document.getElementById('manage-group-sidebar').dataset.groupId;
+
+    const sidebar = document.getElementById('manage-group-sidebar');
+    const groupId = sidebar?.dataset.groupId;
+    if (!groupId) return;
     
     fetch(`/search_friends?q=${term}`)
       .then(response => response.json())
       .then(data => {
         const container = document.getElementById('add-member-results');
+        if (!container) return;
+
         container.innerHTML = '';
         
         data.results.forEach(user => {
-          const userEl = document.createElement('div');
-          userEl.className = 'search-result-item';
-          userEl.innerHTML = `
-            <img src="${user.avatar}" alt="${user.username}" class="avatar-small">
-            <span>${user.username}</span>
-            <button class="select-member-btn" data-user-id="${user._id}">
-              Chọn
-            </button>
-          `;
-          container.appendChild(userEl);
+          // kiểm tra đã là thành viên chưa (dùng class .member-username cho chắc)
+          const isMember = Array.from(document.querySelectorAll('.group-member-item'))
+            .some(el => el.querySelector('.member-username')?.textContent === user.username);
           
-          userEl.querySelector('.select-member-btn').addEventListener('click', () => {
-            addMemberToGroup(groupId, user._id);
-          });
+          if (!isMember) {
+            const userEl = document.createElement('div');
+            userEl.className = 'search-result-item';
+            userEl.innerHTML = `
+              <img src="${user.avatar}" alt="${user.username}" class="avatar-small">
+              <span>${user.username}</span>
+              <button class="select-member-btn" data-user-id="${user._id}">
+                Chọn
+              </button>
+            `;
+            container.appendChild(userEl);
+            
+            userEl.querySelector('.select-member-btn').addEventListener('click', () => {
+              addMemberToGroup(groupId, user._id);
+              addMemberInput.value = ''; // Xóa input
+              container.innerHTML = '';  // Xóa kết quả
+            });
+          }
         });
       });
   }, 300));
 }
+
 
 // Gọi hàm setup khi DOM sẵn sàng
 document.addEventListener('DOMContentLoaded', () => {
@@ -1242,50 +1216,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Thêm sự kiện tìm kiếm
-document.getElementById('add-member-input').addEventListener('input', debounce(function(e) {
-  const term = e.target.value.trim();
-  if (term.length < 2) {
-    document.getElementById('add-member-results').innerHTML = '';
-    return;
-  }
-  
-  const groupId = document.getElementById('manage-group-sidebar').dataset.groupId;
-  
-  fetch(`/search_friends?q=${term}`)
-    .then(response => response.json())
-    .then(data => {
-      const container = document.getElementById('add-member-results');
-      container.innerHTML = '';
-      
-      data.results.forEach(user => {
-        // Kiểm tra đã là thành viên chưa
-        const isMember = Array.from(document.querySelectorAll('.group-member-item'))
-          .some(el => el.querySelector('span').textContent === user.username);
-        
-        if (!isMember) {
-          const userEl = document.createElement('div');
-          userEl.className = 'search-result-item';
-          userEl.innerHTML = `
-            <img src="${user.avatar}" alt="${user.username}" class="avatar-small">
-            <span>${user.username}</span>
-            <button class="select-member-btn" data-user-id="${user._id}">
-              Chọn
-            </button>
-          `;
-          container.appendChild(userEl);
-          
-          userEl.querySelector('.select-member-btn').addEventListener('click', () => {
-            addMemberToGroup(groupId, user._id);
-            e.target.value = ''; // Xóa input
-            container.innerHTML = ''; // Xóa kết quả
-          });
-        }
-      });
-    });
-}, 300));
-document.getElementById('cancel-create-group').addEventListener('click', function() {
-  document.getElementById('create-group-modal').style.display = 'none';
+
+document.getElementById('cancel-create-group')?.addEventListener('click', function() {
+  const modal = document.getElementById('create-group-modal');
+  if (modal) modal.style.display = 'none';
 });
+
 
 // Hàm debounce
 function debounce(func, wait) {
@@ -1392,7 +1328,7 @@ socket.on('group_avatar_updated', (data) => {
 
   // 2) Nếu đang mở nhóm đó, cập nhật header avatar
   if (gid === String(currentGroupId)) {
-    const headerImgEl = document.querySelector('.chat-header .group-avatar img');
+    const headerImgEl = document.querySelector('.chat-header .group-avatar-small');
     if (headerImgEl) {
       headerImgEl.src = displayAvatar;
     }
@@ -1731,29 +1667,31 @@ function removeGroupMessageUI(messageId) {
   }
 }
 
-// ====== CONTEXT MENU FOR GROUP MESSAGES ======
 export function setupGroupMessageContextMenu() {
+  // Chỉ gắn listener 1 lần
+  if (groupContextMenuAttached) {
+    console.log('[Group Context Menu] Already attached, skipping...');
+    return;
+  }
+  groupContextMenuAttached = true;
   console.log('[Group Context Menu] Setting up group message context menu...');
-  
+
+  // Right-click
   document.addEventListener('contextmenu', (e) => {
-    console.log('[Group Context Menu] Right-click detected');
-    
+    // 👉 Không ở trong group thì bỏ qua, để chat private xử lý
+    if (!currentGroupId) return;
+
     const messageElement = e.target.closest('.message');
-    console.log('[Group Context Menu] Message element found:', messageElement);
-    
-    if (messageElement && messageElement.dataset.messageId) {
-      e.preventDefault();
-      console.log('[Group Context Menu] Showing context menu for message:', messageElement.dataset.messageId);
-      
-      const messageId = messageElement.dataset.messageId;
-      const isMyMessage = messageElement.classList.contains('sent');
-      
-      showGroupMessageContextMenu(e.clientX, e.clientY, messageId, isMyMessage);
-    } else {
-      console.log('[Group Context Menu] No message element found or missing messageId');
-    }
+    if (!messageElement || !messageElement.dataset.messageId) return;
+
+    e.preventDefault();
+
+    const messageId = messageElement.dataset.messageId;
+    const isMyMessage = messageElement.classList.contains('sent');
+
+    showGroupMessageContextMenu(e.clientX, e.clientY, messageId, isMyMessage);
   });
-  
+
   // Ẩn menu khi click ra ngoài
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#message-context-menu')) {
@@ -1768,6 +1706,7 @@ export function setupGroupMessageContextMenu() {
     }
   });
 }
+
 
 function showGroupMessageContextMenu(x, y, messageId, isMyMessage) {
   hideGroupMessageContextMenu();

@@ -1,106 +1,666 @@
 :root {
-    --sidebar-bg: linear-gradient(135deg, #f0faf5 0%, #e0f7eb 100%);
-    --primary: #3eb489;
-    --primary-dark: #36a07b;
-    --text-color: #2e3a30;
-    --form-bg: #ffffffcc;           /* form hơi trong suốt, sáng */
-    --input-bg: #f7f9f7;
-    --input-border: #cdd1cd;
-    --input-focus: var(--primary);
-    --button-bg: var(--primary);
-    --button-hover: var(--primary-dark);
-    --link-color: var(--primary);
-    --transition-speed: 0.3s;
-  }
+  /* Màu sắc chính từ trang chủ */
+  --sidebar-bg: linear-gradient(135deg, #2c2f33 0%, #1e2124 100%);
+  --sidebar-accent: #3eb489;
+  --sidebar-hover: #40444b;
+  --text-color: #f5f5f5;
+  --chat-bg: #f7f7f7;
+  --message-bg: #fff;
+  --message-user-bg: #d9f8f2;
+  --primary: #3eb489;
+  --primary-dark: #36a07b;
+  --border-color: rgba(221, 221, 221, 0.1);
+  --scrollbar-thumb: #3eb489;
+  --success: #43b581;
+  --warning: #faa61a;
+  --error: #f04747;
+  --transition-speed: 0.3s;
   
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    transition: all var(--transition-speed) ease;
-  }
+  /* Biến bổ sung cho trang auth */
+  --primary-light: rgba(62, 180, 137, 0.1);
+  --text-light: #a0a0a0;
+  --form-bg: #2c2f33;
+  --input-bg: #40444b;
+  --input-border: #5a5e66;
+  --input-focus: var(--primary);
+  --button-bg: var(--primary);
+  --button-hover: var(--primary-dark);
+  --link-color: var(--primary);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.4);
   
-  body {
-    min-height: 100vh;
-    background: var(--sidebar-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  /* Biến cho hiệu ứng chuyển động */
+  --float-distance: 10px;
+  --pulse-scale: 1.05;
+  --glow-intensity: 0.6;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--sidebar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--text-color);
+  overflow-x: hidden;
+}
+
+/* Hiệu ứng nền động */
+.background-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.floating-shapes {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.shape {
+  position: absolute;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: 50%;
+  opacity: 0.1;
+  animation: float 6s ease-in-out infinite;
+}
+
+.shape:nth-child(1) {
+  width: 80px;
+  height: 80px;
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.shape:nth-child(2) {
+  width: 120px;
+  height: 120px;
+  top: 60%;
+  right: 10%;
+  animation-delay: -2s;
+}
+
+.shape:nth-child(3) {
+  width: 60px;
+  height: 60px;
+  bottom: 20%;
+  left: 20%;
+  animation-delay: -4s;
+}
+
+.shape:nth-child(4) {
+  width: 100px;
+  height: 100px;
+  top: 30%;
+  right: 20%;
+  animation-delay: -1s;
+}
+
+/* Container form với hiệu ứng entrance */
+.auth-container {
+  width: 100%;
+  max-width: 480px; /* Tăng width cho form đăng ký */
+  background: var(--form-bg);
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  color: var(--text-color);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  animation: slideUpBounce 0.8s ease-out;
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+.auth-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  animation: progressLoad 2s ease-in-out;
+}
+
+.auth-container::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(62, 180, 137, 0.1),
+    transparent
+  );
+  transform: rotate(45deg);
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Brand section với hiệu ứng */
+.brand-section {
+  text-align: center;
+  margin-bottom: 2rem;
+  animation: fadeInDown 0.8s ease-out 0.2s both;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  animation: pulseGlow 2s ease-in-out infinite alternate;
+}
+
+.logo-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  box-shadow: 0 4px 12px rgba(62, 180, 137, 0.3);
+  animation: rotateIn 1s ease-out 0.4s both;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo-icon img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.logo:hover .logo-icon img {
+  transform: scale(1.1);
+}
+
+.brand-name {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-color);
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--text-color) 0%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: textGlow 2s ease-in-out infinite alternate;
+}
+
+.brand-tagline {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+  animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.auth-container h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+  color: var(--text-color);
+  font-weight: 600;
+  animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
+.auth-container form {
+  display: grid;
+  gap: 1.25rem;
+  animation: fadeInUp 0.8s ease-out 0.8s both;
+}
+
+.form-group {
+  position: relative;
+  animation: slideInLeft 0.6s ease-out both;
+}
+
+/* Staggered animation cho các input */
+.form-group:nth-child(1) { animation-delay: 0.9s; }
+.form-group:nth-child(2) { animation-delay: 1.0s; }
+.form-group:nth-child(3) { animation-delay: 1.1s; }
+.form-group:nth-child(4) { animation-delay: 1.2s; }
+.form-group:nth-child(5) { animation-delay: 1.3s; }
+.form-group:nth-child(6) { animation-delay: 1.4s; }
+.form-group:nth-child(7) { animation-delay: 1.5s; }
+.form-group:nth-child(8) { animation-delay: 1.6s; }
+
+.auth-container input,
+.auth-container select {
+  width: 100%;
+  padding: 0.9rem 1rem 0.9rem 2.8rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 1rem;
+  transition: all var(--transition-speed) ease;
+  transform-origin: left center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.auth-container select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.auth-container select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233eb489' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.auth-container input::placeholder,
+.auth-container select:invalid {
+  color: var(--text-light);
+  transition: all 0.3s ease;
+}
+
+.auth-container input:focus,
+.auth-container select:focus {
+  border-color: var(--input-focus);
+  outline: none;
+  box-shadow: 
+    0 0 0 3px rgba(62, 180, 137, 0.2),
+    0 4px 20px rgba(62, 180, 137, 0.3);
+  background: var(--sidebar-hover);
+  transform: translateY(-2px) scale(1.02);
+  animation: inputGlow 1.5s ease-in-out infinite alternate;
+}
+
+.auth-container input:focus::placeholder {
+  transform: translateX(10px);
+  opacity: 0.7;
+}
+
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  transition: all var(--transition-speed) ease;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.auth-container input:focus + .input-icon,
+.auth-container select:focus + .input-icon {
+  color: var(--primary);
+  transform: translateY(-50%) scale(1.2);
+  animation: iconBounce 0.5s ease;
+}
+
+.auth-container button {
+  padding: 0.9rem;
+  background: var(--button-bg);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(62, 180, 137, 0.3);
+  margin-top: 0.5rem;
+  transition: all var(--transition-speed) ease;
+  position: relative;
+  overflow: hidden;
+  animation: slideInRight 0.6s ease-out 1.7s both;
+}
+
+.auth-container button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.auth-container button:hover {
+  background: var(--button-hover);
+  box-shadow: 
+    0 6px 20px rgba(62, 180, 137, 0.4),
+    0 0 30px rgba(62, 180, 137, 0.2);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.auth-container button:hover::before {
+  left: 100%;
+}
+
+.auth-container button:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.auth-container .link {
+  text-align: center;
+  font-size: 0.9rem;
+  margin-top: 1.5rem;
+  color: var(--text-light);
+  animation: fadeIn 0.8s ease-out 1.8s both;
+}
+
+.auth-container a {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.auth-container a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.auth-container a:hover {
+  text-decoration: none;
+  color: var(--primary-dark);
+}
+
+.auth-container a:hover::after {
+  width: 100%;
+}
+
+.welcome-message {
+  text-align: center;
+  padding: 1rem;
+  background: var(--primary-light);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  color: var(--primary);
+  font-weight: 500;
+  border: 1px solid rgba(62, 180, 137, 0.2);
+  animation: bounceIn 0.8s ease-out 1s both;
+}
+
+.welcome-message a {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.welcome-message a:hover {
+  background: var(--primary-dark);
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+/* Password strength indicator */
+.password-strength {
+  margin-top: 0.5rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--input-border);
+  overflow: hidden;
+  position: relative;
+}
+
+.strength-bar {
+  height: 100%;
+  width: 0%;
+  transition: all 0.3s ease;
+  border-radius: 2px;
+}
+
+.strength-weak { background: var(--error); width: 33%; }
+.strength-medium { background: var(--warning); width: 66%; }
+.strength-strong { background: var(--success); width: 100%; }
+
+/* Form validation styles */
+.auth-container input:valid {
+  border-color: rgba(62, 180, 137, 0.3);
+}
+
+.auth-container input:invalid:not(:focus):not(:placeholder-shown) {
+  border-color: rgba(240, 71, 71, 0.3);
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+@keyframes slideUpBounce {
+  0% { 
+    transform: translateY(100px) scale(0.8);
+    opacity: 0;
   }
-  
-  /* Container form */
+  70% { 
+    transform: translateY(-10px) scale(1.05);
+    opacity: 1;
+  }
+  100% { 
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes progressLoad {
+  0% { width: 0; }
+  100% { width: 100%; }
+}
+
+@keyframes shimmer {
+  0% { transform: rotate(45deg) translateX(-100%); }
+  100% { transform: rotate(45deg) translateX(100%); }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rotateIn {
+  from {
+    opacity: 0;
+    transform: rotate(-180deg) scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  from {
+    transform: scale(1);
+    filter: drop-shadow(0 0 5px rgba(62, 180, 137, 0.5));
+  }
+  to {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 20px rgba(62, 180, 137, 0.8));
+  }
+}
+
+@keyframes textGlow {
+  from {
+    filter: drop-shadow(0 0 5px rgba(62, 180, 137, 0.3));
+  }
+  to {
+    filter: drop-shadow(0 0 15px rgba(62, 180, 137, 0.6));
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes inputGlow {
+  from {
+    box-shadow: 
+      0 0 0 3px rgba(62, 180, 137, 0.2),
+      0 4px 20px rgba(62, 180, 137, 0.3);
+  }
+  to {
+    box-shadow: 
+      0 0 0 3px rgba(62, 180, 137, 0.4),
+      0 4px 30px rgba(62, 180, 137, 0.5);
+  }
+}
+
+@keyframes iconBounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translateY(-50%) scale(1.2);
+  }
+  40%, 43% {
+    transform: translateY(-50%) scale(1.3);
+  }
+  70% {
+    transform: translateY(-50%) scale(1.1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hiệu ứng loading cho button khi submit */
+.auth-container button.loading {
+  pointer-events: none;
+  position: relative;
+  color: transparent;
+}
+
+.auth-container button.loading::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  top: 50%;
+  left: 50%;
+  margin-left: -10px;
+  margin-top: -10px;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: buttonSpin 0.8s linear infinite;
+}
+
+@keyframes buttonSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
   .auth-container {
-    width: 100%;
-    max-width: 400px;
-    background: var(--form-bg);
-    padding: 2rem;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    color: var(--text-color);
+    padding: 2rem 1.5rem;
+    max-width: 100%;
   }
   
-  .auth-container h2 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    font-size: 1.8rem;
-    color: var(--primary);
+  .brand-name {
+    font-size: 1.7rem;
   }
   
-  .auth-container form {
-    display: grid;
-    gap: 1rem;
+  .logo-icon {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .logo-icon img {
+    width: 60%;
+    height: 60%;
+  }
+  
+  .shape {
+    display: none;
   }
   
   .auth-container input,
-  .auth-container select,
-  .auth-container input[type="date"] {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: var(--input-bg);
-    border: 1px solid var(--input-border);
-    border-radius: 6px;
-    color: var(--text-color);
+  .auth-container select {
+    padding: 0.8rem 1rem 0.8rem 2.5rem;
   }
-  
-  .auth-container input::placeholder {
-    color: #8a928b;
-  }
-  
-  .auth-container input:focus,
-  .auth-container select:focus,
-  .auth-container input[type="date"]:focus {
-    border-color: var(--input-focus);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(62, 180, 137, 0.3);
-  }
-  
-  .auth-container button {
-    padding: 0.75rem;
-    background: var(--button-bg);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  
-  .auth-container button:hover {
-    background: var(--button-hover);
-  }
-  
-  .auth-container .link {
-    text-align: center;
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-  }
-  
-  .auth-container a {
-    color: var(--link-color);
-    text-decoration: none;
-  }
-  
-  .auth-container a:hover {
-    text-decoration: underline;
-  }
-  
+}

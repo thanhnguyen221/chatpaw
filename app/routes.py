@@ -24,6 +24,7 @@ messages_col = lambda: mongo.db['messages']
 friend_requests_col = lambda: mongo.db['friend_requests']
 groups_col = lambda: mongo.db['groups']
 group_members_col = lambda: mongo.db['group_members']
+posts_col = lambda: mongo.db['posts']
 
 online_users = {}
 
@@ -483,17 +484,6 @@ def update_profile():
     data = request.get_json()
     user_id = ObjectId(session['user_id'])
 
-    if data.get('avatar'):
-        # Kiểm tra kích thước base64
-        if len(data['avatar']) > 2 * 1024 * 1024:  # 2MB
-            return jsonify({'error': 'Ảnh quá lớn! Tối đa 2MB'}), 400
-        
-        # Kiểm tra nếu là base64 quá dài thì lưu avatar mặc định
-        if len(data['avatar']) > 100000:
-            update_data['avatar'] = 'img/default-avatar.png'
-        else:
-            update_data['avatar'] = data['avatar']
-
     update_data = {
         'full_name': data.get('full_name'),
         'username': data.get('username'),
@@ -502,9 +492,14 @@ def update_profile():
         'date_of_birth': data.get('dob'),
         'gender': data.get('gender')
     }
-    
-    # Thêm xử lý avatar nếu có
+
+    # QUAN TRỌNG: Sửa phần xử lý avatar
     if data.get('avatar'):
+        # Kiểm tra kích thước base64
+        if len(data['avatar']) > 2 * 1024 * 1024:
+            return jsonify({'error': 'Ảnh quá lớn! Tối đa 2MB'}), 400
+        
+        # LUÔN lưu base64 data URL, không chuyển thành đường dẫn
         update_data['avatar'] = data['avatar']
 
     users_col().update_one(
@@ -1769,3 +1764,357 @@ def call_view():
     if 'user_id' not in session:
         return redirect(url_for('main.login'))
     return render_template('call.html')
+
+
+@main.route('/update_cover_photo', methods=['POST'])
+def update_cover_photo():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if 'cover_photo' not in request.files:
+        return jsonify({'error': 'No cover photo file'}), 400
+
+    file = request.files['cover_photo']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Create unique filename
+        filename = f"{uuid.uuid4().hex}_{filename}"
+        upload_folder = 'app/static/uploads/covers'
+        os.makedirs(upload_folder, exist_ok=True)
+
+        filepath = os.path.join(upload_folder, filename)
+
+        try:
+            # Save the image
+            img = Image.open(file)
+            img.save(filepath)
+
+            # Create URL path
+            cover_photo_url = f"/static/uploads/covers/{filename}"
+
+            # Update user's cover photo in database
+            user_id = ObjectId(session['user_id'])
+            users_col().update_one(
+                {'_id': user_id},
+                {'$set': {'cover_photo': cover_photo_url}}
+            )
+
+            return jsonify({
+                'success': True,
+                'cover_photo_url': cover_photo_url
+            })
+        except Exception as e:
+            print(f"Cover photo processing error: {str(e)}")
+            return jsonify({'error': f'Error processing cover photo: {str(e)}'}), 500
+
+    return jsonify({'error': 'File type not allowed'}), 400
+
+
+@main.route('/create_post', methods=['POST'])
+def create_post():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        content = data.get('content', '')
+        media_urls = data.get('media_urls', [])
+
+        if not content and not media_urls:
+            return jsonify({'error': 'Nội dung hoặc media là bắt buộc'}), 400
+
+        post_data = {
+            'user_id': session['user_id'],
+            'content': content,
+            'media_urls': media_urls,
+            'created_at': get_vietnam_time(),
+            'likes': [],
+            'comments': [],
+            'shares': 0
+        }
+
+        post_id = posts_col().insert_one(post_data).inserted_id
+
+        return jsonify({
+            'success': True,
+            'post_id': str(post_id),
+            'message': 'Đăng bài thành công'
+        })
+
+    except Exception as e:
+        print(f"Error creating post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi đăng bài'}), 500
+
+
+@main.route('/upload_post_media', methods=['POST'])
+def upload_post_media():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if 'media' not in request.files:
+        return jsonify({'error': 'No media file'}), 400
+
+    files = request.files.getlist('media')
+    media_urls = []
+
+    for file in files:
+        if file and file.filename != '':
+            if allowed_file(file.filename):
+                # Kiểm tra loại file
+                file_type = 'image'
+                if file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                    file_type = 'video'
+
+                filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+                upload_folder = 'app/static/uploads/posts'
+                os.makedirs(upload_folder, exist_ok=True)
+
+                filepath = os.path.join(upload_folder, filename)
+                file.save(filepath)
+
+                media_url = f"/static/uploads/posts/{filename}"
+                media_urls.append({
+                    'url': media_url,
+                    'type': file_type
+                })
+
+    return jsonify({
+        'success': True,
+        'media_urls': media_urls
+    })
+
+
+@main.route('/like_post', methods=['POST'])
+def like_post():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        post_id = data.get('post_id')
+
+        post = posts_col().find_one({'_id': ObjectId(post_id)})
+        if not post:
+            return jsonify({'error': 'Bài viết không tồn tại'}), 404
+
+        user_id = session['user_id']
+        likes = post.get('likes', [])
+
+        if user_id in likes:
+            # Bỏ like
+            posts_col().update_one(
+                {'_id': ObjectId(post_id)},
+                {'$pull': {'likes': user_id}}
+            )
+            liked = False
+        else:
+            # Thêm like
+            posts_col().update_one(
+                {'_id': ObjectId(post_id)},
+                {'$addToSet': {'likes': user_id}}
+            )
+            liked = True
+
+        # Lấy số like mới
+        updated_post = posts_col().find_one({'_id': ObjectId(post_id)})
+        like_count = len(updated_post.get('likes', []))
+
+        return jsonify({
+            'success': True,
+            'liked': liked,
+            'like_count': like_count
+        })
+
+    except Exception as e:
+        print(f"Error liking post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi like bài viết'}), 500
+
+
+@main.route('/comment_post', methods=['POST'])
+def comment_post():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        post_id = data.get('post_id')
+        content = data.get('content')
+
+        if not content:
+            return jsonify({'error': 'Nội dung bình luận không được để trống'}), 400
+
+        user = users_col().find_one({'_id': ObjectId(session['user_id'])})
+        if not user:
+            return jsonify({'error': 'Người dùng không tồn tại'}), 404
+
+        comment = {
+            'id': str(uuid.uuid4()),
+            'user_id': session['user_id'],
+            'username': user.get('username', 'Unknown'),
+            'user_avatar': user.get('avatar', ''),
+            'content': content,
+            'created_at': get_vietnam_time()
+        }
+
+        posts_col().update_one(
+            {'_id': ObjectId(post_id)},
+            {'$push': {'comments': comment}}
+        )
+
+        # Xử lý avatar cho response
+        if comment['user_avatar'] and not comment['user_avatar'].startswith(('http', 'data:image')):
+            comment['user_avatar'] = url_for('static', filename=comment['user_avatar'])
+        else:
+            comment['user_avatar'] = url_for('static', filename='img/default-avatar.png')
+
+        return jsonify({
+            'success': True,
+            'comment': comment
+        })
+
+    except Exception as e:
+        print(f"Error commenting post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi bình luận'}), 500
+
+
+@main.route('/profile/<username>')
+def user_profile(username):
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+
+    try:
+        # Lấy thông tin người dùng
+        user = users_col().find_one({'username': username}, {'password': 0})
+        if not user:
+            return "Người dùng không tồn tại", 404
+
+        # Lấy các bài viết của người dùng
+        posts = list(posts_col().find(
+            {'user_id': str(user['_id'])},
+            sort=[('created_at', -1)]
+        ))
+
+        # Xử lý avatar
+        if user.get('avatar'):
+            if user['avatar'].startswith(('http', 'data:image')):
+                user_avatar = user['avatar']
+            else:
+                user_avatar = url_for('static', filename=user['avatar'])
+        else:
+            user_avatar = url_for('static', filename='img/default-avatar.png')
+
+        return render_template(
+            'profile.html',
+            profile_user=user,
+            user_avatar=user_avatar,
+            posts=posts,
+            current_user_id=session['user_id']
+        )
+
+    except Exception as e:
+        print(f"Error loading profile: {str(e)}")
+        return "Lỗi khi tải trang cá nhân", 500
+
+
+@main.route('/edit_post', methods=['POST'])
+def edit_post():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        post_id = data.get('post_id')
+        content = data.get('content')
+
+        if not post_id or not content:
+            return jsonify({'error': 'Thiếu thông tin bài viết'}), 400
+
+        # Kiểm tra quyền sở hữu
+        post = posts_col().find_one({'_id': ObjectId(post_id)})
+        if not post:
+            return jsonify({'error': 'Bài viết không tồn tại'}), 404
+
+        if post['user_id'] != session['user_id']:
+            return jsonify({'error': 'Không có quyền sửa bài viết này'}), 403
+
+        # Cập nhật bài viết
+        posts_col().update_one(
+            {'_id': ObjectId(post_id)},
+            {
+                '$set': {
+                    'content': content,
+                    'updated_at': get_vietnam_time(),
+                    'edited': True
+                }
+            }
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Cập nhật bài viết thành công'
+        })
+
+    except Exception as e:
+        print(f"Error editing post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi cập nhật bài viết'}), 500
+
+
+@main.route('/delete_post', methods=['POST'])
+def delete_post():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        post_id = data.get('post_id')
+
+        if not post_id:
+            return jsonify({'error': 'Thiếu ID bài viết'}), 400
+
+        # Kiểm tra quyền sở hữu
+        post = posts_col().find_one({'_id': ObjectId(post_id)})
+        if not post:
+            return jsonify({'error': 'Bài viết không tồn tại'}), 404
+
+        if post['user_id'] != session['user_id']:
+            return jsonify({'error': 'Không có quyền xóa bài viết này'}), 403
+
+        # Xóa bài viết
+        posts_col().delete_one({'_id': ObjectId(post_id)})
+
+        return jsonify({
+            'success': True,
+            'message': 'Xóa bài viết thành công'
+        })
+
+    except Exception as e:
+        print(f"Error deleting post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi xóa bài viết'}), 500
+
+
+@main.route('/get_post/<post_id>')
+def get_post(post_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        post = posts_col().find_one({'_id': ObjectId(post_id)})
+        if not post:
+            return jsonify({'error': 'Bài viết không tồn tại'}), 404
+
+        # Kiểm tra quyền xem
+        if post['user_id'] != session['user_id']:
+            return jsonify({'error': 'Không có quyền xem bài viết này'}), 403
+
+        post['_id'] = str(post['_id'])
+        return jsonify({
+            'success': True,
+            'post': post
+        })
+
+    except Exception as e:
+        print(f"Error getting post: {str(e)}")
+        return jsonify({'error': 'Lỗi khi lấy thông tin bài viết'}), 500

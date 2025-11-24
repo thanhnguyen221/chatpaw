@@ -102,26 +102,30 @@ document.addEventListener('DOMContentLoaded', () => {
 function formatConversationTime(timestamp) {
   if (!timestamp) return '';
   try {
-    const messageDate = new Date(timestamp);
-    const now = new Date();
-    if (isNaN(messageDate.getTime())) return 'Vừa xong';
+    const m = moment(timestamp).tz('Asia/Ho_Chi_Minh');
+    const now = moment().tz('Asia/Ho_Chi_Minh');
 
-    const diffMs = now - messageDate;
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (!m.isValid()) return 'Vừa xong';
+
+    const diffMinutes = now.diff(m, 'minutes');
+    const diffHours   = now.diff(m, 'hours');
+    const diffDays    = now.diff(m, 'days');
 
     if (diffMinutes < 1) return 'Vừa xong';
     if (diffMinutes < 60) return `${diffMinutes}p`;
-    if (diffHours < 24) return `${diffHours}g`;
-    if (diffDays === 1) return 'Hôm qua';
-    if (messageDate.getFullYear() === now.getFullYear()) {
-      return `${messageDate.getDate().toString().padStart(2,'0')}/${(messageDate.getMonth()+1).toString().padStart(2,'0')}`;
-    } else {
-      return `${messageDate.getDate()}/${messageDate.getMonth()+1}/${messageDate.getFullYear().toString().slice(-2)}`;
+    if (diffHours   < 24) return `${diffHours}g`;
+    if (diffDays === 1)   return 'Hôm qua';
+
+    if (now.isSame(m, 'year')) {
+      return m.format('DD/MM');
     }
-  } catch (error) { return 'Vừa xong'; }
+    return m.format('DD/MM/YY');
+  } catch (error) {
+    console.error('Error formatConversationTime:', error);
+    return 'Vừa xong';
+  }
 }
+
 
 function initializeTimeUtils() {
   document.querySelectorAll('.conversation-time').forEach(el => {
@@ -226,6 +230,70 @@ function updateAllFriendsOnlineStatus(onlineStatus) {
 
 function setupMessageActions() {
   console.log('Message actions initialized');
+}
+// ====== GLOBAL IN-APP NOTIFICATION (GIỐNG MESSENGER) ======
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+window.showInAppNotification = function({ 
+  title, 
+  messagePreview, 
+  conversationId, 
+  conversationType = 'private' 
+}) {
+  // Tạo khung notification dùng lại style .error-message
+  const notif = document.createElement('div');
+  notif.className = 'error-message in-app-notification';
+  notif.style.cursor = 'pointer';
+
+  notif.innerHTML = `
+    <div style="font-weight:600; margin-bottom:4px;">
+      ${escapeHtml(title || 'Tin nhắn mới')}
+    </div>
+    <div style="font-size:13px; opacity:0.9;">
+      ${escapeHtml(messagePreview || '')}
+    </div>
+  `;
+
+  // Khi click -> chuyển đúng tab + mở đúng hội thoại
+  notif.addEventListener('click', () => {
+    notif.remove();
+
+    // Mở đúng tab trước
+    const tabBtn = document.querySelector(
+      conversationType === 'group'
+        ? '.mini-sidebar button[data-tab="groups"]'
+        : '.mini-sidebar button[data-tab="conversations"]'
+    );
+    if (tabBtn) tabBtn.click();
+
+    if (conversationType === 'group') {
+      if (window.openGroupChat) {
+        window.openGroupChat(conversationId, title || 'Nhóm');
+      }
+    } else {
+      const convItem = document.querySelector(
+        `.conversation-item[data-id="${conversationId}"]`
+      );
+      if (convItem) convItem.click();
+    }
+  });
+
+  document.body.appendChild(notif);
+
+  // Tự ẩn sau 5 giây
+  setTimeout(() => {
+    if (notif && notif.parentNode) {
+      notif.remove();
+    }
+  }, 5000);
 }
 
 // Export globals

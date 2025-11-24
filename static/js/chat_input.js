@@ -648,40 +648,29 @@ function buildReplyPreviewFromMessage(message) {
 function formatTime(timestamp) {
   if (!timestamp) return '';
   try {
-    const messageDate = new Date(timestamp);
-    if (isNaN(messageDate.getTime())) return 'Vừa xong';
+    const m = moment(timestamp).tz('Asia/Ho_Chi_Minh');
+    const now = moment().tz('Asia/Ho_Chi_Minh');
 
-    const now = new Date();
-    const diffMs = now.getTime() - messageDate.getTime();
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (!m.isValid()) return 'Vừa xong';
+
+    const diffMinutes = now.diff(m, 'minutes');
+    const diffHours   = now.diff(m, 'hours');
 
     if (diffMinutes < 1) return 'Vừa xong';
     if (diffMinutes < 60) return `${diffMinutes} phút trước`;
-    if (diffHours < 24) {
-      const h = messageDate.getHours().toString().padStart(2, '0');
-      const m = messageDate.getMinutes().toString().padStart(2, '0');
-      return `${h}:${m}`;
+    if (diffHours   < 24) return m.format('HH:mm');
+
+    if (now.clone().subtract(1, 'day').isSame(m, 'day')) {
+      return `Hôm qua ${m.format('HH:mm')}`;
     }
 
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const h = messageDate.getHours().toString().padStart(2, '0');
-    const m = messageDate.getMinutes().toString().padStart(2, '0');
-
-    if (messageDate.toDateString() === yesterday.toDateString()) {
-      return `Hôm qua ${h}:${m}`;
-    }
-    
-    const d = messageDate.getDate().toString().padStart(2, '0');
-    const mm = (messageDate.getMonth() + 1).toString().padStart(2, '0');
-    return `${d}/${mm} ${h}:${m}`;
+    return m.format('DD/MM HH:mm');
   } catch (error) {
     console.error('Error formatting time:', error);
     return 'Vừa xong';
   }
 }
+
 
 
 

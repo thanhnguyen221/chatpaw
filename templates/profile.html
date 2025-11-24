@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ profile_user.username }} - PAW TALK</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+</head>
+<body>
+    <div class="profile-container">
+        <!-- Integrated Profile Header with Cover and Hero -->
+        <section class="profile-header">
+            <div class="header-background">
+                {% if profile_user.cover_photo %}
+                <img src="{{ profile_user.cover_photo }}" alt="Cover photo" class="cover-image">
+                {% else %}
+                <div class="cover-placeholder">
+                    <i class="fas fa-mountain"></i>
+                    <span>Ảnh bìa</span>
+                </div>
+                {% endif %}
+                
+                {% if profile_user._id|string == current_user_id %}
+                <div class="cover-actions">
+                    <button class="cover-btn" id="change-cover-btn">
+                        <i class="fas fa-camera"></i>
+                        Đổi ảnh bìa
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="header-content">
+                <div class="profile-identity">
+                    <div class="avatar-container">
+                        <img src="{{ user_avatar }}" alt="Avatar" class="profile-avatar">
+                        <div class="online-status"></div>
+                    </div>
+                    
+                    <div class="profile-info">
+                        <h1 class="profile-name">{{ profile_user.username }}</h1>
+                     
+                        <div class="profile-stats">
+                            <div class="stat">
+                                <span class="stat-number">{{ posts|length }}</span>
+                                <span class="stat-label">Bài viết</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-number">{{ profile_user.friends|length if profile_user.friends else 0 }}</span>
+                                <span class="stat-label">Bạn bè</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-number">0</span>
+                                <span class="stat-label">Lượt thích</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="profile-actions">
+                    {% if profile_user._id|string == current_user_id %}
+                    <button id="edit-profile-btn" class="btn btn-primary">
+                        <i class="fi fi-rr-edit"></i>
+                        Chỉnh sửa
+                    </button>
+                    {% else %}
+                    <button class="btn btn-primary">
+                        <i class="fi fi-rr-user-add"></i>
+                        Kết bạn
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-outline">
+                        <i class="fi fi-rr-envelope"></i>
+                        Nhắn tin
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <main class="profile-main">
+            <!-- Left Column - Posts -->
+            <div class="posts-column">
+                <!-- Create Post (only for profile owner) -->
+                {% if profile_user._id|string == current_user_id %}
+                <section class="create-post">
+                    <div class="post-input-container">
+                        <textarea id="post-content" class="post-input" placeholder="Hôm nay bạn muốn chia sẻ điều gì? 🌟"></textarea>
+                    </div>
+                    
+                    <!-- Media Preview -->
+                    <div id="media-preview" class="media-preview"></div>
+                    
+                    <div class="post-actions">
+                        <div class="media-buttons">
+                            <button id="add-image-btn" type="button" class="media-btn">
+                                <i class="fi fi-rr-picture"></i>
+                                Ảnh
+                            </button>
+                            <button id="add-video-btn" type="button" class="media-btn">
+                                <i class="fi fi-rr-video"></i>
+                                Video
+                            </button>
+                            <input type="file" id="media-upload" multiple accept="image/*,video/*" class="file-input" style="display: none;">
+                        </div>
+                        <button id="submit-post" class="btn btn-primary btn-sm">
+                            <i class="fi fi-br-paper-plane"></i>
+                            Đăng bài
+                        </button>
+                    </div>
+                </section>
+                {% endif %}
+
+                <!-- Posts Feed -->
+                <div class="posts-feed">
+                    {% for post in posts %}
+                    <article class="post-card" data-post-id="{{ post._id }}">
+                        <div class="post-header">
+                            <img src="{{ user_avatar }}" alt="Avatar" class="post-avatar">
+                            <div class="post-meta">
+                                <div class="post-author">{{ profile_user.username }}</div>
+                                <div class="post-time">
+                                    <i class="fi fi-rr-clock"></i>
+                                    {{ post.created_at.strftime('%d/%m/%Y %H:%M') if post.created_at else '' }}
+                                    {% if post.edited %}
+                                    <span class="edited-badge">(đã chỉnh sửa)</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Post Actions Dropdown -->
+                            {% if profile_user._id|string == current_user_id %}
+                            <div class="post-actions-dropdown">
+                                <button class="post-menu-btn">
+                                    <i class="fas fa-ellipsis-h"></i>
+                                </button>
+                                <div class="post-menu-content">
+                                    <button class="post-menu-item edit-post-btn" data-post-id="{{ post._id }}">
+                                        <i class="fas fa-edit"></i> Chỉnh sửa
+                                    </button>
+                                    <button class="post-menu-item delete-post-btn" data-post-id="{{ post._id }}">
+                                        <i class="fas fa-trash"></i> Xóa
+                                    </button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="post-content" id="post-content-{{ post._id }}">
+                            {{ post.content }}
+                        </div>
+                        
+                        {% if post.media_urls %}
+                        <div class="post-media">
+                            {% for media in post.media_urls %}
+                                {% if media.type == 'image' %}
+                                    <img src="{{ media.url }}" alt="Post image" class="post-image">
+                                {% elif media.type == 'video' %}
+                                    <video controls class="post-image">
+                                        <source src="{{ media.url }}" type="video/mp4">
+                                        Trình duyệt không hỗ trợ video.
+                                    </video>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="post-stats">
+                            <div class="post-stat like-btn {% if current_user_id in post.likes %}liked{% endif %}" 
+                                  data-post-id="{{ post._id }}">
+                                <i class="fas fa-heart"></i>
+                                <span class="like-count">{{ post.likes|length }}</span>
+                            </div>
+                            
+                            <div class="post-stat comment-toggle" data-post-id="{{ post._id }}">
+                                <i class="fas fa-comment"></i>
+                                <span class="comment-count">{{ post.comments|length }}</span>
+                            </div>
+                            
+                            <div class="post-stat">
+                                <i class="fi fi-rr-share"></i>
+                                <span>Chia sẻ</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Comments Section -->
+                        <div id="comments-{{ post._id }}" class="comments-section">
+                            <div class="comments-list">
+                                {% for comment in post.comments %}
+                                <div class="comment-item">
+                                    <img src="{{ comment.user_avatar if comment.user_avatar and comment.user_avatar.startswith('http') else url_for('static', filename='img/default-avatar.png') }}" 
+                                         alt="Avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-author">{{ comment.username }}</div>
+                                        <p class="comment-text">{{ comment.content }}</p>
+                                        <div class="comment-time">{{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment.created_at else '' }}</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="add-comment">
+                                <input type="text" id="comment-input-{{ post._id }}" class="comment-input" 
+                                       placeholder="Viết bình luận..." data-post-id="{{ post._id }}">
+                                <button class="btn btn-primary btn-sm comment-submit-btn" data-post-id="{{ post._id }}">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                    {% else %}
+                    <div class="no-posts">
+                        <i class="fas fa-feather"></i>
+                        <p>Chưa có bài viết nào được chia sẻ.</p>
+                        {% if profile_user._id|string == current_user_id %}
+                        <p class="no-posts-hint">Hãy bắt đầu chia sẻ khoảnh khắc đầu tiên của bạn!</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Right Column - Sidebar -->
+            <aside class="sidebar-column">
+                <!-- Friends Card -->
+                <div class="sidebar-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fa-regular fa-user-group"></i>
+                        </div>
+                        <h3 class="card-title">Bạn bè</h3>
+                    </div>
+                    
+                    <div class="friends-grid">
+                        {% for i in range(6) %}
+                        <div class="friend-avatar">
+                            <span class="friend-initial">{{ 'ABCDEF'[i] }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button class="btn btn-outline btn-sm view-all-btn">
+                        <i class="fi fi-rr-search"></i> Xem tất cả bạn bè
+                    </button>
+                </div>
+
+                <!-- Photos Card -->
+                <div class="sidebar-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fa-solid fa-images"></i>
+                        </div>
+                        <h3 class="card-title">Ảnh gần đây</h3>
+                    </div>
+                    
+                    <div class="photos-grid">
+                        {% for i in range(6) %}
+                        <div class="photo-item">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Edit Post Modal -->
+    <div id="edit-post-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Chỉnh sửa bài viết</h3>
+                <button class="close-btn" id="close-edit-post-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-post-form">
+                    <input type="hidden" id="edit-post-id">
+                    <div class="form-group">
+                        <textarea id="edit-post-content" class="post-input" placeholder="Nội dung bài viết..." rows="5"></textarea>
+                    </div>
+                    <div id="edit-media-preview" class="media-preview"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-outline" id="cancel-edit-post">Hủy</button>
+                        <button type="submit" class="btn btn-primary" id="submit-edit-post">
+                            <i class="fas fa-save"></i> Lưu thay đổi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="confirmation-dialog">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #e74c3c; margin-bottom: 16px;"></i>
+                    <h3>Xác nhận xóa</h3>
+                    <p>Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.</p>
+                    <div class="dialog-actions">
+                        <button type="button" class="btn btn-outline" id="cancel-delete">Hủy</button>
+                        <button type="button" class="btn btn-danger" id="confirm-delete">
+                            <i class="fas fa-trash"></i> Xóa
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Load JavaScript trước -->
+    <script type="module" src="{{ url_for('static', filename='js/socket/profile.js') }}"></script>
+    <script>
+        // Biến toàn cục để kiểm tra đã khởi tạo chưa
+        let profileManagerInitialized = false;
+    
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // CHỈ KHỞI TẠO MỘT LẦN
+            if (profileManagerInitialized) return;
+            profileManagerInitialized = true;
+    
+            console.log('Initializing profile page from inline script...');
+            
+            // Ẩn tất cả comments sections
+            document.querySelectorAll('.comments-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Khởi tạo Profile Manager - CHỈ MỘT LẦN
+            if (typeof ProfileManager !== 'undefined' && !window.profileManager) {
+                window.profileManager = new ProfileManager();
+                console.log('ProfileManager initialized from inline script');
+            }
+            
+            console.log('Inline script initialization completed');
+        });
+    </script>
+</body>
+</html>

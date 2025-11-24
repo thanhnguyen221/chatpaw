@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_input.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/video-call.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
 
   <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
@@ -290,6 +291,12 @@
           <div class="profile-actions">
             <button type="button" class="cancel-btn" id="cancel-profile">Hủy</button>
             <button type="submit" class="save-profile-btn">Lưu thay đổi</button>
+
+          </div>
+          <div class="profile-link">
+            <a href="{{ url_for('main.user_profile', username=session.username) }}" class="sidebar-link">
+                <i class="fas fa-user"></i> Trang cá nhân
+            </a>
           </div>
         </form>
       </div>
@@ -418,7 +425,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
 
   <script type="module" src="{{ url_for('static', filename='js/socket/index.js') }}"></script>
-  
+  <script src="{{ url_for('static', filename='js/socket/notifications.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/chat_input.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}"></script>

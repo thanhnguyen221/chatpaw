@@ -2715,3 +2715,136 @@ video { width: 100%; height: 100%; object-fit: cover; }
 .incoming-actions { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
 .btn-accept { background: #4caf50; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
 .btn-decline { background: #f44336; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+
+/* ===========================
+   IN-APP NOTIFICATIONS (Toast)
+   =========================== */
+
+.in-app-notifications-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.in-app-notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 320px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: notif-slide-in 0.2s ease-out;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* ÉP màu chữ cho chắc chắn không bị trắng */
+.in-app-notification,
+.in-app-notification * {
+  color: #111;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.in-app-notification-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #f3f4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.in-app-notification-icon i {
+  font-size: 16px;
+  color: #4f46e5;
+}
+
+.in-app-notification-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.in-app-notification-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.in-app-notification-title span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.in-app-notification-title .badge {
+  margin-left: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.in-app-notification-text {
+  font-size: 12px;
+  color: #444;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.in-app-notification-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+  color: #888;
+  padding: 0;
+}
+
+.in-app-notification-close:hover {
+  color: #444;
+}
+
+/* Animation */
+@keyframes notif-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes notif-fade-out {
+  to {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+
+
+

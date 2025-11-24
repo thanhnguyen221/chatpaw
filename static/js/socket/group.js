@@ -150,26 +150,95 @@ export function setupGroupSocketEvents() {
   });
 
   // Tin nhắn nhóm mới (Sự kiện cũ - Giữ nguyên để tương thích ngược)
-  socket.on('group_message', (data) => {
+    socket.on('group_message', (data) => {
     console.log('[Socket] Nhận tin nhắn nhóm (group_message):', data);
-    // Đảm bảo chỉ append khi đang ở đúng group
-    if (currentGroupId && String(currentGroupId) === String(data.group_id)) {
+
+    const myId = window.session?.user_id;
+    const isMyMessage = String(data.sender_id) === String(myId);
+    const isCurrentGroup =
+      currentGroupId && String(currentGroupId) === String(data.group_id);
+
+    if (isCurrentGroup) {
       appendGroupMessage(data);
+      return;
+    }
+
+    if (!isMyMessage && typeof window.showInAppNotification === 'function') {
+      let groupName = 'Nhóm';
+      const groupItem = document.querySelector(
+        `.group-item[data-id="${data.group_id}"]`
+      );
+      if (groupItem) {
+        const nameEl = groupItem.querySelector('.group-name');
+        if (nameEl && nameEl.textContent.trim()) {
+          groupName = nameEl.textContent.trim();
+        }
+      }
+
+      const preview = getMessagePreview({
+        content: data.content,
+        message_type: data.message_type,
+      });
+
+      window.showInAppNotification({
+        title: groupName,
+        messagePreview: `${data.sender_name || 'Ai đó'}: ${preview}`,
+        conversationId: data.group_id,
+        conversationType: 'group',
+      });
     }
   });
 
+
   // [QUAN TRỌNG - THÊM MỚI] Sự kiện receive_message chuẩn từ Backend cập nhật
-  // Đây là sự kiện chứa thông tin reply_context đầy đủ nhất
-  socket.on('receive_message', (data) => {
-    // Kiểm tra: data có thể dùng key group_id hoặc conversation_id
+   socket.on('receive_message', (data) => {
+    // Dùng cho cả group và private, nên mình chỉ xử lý nếu là group
     const targetGroupId = data.group_id || data.conversation_id;
-    
-    // Chỉ xử lý nếu đang mở nhóm này VÀ loại tin nhắn là group
-    if (currentGroupId && String(currentGroupId) === String(targetGroupId)) {
-        console.log('[Socket] Nhận tin nhắn nhóm (receive_message):', data);
-        appendGroupMessage(data);
+    const isGroupMessage = data.conversation_type === 'group' || !!data.group_id;
+
+    if (!isGroupMessage) return;
+
+    const myId = window.session?.user_id;
+    const isMyMessage = String(data.sender_id) === String(myId);
+    const isCurrentGroup =
+      currentGroupId && String(currentGroupId) === String(targetGroupId);
+
+    // 1. Nếu đang mở đúng group -> append như bình thường
+    if (isCurrentGroup) {
+      console.log('[Socket] Nhận tin nhắn nhóm (receive_message):', data);
+      appendGroupMessage(data);
+      return;
+    }
+
+    // 2. Nếu KHÔNG ở group đó và tin nhắn không phải của mình -> hiện notification
+    if (!isMyMessage && typeof window.showInAppNotification === 'function') {
+      // Lấy tên nhóm từ data hoặc từ sidebar
+      let groupName = data.group_name || 'Nhóm';
+      const groupItem = document.querySelector(
+        `.group-item[data-id="${targetGroupId}"]`
+      );
+      if (groupItem) {
+        const nameEl = groupItem.querySelector('.group-name');
+        if (nameEl && nameEl.textContent.trim()) {
+          groupName = nameEl.textContent.trim();
+        }
+      }
+
+      // Lấy đoạn preview nội dung (tận dụng getMessagePreview đã viết ở cuối file)
+      const preview = getMessagePreview({
+        content: data.content,
+        message_type: data.message_type,
+      });
+
+      window.showInAppNotification({
+        title: groupName,
+        messagePreview: `${data.sender_name || 'Ai đó'}: ${preview}`,
+        conversationId: targetGroupId,
+        conversationType: 'group',
+      });
     }
   });
+
 
   // Nhóm mới được tạo
   socket.on('group_created', (group) => {

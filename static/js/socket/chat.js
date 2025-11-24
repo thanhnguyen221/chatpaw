@@ -20,18 +20,65 @@ function resetGroupState() {
 export function setupChatEvents() {
   socket.on('connect', () => {
     console.log('✅ Connected to server');
-    // [THÊM DÒNG NÀY] Kích hoạt sự kiện Reply (Click chuột phải, Swipe)
+    // Kích hoạt swipe / reply
     setupChatInteractions();
+
     if (currentConversation) {
       joinConversation(currentConversation);
     }
   });
 
+  // ====== NHẬN TIN NHẮN 1v1 ======
   socket.on('receive_message', (data) => {
-    if (data.conversation_id === currentConversation) {
+    // Lấy id cuộc hội thoại từ data
+    const convId =
+      data.conversation_id ||
+      data.conversation ||
+      data.room_id ||
+      null;
+
+    const myId = getUserId();
+    const isMe = data.sender_id && String(data.sender_id) === String(myId);
+
+    // Kiểm tra có đang mở đúng cuộc chat đó không
+    const isCurrent =
+      currentConversation &&
+      convId &&
+      String(currentConversation) === String(convId);
+
+    // Nếu đang ở đúng cuộc chat -> add vào UI luôn
+    if (isCurrent) {
       addMessageToUI(data);
     }
-    updateConversationList(data.conversation_id, data);
+
+    // Cập nhật list hội thoại bên trái (preview, time, unread…)
+    if (convId) {
+      updateConversationList(convId, data);
+    }
+
+    // Nếu:
+    //  - KHÔNG phải tin nhắn của mình
+    //  - KHÔNG đang ở trong hội thoại đó
+    //  - Và đã định nghĩa window.showInAppNotification trong main.js
+    if (!isMe && !isCurrent && window.showInAppNotification) {
+      const senderName = data.sender_name || data.sender || 'Người dùng';
+
+      let preview = data.content || '';
+      if (data.message_type === 'image') {
+        preview = 'Đã gửi một hình ảnh';
+      } else if (data.message_type === 'file') {
+        preview = 'Đã gửi một tệp';
+      } else if (data.message_type === 'sticker') {
+        preview = 'Đã gửi một sticker';
+      }
+
+      window.showInAppNotification({
+        title: senderName,
+        messagePreview: preview,
+        conversationId: convId,
+        conversationType: 'private'
+      });
+    }
   });
 
   socket.on('conversation_created', (data) => {
@@ -53,6 +100,7 @@ export function setupChatEvents() {
     }
   });
 }
+
 
 export function setupConversationClickEvents(onOpen) {
   if (typeof onOpen === 'function') {
@@ -573,23 +621,31 @@ export function setupMessageContextMenu() {
   console.log('[Context Menu] Setting up message context menu...');
   
   document.addEventListener('contextmenu', (e) => {
-    console.log('[Context Menu] Right-click detected');
-    
-    const messageElement = e.target.closest('.message');
-    console.log('[Context Menu] Message element found:', messageElement);
-    
-    if (messageElement && messageElement.dataset.messageId) {
-      e.preventDefault();
-      console.log('[Context Menu] Showing context menu for message:', messageElement.dataset.messageId);
-      
-      const messageId = messageElement.dataset.messageId;
-      const isMyMessage = messageElement.classList.contains('sent');
-      
-      showMessageContextMenu(e.clientX, e.clientY, messageId, isMyMessage);
-    } else {
-      console.log('[Context Menu] No message element found or missing messageId');
-    }
-  });
+  console.log('[Context Menu] Right-click detected');
+  
+  const messageElement = e.target.closest('.message');
+  console.log('[Context Menu] Message element found:', messageElement);
+  
+  if (!messageElement || !messageElement.dataset.messageId) {
+    console.log('[Context Menu] No message element found or missing messageId');
+    return;
+  }
+
+  // ⚠️ BỎ QUA TIN NHẮN CỦA GROUP, để group.js xử lý
+  if (messageElement.dataset.conversationType === 'group') {
+    console.log('[Context Menu] Skip because this is a group message');
+    return;
+  }
+
+  e.preventDefault();
+  console.log('[Context Menu] Showing context menu for message:', messageElement.dataset.messageId);
+  
+  const messageId = messageElement.dataset.messageId;
+  const isMyMessage = messageElement.classList.contains('sent');
+  
+  showMessageContextMenu(e.clientX, e.clientY, messageId, isMyMessage);
+});
+
   
   // Ẩn menu khi click ra ngoài
   document.addEventListener('click', (e) => {
@@ -1415,17 +1471,3 @@ window.scrollToPinnedMessage = scrollToPinnedMessage;
 
 // --- THÊM VÀO CUỐI FILE group.js ---
 
-window.scrollToMessage = function(messageId) {
-    console.log("Cuộn tới tin nhắn:", messageId);
-    // Tìm tin nhắn theo data-id hoặc data-message-id
-    const el = document.querySelector(`.message[data-id="${messageId}"]`) || 
-               document.querySelector(`.message[data-message-id="${messageId}"]`);
-    
-    if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('highlight-message'); // CSS highlight sẽ làm nó nháy sáng
-        setTimeout(() => el.classList.remove('highlight-message'), 2000);
-    } else {
-        console.warn("Không tìm thấy tin nhắn gốc (có thể chưa load lịch sử).");
-    }
-};

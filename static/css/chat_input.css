@@ -1,3 +1,7 @@
+/* =========================================
+   1. FILE & MEDIA MESSAGES
+   ========================================= */
+
 /* File message styles */
 .file-message {
   display: flex;
@@ -28,9 +32,10 @@
 }
 
 .file-name {
-  font-weight: bold;
+  font-weight: 600;
   color: #333;
   word-break: break-word;
+  font-size: 14px;
 }
 
 .file-size {
@@ -41,16 +46,17 @@
 .file-download {
   padding: 6px 12px;
   background: #3eb489;
-  color: white;
+  color: #fff;
   border-radius: 8px;
   text-decoration: none;
   font-size: 12px;
   white-space: nowrap;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .file-download:hover {
   background: #36a078;
+  transform: translateY(-1px);
 }
 
 /* Image message styles */
@@ -70,11 +76,12 @@
   max-height: 300px;
   border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .uploaded-image:hover {
   transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .image-actions {
@@ -87,7 +94,7 @@
   text-decoration: none;
   padding: 4px 8px;
   border-radius: 6px;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, text-decoration 0.2s ease;
 }
 
 .view-original:hover {
@@ -112,13 +119,17 @@
   transform: scale(1.1);
 }
 
-/* Message bubble adjustments for special content */
+/* Message bubble adjustments */
 .message-bubble {
   max-width: 100%;
   border-radius: 12px;
+  position: relative;
 }
 
-/* Sticker Panel */
+/* =========================================
+   2. STICKER PANEL & IMAGE MODAL
+   ========================================= */
+
 .sticker-panel {
   position: absolute;
   bottom: 80px;
@@ -127,7 +138,7 @@
   padding: 16px;
   display: none;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 16px;
@@ -146,19 +157,72 @@
   font-size: 32px;
 }
 
-.sticker {
+.sticker-panel .sticker {
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, background-color 0.15s ease;
   border-radius: 8px;
   padding: 4px;
 }
 
-.sticker:hover {
+.sticker-panel .sticker:hover {
   transform: scale(1.2);
   background: rgba(62, 180, 137, 0.1);
 }
 
-/* Message Status */
+/* Image modal */
+.image-modal {
+  position: fixed;
+  top: 0; 
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.image-modal-content img {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 12px;
+}
+
+.close-modal {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  color: #fff;
+  font-size: 30px;
+  cursor: pointer;
+  background: rgba(62, 180, 137, 0.8);
+  border-radius: 50%;
+  width: 40px; 
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.close-modal:hover {
+  background: rgba(62, 180, 137, 1);
+  transform: translateY(-1px);
+}
+
+/* =========================================
+   3. MESSAGE STATUS & META
+   ========================================= */
+
 .message-status-container {
   display: flex;
   align-items: center;
@@ -175,16 +239,15 @@
   color: #999;
 }
 
-.status-delivered {
+.status-delivered,
+.status-read {
   color: #3eb489;
 }
 
 .status-read {
-  color: #3eb489;
   font-weight: 500;
 }
 
-/* Sent messages */
 .message.sent .message-time {
   margin-right: 5px;
 }
@@ -193,7 +256,23 @@
   margin-left: auto;
 }
 
-/* Pinned Message Styles */
+.error-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #3eb489;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* =========================================
+   4. PINNED MESSAGES & CONTEXT MENU
+   ========================================= */
+
 .pinned-message-section {
   background: rgba(62, 180, 137, 0.15);
   backdrop-filter: blur(12px);
@@ -261,7 +340,7 @@
 }
 
 .pinned-sender-avatar {
-  width: 32px;
+  width: 32px; 
   height: 32px;
   border-radius: 50%;
   border: 2px solid rgba(62, 180, 137, 0.3);
@@ -288,7 +367,7 @@
   word-break: break-word;
 }
 
-/* Context Menu Styles */
+/* Context Menu */
 .context-menu {
   position: fixed;
   background: rgba(255, 255, 255, 0.95);
@@ -341,7 +420,7 @@
   color: #3eb489;
 }
 
-/* Highlight Animation */
+/* Highlight khi scroll tới tin nhắn */
 .highlight-message {
   animation: highlight-pulse 3s ease-in-out;
   border-left: 4px solid #3eb489;
@@ -351,21 +430,11 @@
 }
 
 @keyframes highlight-pulse {
-  0% {
-    background-color: rgba(62, 180, 137, 0.2);
-    border-left-color: #3eb489;
-  }
-  50% {
-    background-color: rgba(62, 180, 137, 0.15);
-    border-left-color: #3eb489;
-  }
-  100% {
-    background-color: rgba(62, 180, 137, 0.1);
-    border-left-color: #3eb489;
-  }
+  0%   { background-color: rgba(62, 180, 137, 0.2); border-left-color: #3eb489; }
+  50%  { background-color: rgba(62, 180, 137, 0.15); border-left-color: #3eb489; }
+  100% { background-color: rgba(62, 180, 137, 0.1); border-left-color: #3eb489; }
 }
 
-/* Edited badge */
 .edited-badge {
   font-size: 11px;
   color: #3eb489;
@@ -374,112 +443,275 @@
   opacity: 0.7;
 }
 
-/* Message actions */
+/* =========================================
+   5. DESKTOP MESSAGE ACTIONS (NÚT REPLY)
+   ========================================= */
+
+.message {
+  position: relative;
+}
+
+/* Wrapper chứa content + nút reply (dùng cho 1v1 + Group) */
+.message-content-wrapper {
+  position: relative;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Vị trí chung cho khối action */
 .message-actions {
   position: absolute;
-  top: -10px;
-  right: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(62, 180, 137, 0.2);
-  border-radius: 8px;
-  padding: 6px;
-  display: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(8px);
+  top: 50%;
+  transform: translateY(-50%);
+  right: -30px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, right 0.2s ease, left 0.2s ease;
+  z-index: 10;
+  display: flex;
+  gap: 5px;
 }
 
+/* Hover tin nhắn (1v1) */
 .message:hover .message-actions {
-  display: block;
+  opacity: 1;
+  visibility: visible;
+  right: -25px;
 }
 
+/* Hover nội dung (Group) */
+.message-content-wrapper:hover .message-actions {
+  opacity: 1;
+  visibility: visible;
+  right: -25px;
+}
+
+/* Tin nhắn của mình (.me / .sent) -> nút nằm bên trái */
+.message.me .message-actions,
+.message.sent .message-actions {
+  right: auto;
+  left: -30px;
+  flex-direction: row-reverse;
+}
+
+.message.me:hover .message-actions,
+.message.sent:hover .message-actions,
+.message.me .message-content-wrapper:hover .message-actions,
+.message.sent .message-content-wrapper:hover .message-actions {
+  left: -25px;
+  right: auto;
+}
+
+/* Style nút action */
 .message-action-btn {
-  background: none;
-  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(62, 180, 137, 0.2);
+  color: #666;
   cursor: pointer;
-  padding: 4px 8px;
-  margin: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
   font-size: 12px;
-  color: #3eb489;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
 }
 
 .message-action-btn:hover {
-  background: rgba(62, 180, 137, 0.1);
+  background: #3eb489;
+  color: #fff;
+  transform: scale(1.1);
+  border-color: #3eb489;
 }
 
-/* Image modal */
-.image-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.9);
+/* =========================================
+   6. REPLY PREVIEW & QUOTE
+   ========================================= */
+
+/* Thanh preview trên ô input */
+.reply-preview {
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 10000;
+  justify-content: space-between;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid rgba(62, 180, 137, 0.2);
+  border-bottom: 1px solid rgba(62, 180, 137, 0.1);
+  margin-bottom: -5px;
+  position: relative;
+  z-index: 90;
+  backdrop-filter: blur(10px);
+  border-radius: 12px 12px 0 0;
+  animation: slideUp 0.2s ease-out;
 }
 
-.image-modal-content {
-  position: relative;
-  max-width: 90%;
-  max-height: 90%;
-  border-radius: 12px;
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.reply-preview.hidden {
+  display: none;
+}
+
+.reply-content-wrapper {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex: 1;
+}
+
+.reply-decoration {
+  width: 4px;
+  height: 32px;
+  background-color: #3eb489;
+  border-radius: 2px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.reply-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   overflow: hidden;
 }
 
-.image-modal-content img {
-  max-width: 100%;
-  max-height: 90vh;
-  border-radius: 12px;
+.reply-username {
+  font-weight: 700;
+  font-size: 13px;
+  color: #3eb489;
+  margin-bottom: 2px;
 }
 
-.close-modal {
-  position: absolute;
-  top: -40px;
-  right: 0;
-  color: white;
-  font-size: 30px;
+.reply-text {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close-reply-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: #999;
   cursor: pointer;
-  background: rgba(62, 180, 137, 0.8);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  padding: 5px;
+  margin-left: 10px;
+}
+
+.close-reply-btn:hover {
+  color: #ff4757;
+}
+
+/* Khung quote trong tin nhắn */
+.message-reply-quote {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  position: relative;
+  border-left: 3px solid #3eb489;
+  cursor: pointer;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
+  flex-direction: column;
+  transition: background-color 0.2s;
+  font-size: 0.85rem;
+  min-width: 150px;
 }
 
-.close-modal:hover {
-  background: rgba(62, 180, 137, 1);
+.message-reply-quote:hover {
+  background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* Error message */
-.error-message {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #3eb489;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 12px;
-  z-index: 10000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.reply-sender {
+  font-weight: 600;
+  font-size: 12px;
+  color: #3eb489;
+  margin-bottom: 2px;
 }
 
-/* General border radius improvements */
-.message {
-  border-radius: 12px;
+.reply-text-short {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  color: #555;
 }
+
+/* Style riêng cho tin nhắn của mình */
+.message.me .message-reply-quote,
+.message.sent .message-reply-quote {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+.message.me .message-reply-quote .reply-sender,
+.message.sent .message-reply-quote .reply-sender {
+  color: #fff;
+}
+
+.message.me .message-reply-quote .reply-text-short,
+.message.sent .message-reply-quote .reply-text-short {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* =========================================
+   7. MOBILE SWIPE TO REPLY
+   ========================================= */
+
+/* Hỗ trợ cả layout cũ (.message-content) và mới (.message-content-wrapper / .message-bubble) */
+.message-content,
+.message-content-wrapper,
+.message-bubble {
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  touch-action: pan-y;
+}
+
+.message-content.swiping,
+.message-content-wrapper.swiping,
+.message-bubble.swiping {
+  transition: none !important;
+}
+
+/* =========================================
+   8. SCROLLBARS & GENERAL
+   ========================================= */
 
 .conversation-item {
   border-radius: 12px;
 }
-/* Scrollbar styling */
+
+/* Ẩn cuộn ngang, chỉ cho cuộn dọc */
+html, body {
+  overflow-x: hidden;
+}
+
+.chat-app {
+  overflow-x: hidden;
+}
+
+/* Vùng messages chỉ cuộn dọc */
+.messages {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar dọc đẹp, scrollbar ngang gần như biến mất (Webkit) */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -496,4 +728,58 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #36a078;
+}
+
+/* Thu nhỏ thanh cuộn ngang */
+::-webkit-scrollbar:horizontal {
+  height: 0;
+  background: transparent;
+}
+
+/* =========================================
+   9. TYPING INDICATOR (ĐANG NHẬP...)
+   ========================================= */
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 16px 8px;
+  border-radius: 999px;
+  background: rgba(62, 180, 137, 0.08);
+  color: #555;
+  font-size: 12px;
+  max-width: fit-content;
+}
+
+.typing-indicator.hidden {
+  display: none;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3eb489;
+  animation: typing-bounce 1s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
 }

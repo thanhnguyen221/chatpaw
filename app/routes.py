@@ -42,6 +42,39 @@ def group_messages_col():  # THÊM HÀM NÀY
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# --- [THÊM VÀO ĐẦU FILE] HÀM HỖ TRỢ LẤY THÔNG TIN REPLY ---
+def resolve_reply_context(msg, collection_type='private'):
+    """
+    Tìm tin nhắn gốc và tạo object reply_context
+    collection_type: 'private' hoặc 'group'
+    """
+    if not msg.get('reply_to'):
+        return None
+        
+    try:
+        reply_id = msg['reply_to']
+        
+        # Xác định collection cần tìm
+        target_col = messages_col() if collection_type == 'private' else group_messages_col()
+        
+        # Tìm tin nhắn gốc
+        original_msg = target_col.find_one({'_id': ObjectId(reply_id)})
+        
+        if original_msg:
+            # Tìm người gửi tin nhắn gốc
+            sender = users_col().find_one({'_id': original_msg['sender_id']})
+            sender_name = sender.get('username', 'Unknown') if sender else "Unknown"
+            
+            return {
+                'message_id': str(original_msg['_id']),
+                'sender_id': str(original_msg['sender_id']),
+                'sender_name': sender_name,
+                'content': original_msg['content']
+            }
+    except Exception as e:
+        print(f"Error resolving reply context: {e}")
+        return None
+
 @main.route('/')
 def home():
     if 'username' in session:
@@ -208,11 +241,8 @@ def chat():
         conversations=conversations,
         friends=friends
     )
-# Trong routes.py, sửa hàm get_conversation
 @main.route('/conversation/<conversation_id>')
 def get_conversation(conversation_id):
-    print(f"Fetching messages for conversation: {conversation_id}")
-
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -225,49 +255,33 @@ def get_conversation(conversation_id):
     if not conv or session['user_id'] not in conv['participants']:
         return jsonify({'error': 'Conversation not found or access denied'}), 404
 
-    messages = list(messages_col().find(
-        {'conversation_id': conv_id}
-    ).sort('timestamp', 1))
+    messages = list(messages_col().find({'conversation_id': conv_id}).sort('timestamp', 1))
 
-    print(f"Found {len(messages)} messages")
-
+    # Cache thông tin sender
     sender_ids = list(set(msg['sender_id'] for msg in messages))
     senders = list(users_col().find({'_id': {'$in': sender_ids}}, {'username': 1, 'avatar': 1}))
-    
     sender_map = {}
-    for sender in senders:
-        avatar = sender.get('avatar')
-        if avatar:
-            if avatar.startswith(('http', 'data:image')):
-                sender_avatar = avatar
-            else:
-                sender_avatar = url_for('static', filename=avatar)
-        else:
-            sender_avatar = url_for('static', filename='img/default-avatar.png')
-            
-        sender_map[str(sender['_id'])] = {
-            'username': sender['username'],
-            'avatar': sender_avatar
+    for s in senders:
+        avatar = s.get('avatar')
+        if avatar and not avatar.startswith(('http', 'data:image')):
+            avatar = url_for('static', filename=avatar)
+        sender_map[str(s['_id'])] = {
+            'username': s['username'],
+            'avatar': avatar or url_for('static', filename='img/default-avatar.png')
         }
 
     message_list = []
     for msg in messages:
         sender_info = sender_map.get(str(msg['sender_id']), {'username': 'Unknown', 'avatar': url_for('static', filename='img/default-avatar.png')})
         
-        # QUAN TRỌNG: Đảm bảo timestamp là ISO string với timezone
         timestamp = msg.get('timestamp')
-        if timestamp:
-            if isinstance(timestamp, datetime):
-                # Chuyển đổi datetime object sang ISO string với timezone
-                if timestamp.tzinfo is None:
-                    # Nếu không có timezone, thêm timezone Việt Nam
-                    vietnam_tz = pytz.timezone('Asia/Ho_Chi_Minh')
-                    timestamp = vietnam_tz.localize(timestamp)
-                timestamp_str = timestamp.isoformat()
-            else:
-                timestamp_str = str(timestamp)
+        if isinstance(timestamp, datetime):
+            if timestamp.tzinfo is None:
+                vietnam_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+                timestamp = vietnam_tz.localize(timestamp)
+            timestamp_str = timestamp.isoformat()
         else:
-            timestamp_str = None
+            timestamp_str = str(timestamp)
 
         message_data = {
             'message_id': str(msg['_id']),
@@ -278,20 +292,21 @@ def get_conversation(conversation_id):
             'content': msg['content'],
             'timestamp': timestamp_str,
             'status': msg.get('status', 'sent'),  
-            'read_by': msg.get('read_by', [])  
+            'read_by': [str(uid) for uid in msg.get('read_by', [])],
+            
+            # [MỚI] Thêm thông tin Reply
+            'reply_context': resolve_reply_context(msg, 'private')
         }
 
+        # Logic message_type cũ của bạn
         if 'message_type' in msg:
             message_data['message_type'] = msg['message_type']
         else:
             try:
                 content_data = json.loads(msg['content'])
                 if isinstance(content_data, dict) and 'type' in content_data:
-                    if content_data['type'] == 'file':
-                        message_data['message_type'] = 'file'
-                    elif content_data['type'] == 'image':
-                        message_data['message_type'] = 'image'
-            except (json.JSONDecodeError, TypeError):
+                    message_data['message_type'] = content_data['type']
+            except:
                 message_data['message_type'] = 'text'
 
         message_list.append(message_data)
@@ -815,82 +830,53 @@ def get_group_messages():
 
     try:
         group_oid = ObjectId(group_id)
-    except Exception:
-        return jsonify({'error': 'Invalid group ID'}), 400
-
-    # Kiểm tra user có trong nhóm không
-    try:
         user_oid = ObjectId(session['user_id'])
     except Exception:
-        return jsonify({'error': 'Invalid user in session'}), 400
+        return jsonify({'error': 'Invalid ID'}), 400
 
-    is_member = group_members_col().find_one({
-        'group_id': group_oid,
-        'user_id': user_oid
-    })
+    is_member = group_members_col().find_one({'group_id': group_oid, 'user_id': user_oid})
     if not is_member:
         return jsonify({'error': 'Not a member of this group'}), 403
 
-    # QUAN TRỌNG: Sử dụng collection group_messages
-    messages_cursor = group_messages_col().find(
-        {'group_id': group_oid},
-        sort=[('timestamp', 1)]
-    )
+    messages_cursor = group_messages_col().find({'group_id': group_oid}, sort=[('timestamp', 1)])
 
     message_list = []
     for msg in messages_cursor:
+        # Lấy thông tin sender
         sender_oid = msg.get('sender_id')
-        try:
-            sender_lookup_id = ObjectId(sender_oid) if not isinstance(sender_oid, ObjectId) else sender_oid
-        except Exception:
-            sender_lookup_id = None
-
-        sender = users_col().find_one({'_id': sender_lookup_id}, {'username': 1, 'avatar': 1}) if sender_lookup_id else None
+        sender = users_col().find_one({'_id': sender_oid}, {'username': 1, 'avatar': 1}) if sender_oid else None
         sender_name = sender.get('username') if sender else 'Unknown'
         
-        # Xử lý avatar
-        if sender:
-            avatar = sender.get('avatar')
-            if not avatar:
-                sender_avatar = url_for('static', filename='img/default-avatar.png')
-            elif avatar.startswith(('http', 'data:image')):
-                sender_avatar = avatar
-            else:
-                sender_avatar = url_for('static', filename=avatar)
+        avatar = sender.get('avatar') if sender else None
+        if avatar and not avatar.startswith(('http', 'data:image')):
+            sender_avatar = url_for('static', filename=avatar)
         else:
             sender_avatar = url_for('static', filename='img/default-avatar.png')
         
         ts = msg.get('timestamp')
-        if hasattr(ts, 'isoformat'):
-            ts_iso = ts.isoformat()
-        else:
-            ts_iso = str(ts) if ts is not None else ''
+        ts_iso = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
             
-        # QUAN TRỌNG: Thêm message_type cho tin nhắn nhóm
         message_data = {
-            'group_id': str(msg.get('group_id') if msg.get('group_id') else group_id),
+            'group_id': str(msg.get('group_id', group_id)),
             'message_id': str(msg.get('_id')),
             'sender_id': str(msg.get('sender_id')),
             'sender_name': sender_name,
             'content': msg.get('content', ''),
             'sender_avatar': sender_avatar,
-            'timestamp': ts_iso
+            'timestamp': ts_iso,
+            
+            # [MỚI] Thêm thông tin Reply cho Group
+            'reply_context': resolve_reply_context(msg, 'group')
         }
         
-        # Thêm message_type nếu có
         if 'message_type' in msg:
             message_data['message_type'] = msg['message_type']
         else:
-            # Tự động detect message_type từ content
             try:
                 content_data = json.loads(msg.get('content', ''))
                 if isinstance(content_data, dict) and 'type' in content_data:
-                    if content_data['type'] == 'file':
-                        message_data['message_type'] = 'file'
-                    elif content_data['type'] == 'image':
-                        message_data['message_type'] = 'image'
-            except (json.JSONDecodeError, TypeError):
-                # Nếu không parse được JSON, kiểm tra sticker
+                    message_data['message_type'] = content_data['type']
+            except:
                 sticker_codes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6']
                 if msg.get('content') in sticker_codes:
                     message_data['message_type'] = 'sticker'
@@ -1698,7 +1684,10 @@ def get_message(message_id):
                 'message_type': message.get('message_type', 'text'),
                 'timestamp': message['timestamp'].isoformat() if hasattr(message['timestamp'], 'isoformat') else str(message['timestamp']),
                 'conversation_id': str(message.get('conversation_id') if conversation_type == 'private' else message.get('group_id')),
-                'conversation_type': conversation_type
+                'conversation_type': conversation_type,
+                # [MỚI] Thêm dòng này
+                'reply_context': resolve_reply_context(message, conversation_type)
+
             }
         })
         

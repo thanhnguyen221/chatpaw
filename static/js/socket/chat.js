@@ -1,6 +1,7 @@
 import { socket } from "./index.js";
 import { setCurrentConversation } from '../chat_input.js';
 import { resetGroupChat } from './group.js';
+import { setupChatInteractions } from './chat_interactions.js';
 
 let currentConversation = null;
 let currentConversationType = 'private';
@@ -19,6 +20,8 @@ function resetGroupState() {
 export function setupChatEvents() {
   socket.on('connect', () => {
     console.log('✅ Connected to server');
+    // [THÊM DÒNG NÀY] Kích hoạt sự kiện Reply (Click chuột phải, Swipe)
+    setupChatInteractions();
     if (currentConversation) {
       joinConversation(currentConversation);
     }
@@ -749,10 +752,9 @@ socket.on('message_removed', (data) => {
   }
 });
 
-// ====== MESSAGE DISPLAY FUNCTIONS ======
+// ====== HÀM HIỂN THỊ TIN NHẮN (FULL CODE - FIX LỖI REPLY + SWIPE) ======
 export function addMessageToUI(msg) {
   const myId = getUserId();
-  // QUAN TRỌNG: Chuyển về String để so sánh chính xác
   const isMe = String(msg.sender_id) === String(myId);
   const messagesEl = document.getElementById('messages');
   if (!messagesEl) return;
@@ -762,53 +764,74 @@ export function addMessageToUI(msg) {
 
   const messageEl = document.createElement('div');
   messageEl.classList.add('message', isMe ? 'sent' : 'received');
-  messageEl.dataset.messageId = msg.message_id; // Gắn ID để update status sau này
+  
+  // Gắn Data ID
+  const msgId = msg.message_id || msg._id;
+  messageEl.dataset.id = msgId; 
+  messageEl.dataset.messageId = msgId; 
+  messageEl.dataset.senderName = senderName; 
   messageEl.dataset.conversationType = msg.conversation_type || currentConversationType || 'private';
-
 
   const timeString = formatMessageTime(msg.timestamp);
 
-  // --- XỬ LÝ LOGIC PARSE CONTENT ---
+  // --- 1. XỬ LÝ CONTENT (AN TOÀN) ---
   let messageType = msg.message_type || 'text';
   let parsedContent = msg.content;
 
-  // 1. Nếu type là file/image mà content là string -> Parse JSON
-  if (messageType === 'file' || messageType === 'image') {
-    if (typeof msg.content === 'string') {
+  // Logic parse thông minh: Chỉ parse nếu chuỗi bắt đầu bằng {
+  if (typeof msg.content === 'string') {
+    const trimmed = msg.content.trim();
+    if (trimmed.startsWith('{')) {
       try {
-        parsedContent = JSON.parse(msg.content);
-      } catch (e) {
-        console.error('Error parsing content JSON:', e);
-        messageType = 'text'; // Fallback về text nếu lỗi
-      }
-    }
-  } 
-  // 2. Nếu type chưa rõ hoặc là text, thử detect xem có phải JSON không
-  else if (!msg.message_type || messageType === 'text') {
-    if (typeof msg.content === 'string') {
-      // Check nhanh xem có giống JSON không
-      if (msg.content.trim().startsWith('{')) {
-        try {
-          const testParse = JSON.parse(msg.content);
-          if (testParse?.type === 'file') {
-            messageType = 'file';
-            parsedContent = testParse;
-          } else if (testParse?.type === 'image') {
-            messageType = 'image';
-            parsedContent = testParse;
-          }
-        } catch {
-          // Không phải JSON, bỏ qua
+        const test = JSON.parse(msg.content);
+        if (test && (test.type === 'file' || test.type === 'image')) {
+          messageType = test.type; // Cập nhật type chuẩn từ JSON
+          parsedContent = test;
         }
+      } catch (e) {
+        // Nếu lỗi parse, giữ nguyên là text
+        messageType = 'text';
       }
-      
-      // Check Sticker
+    } else {
+      // Check sticker
       const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
-      if (stickerCodes.includes(msg.content)) messageType = 'sticker';
+      if (stickerCodes.includes(trimmed)) messageType = 'sticker';
     }
   }
 
-  // --- TẠO HTML CONTENT ---
+  // --- 2. XỬ LÝ HIỂN THỊ KHUNG REPLY ---
+  let replyBlock = '';
+  if (msg.reply_context) {
+    const isMyQuote = String(msg.reply_context.sender_id) === String(myId);
+    
+    // Xử lý nội dung trích dẫn: Nếu là JSON thì hiện [Hình ảnh]/[File]
+    let quoteText = msg.reply_context.content;
+    try {
+      if (typeof quoteText === 'string' && quoteText.trim().startsWith('{')) {
+        const quoteObj = JSON.parse(quoteText);
+        if (quoteObj.type === 'image') quoteText = '📷 [Hình ảnh]';
+        else if (quoteObj.type === 'file') quoteText = `📎 [File] ${quoteObj.name}`;
+      } else if (['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'].includes(quoteText)) {
+        quoteText = '😊 [Sticker]';
+      }
+    } catch (e) {}
+
+    replyBlock = `
+      <div class="message-reply-quote" onclick="window.scrollToMessage('${msg.reply_context.message_id}')">
+        <div class="reply-decoration"></div>
+        <div class="reply-info">
+          <div class="reply-sender">
+            ${isMyQuote ? 'Chính bạn' : (msg.reply_context.sender_name || 'Unknown')}
+          </div>
+          <div class="reply-text-short">
+            ${escapeHtml(quoteText || '')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- 3. TẠO HTML CONTENT CHÍNH ---
   let messageContent = '';
 
   if (messageType === 'file') {
@@ -825,7 +848,6 @@ export function addMessageToUI(msg) {
       </div>
     `;
   } else if (messageType === 'image') {
-    // THÊM: onclick để mở modal xem ảnh
     messageContent = `
       <div class="image-message">
         <div class="image-info">
@@ -833,8 +855,8 @@ export function addMessageToUI(msg) {
         </div>
         <img src="${parsedContent.thumbnail || parsedContent.url}" 
              class="uploaded-image" 
-             alt="${escapeHtml(parsedContent.name)}"
-             onclick="window.openImageModal('${parsedContent.url}')"
+             alt="${escapeHtml(parsedContent.name || '')}"
+             onclick="window.openImageModal && window.openImageModal('${parsedContent.url}')"
              onerror="this.src='${parsedContent.url}'; this.onerror=null;">
         <div class="image-actions">
           <a href="${parsedContent.url}" target="_blank" class="view-original">Xem ảnh gốc</a>
@@ -844,50 +866,66 @@ export function addMessageToUI(msg) {
   } else if (messageType === 'sticker') {
     messageContent = `<div class="sticker-message">${getStickerHTML(msg.content)}</div>`;
   } else {
-    messageContent = `<div class="message-text">${escapeHtml(msg.content)}</div>`;
+    messageContent = `<div class="message-text">${escapeHtml(msg.content || '')}</div>`;
   }
 
-  // --- TẠO HTML STATUS ---
+  // --- 4. STATUS ---
   let statusHTML = '';
-  
   if (isMe) {
-    let statusText = getStatusText(msg.status || 'sent');
-    let statusClass = `status-${msg.status || 'sent'}`;
-    
+    const status = msg.status || 'sent';
+    const statusText = getStatusText(status);
+    const statusClass = `status-${status}`;
     statusHTML = `
       <div class="message-status-container">
-        <span class="message-time" title="${msg.timestamp}">${timeString}</span>
+        <span class="message-time" title="${msg.timestamp || ''}">${timeString}</span>
         <span class="message-status ${statusClass}">${statusText}</span>
       </div>
     `;
   } else {
-    statusHTML = `<span class="message-time" title="${msg.timestamp}">${timeString}</span>`;
+    statusHTML = `
+      <div class="message-status-container">
+        <span class="message-time" title="${msg.timestamp || ''}">${timeString}</span>
+      </div>
+    `;
   }
 
-  // --- LẮP RÁP HTML CUỐI CÙNG ---
-  // Lưu ý: sender-name chỉ hiện cho tin nhắn người khác (và thường là trong group)
+  // --- 5. LẮP RÁP (THÊM .message-content CHO SWIPE & REPLY CSS) ---
   const showSenderName = !isMe && (currentConversationType === 'group' || msg.conversation_type === 'group');
 
   messageEl.innerHTML = `
-      ${!isMe ? `<img src="${avatarUrl}" class="message-avatar" alt="${senderName}" title="${senderName}">` : ''}
-      <div class="message-content-container">
-          ${showSenderName ? `<div class="sender-info">${senderName}</div>` : ''}
-          <div class="message-content-wrapper">
-              <div class="message-bubble">${messageContent}</div>
-              ${statusHTML}
+    ${!isMe ? `<img src="${avatarUrl}" class="message-avatar" alt="${senderName}" title="${senderName}">` : ''}
+    
+    <div class="message-content-container">
+      ${showSenderName ? `<div class="sender-info">${senderName}</div>` : ''}
+
+      <div class="message-content-wrapper">
+        <div class="message-content">
+          <div class="message-bubble">
+            ${replyBlock}
+            ${messageContent}
           </div>
+          ${statusHTML}
+        </div>
+
+        <div class="message-actions">
+          <button class="message-action-btn reply-btn" title="Trả lời">
+            <i class="fas fa-reply"></i>
+          </button>
+        </div>
       </div>
+    </div>
   `;
 
   messagesEl.appendChild(messageEl);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   messageEl.classList.add('message-item');
 
-  // Tự động đánh dấu đã đọc nếu là tin nhắn người khác
+  // Đánh dấu đã đọc
   if (!isMe && msg.status !== 'read') {
-    markMessageAsRead(msg.message_id);
+    markMessageAsRead(msg.message_id || msg._id);
   }
 }
+
 
 // ====== CONVERSATION LIST MANAGEMENT ======
 export function updateConversationList(conversationId, lastMessage) {
@@ -1375,3 +1413,19 @@ window.editMessage = editMessage;
 window.deleteMessage = deleteMessage;
 window.scrollToPinnedMessage = scrollToPinnedMessage;
 
+// --- THÊM VÀO CUỐI FILE group.js ---
+
+window.scrollToMessage = function(messageId) {
+    console.log("Cuộn tới tin nhắn:", messageId);
+    // Tìm tin nhắn theo data-id hoặc data-message-id
+    const el = document.querySelector(`.message[data-id="${messageId}"]`) || 
+               document.querySelector(`.message[data-message-id="${messageId}"]`);
+    
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight-message'); // CSS highlight sẽ làm nó nháy sáng
+        setTimeout(() => el.classList.remove('highlight-message'), 2000);
+    } else {
+        console.warn("Không tìm thấy tin nhắn gốc (có thể chưa load lịch sử).");
+    }
+};

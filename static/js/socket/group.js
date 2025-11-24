@@ -1,5 +1,6 @@
 import { socket } from "./index.js";
 import { setCurrentConversation } from '../chat_input.js';
+import { setupChatInteractions } from './chat_interactions.js';
 
 // --- DEFAULT AVATARS (fallback) ---
 const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-group.png';
@@ -29,7 +30,6 @@ function resetPrivateChat() {
 
 export function setupGroupSocketEvents() {
 
-
   // [MỚI] Hiển thị thông báo nổi (Toast) khi có người Tham gia/Từ chối
   socket.on('call:notification', (data) => {
       // data.message ví dụ: "🔴 Nguyễn Văn A đã từ chối cuộc gọi"
@@ -54,9 +54,13 @@ export function setupGroupSocketEvents() {
   socket.on('call:status_update', (data) => {
       // Chỉ đổi nếu đang mở đúng nhóm đó
       if (currentGroupId && String(currentGroupId) === String(data.conversation_id)) {
-          updateCallButtonState(data.is_active);
+          // Hàm updateCallButtonState cần được định nghĩa hoặc import trong group.js
+          if (typeof updateCallButtonState === 'function') {
+            updateCallButtonState(data.is_active);
+          }
       }
   });
+
   // Trong setupGroupSocketEvents
   socket.on('user_left_group', (data) => {
     if (data.user_id === window.session.user_id) {
@@ -67,12 +71,12 @@ export function setupGroupSocketEvents() {
         // đảm bảo ẩn messages nếu có
         document.getElementById('messages').style.display = 'none';
         // ẩn sidebar + overlay
-        closeManageSidebar();
+        if (typeof closeManageSidebar === 'function') closeManageSidebar();
       }
       document.querySelector(`.group-item[data-id="${data.group_id}"]`)?.remove();
     } else {
       if (currentGroupId === data.group_id) {
-        openManageGroupModal(data.group_id); // refresh modal
+        if (typeof openManageGroupModal === 'function') openManageGroupModal(data.group_id); // refresh modal
       }
     }
   });
@@ -113,16 +117,17 @@ export function setupGroupSocketEvents() {
   
   socket.on('group_member_added', (data) => {
     if (data.group_id === currentGroupId) {
-      openManageGroupModal(data.group_id); // Làm mới modal
+      if (typeof openManageGroupModal === 'function') openManageGroupModal(data.group_id); // Làm mới modal
       alert(`Đã thêm thành viên mới: ${data.user_id}`);
     }
   });
+
   socket.on('group_member_removed', (data) => {
     if (data.group_id === currentGroupId) {
       const sidebar = document.getElementById('manage-group-sidebar');
       // Nếu modal đang mở, làm mới nó
       if (document.getElementById('manage-group-sidebar').style.display === 'block') {
-        openManageGroupModal(data.group_id);
+         if (typeof openManageGroupModal === 'function') openManageGroupModal(data.group_id);
       }
       if (data.user_id === window.session.user_id) {
         // Reset view nếu đang mở nhóm đó
@@ -134,7 +139,7 @@ export function setupGroupSocketEvents() {
           if (animation) animation.style.display = 'flex';
           const messages = document.getElementById('messages');
           if (messages) messages.style.display = 'none';
-          closeManageSidebar();
+          if (typeof closeManageSidebar === 'function') closeManageSidebar();
         }
       
         // Xoá group khỏi sidebar (nếu còn)
@@ -144,19 +149,35 @@ export function setupGroupSocketEvents() {
     }
   });
 
-  // Tin nhắn nhóm mới
+  // Tin nhắn nhóm mới (Sự kiện cũ - Giữ nguyên để tương thích ngược)
   socket.on('group_message', (data) => {
-    console.log('[Socket] Nhận tin nhắn nhóm:', data);
+    console.log('[Socket] Nhận tin nhắn nhóm (group_message):', data);
     // Đảm bảo chỉ append khi đang ở đúng group
     if (currentGroupId && String(currentGroupId) === String(data.group_id)) {
       appendGroupMessage(data);
     }
   });
 
+  // [QUAN TRỌNG - THÊM MỚI] Sự kiện receive_message chuẩn từ Backend cập nhật
+  // Đây là sự kiện chứa thông tin reply_context đầy đủ nhất
+  socket.on('receive_message', (data) => {
+    // Kiểm tra: data có thể dùng key group_id hoặc conversation_id
+    const targetGroupId = data.group_id || data.conversation_id;
+    
+    // Chỉ xử lý nếu đang mở nhóm này VÀ loại tin nhắn là group
+    if (currentGroupId && String(currentGroupId) === String(targetGroupId)) {
+        console.log('[Socket] Nhận tin nhắn nhóm (receive_message):', data);
+        appendGroupMessage(data);
+    }
+  });
+
   // Nhóm mới được tạo
   socket.on('group_created', (group) => {
     console.log('[Socket] Nhóm mới được tạo:', group);
-    addGroupToList(group._id, group.name);
+    // Đảm bảo hàm addGroupToList tồn tại
+    if (typeof addGroupToList === 'function') {
+        addGroupToList(group._id, group.name);
+    }
   });
 
   socket.on('group_removed', (groupId) => {
@@ -165,7 +186,7 @@ export function setupGroupSocketEvents() {
       document.querySelector('.chat-header h2').textContent = 'Messages';
       currentGroupId = null;
       // đóng sidebar/overlay nếu đang mở
-      closeManageSidebar();
+      if (typeof closeManageSidebar === 'function') closeManageSidebar();
     }
     document.querySelector(`.group-item[data-id="${groupId}"]`)?.remove();
   });
@@ -722,28 +743,54 @@ export function setupGroupMessageSending() {
   const sendButton = document.getElementById('send');
 
   function sendGroupMessage() {
-    const content = messageInput.value.trim();
-    
-    // KIỂM TRA KỸ: chỉ gửi nếu đang ở group và có nội dung
-    if (!content || !currentGroupId) {
-      console.log('[Group] Cannot send message - no content or not in group');
-      return;
-    }
-
-    // KIỂM TRA THÊM: đảm bảo đang không ở private conversation
-    if (window.currentConversation) {
-      console.log('[Group] Warning: Still in private conversation, resetting...');
-      resetPrivateChat();
-    }
-
-    console.log(`[Group] Sending message to group: ${currentGroupId}`);
-    
-    socket.emit('send_group_message', {
-      group_id: currentGroupId,
-      content: content
-    });
-    messageInput.value = '';
+  const content = messageInput.value.trim();
+  
+  // Chỉ gửi nếu đang ở group và có nội dung
+  if (!content || !currentGroupId) {
+    console.log('[Group] Cannot send message - no content or not in group');
+    return;
   }
+
+  // Nếu vẫn còn state private thì reset
+  if (window.currentConversation) {
+    console.log('[Group] Warning: Still in private conversation, resetting...');
+    resetPrivateChat();
+  }
+
+  // LẤY REPLY CONTEXT TỪ .reply-preview (nếu đang reply)
+  let reply_context = null;
+  const preview = document.querySelector('.reply-preview');
+
+  if (preview && !preview.classList.contains('hidden') && preview.dataset.messageId) {
+    reply_context = {
+      message_id: preview.dataset.messageId,
+      sender_name: preview.dataset.senderName || null,
+      sender_id: preview.dataset.senderId || null,
+      content: preview.dataset.messageText || ''
+    };
+  }
+
+  console.log('[Group] Sending message to group:', {
+    group_id: currentGroupId,
+    content,
+    reply_context
+  });
+
+  socket.emit('send_group_message', {
+    group_id: currentGroupId,
+    content,
+    reply_context // 👈 GỬI KÈM
+  });
+
+  // Clear input
+  messageInput.value = '';
+
+  // Nếu chat_input.js có hàm tắt reply mode thì gọi luôn (không có thì thôi, không sao)
+  if (window.disableReplyMode) {
+    window.disableReplyMode();
+  }
+}
+
 
   sendButton.addEventListener('click', sendGroupMessage);
   messageInput.addEventListener('keypress', (e) => {
@@ -819,224 +866,342 @@ export function resetGroupChat() {
 
 
 function createGroupMessageElement(messageData) {
-  // [MỚI] Xử lý tin nhắn hệ thống (Ví dụ: "Cuộc gọi đã bắt đầu")
+  // 0. Tin nhắn hệ thống
   if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
-      const div = document.createElement('div');
-      div.className = 'system-message';
-      div.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
-      div.innerHTML = `<span>${escapeHtml(messageData.content)}</span>`;
-      return div;
+    const div = document.createElement('div');
+    div.className = 'system-message';
+    div.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
+    div.innerHTML = `<span>${escapeHtml(messageData.content || '')}</span>`;
+    return div;
   }
+
   const messageEl = document.createElement('div');
-  const isCurrentUser = messageData.sender_id === window.session.user_id;
+  const myId = window.session?.user_id;
+  const isCurrentUser = String(messageData.sender_id) === String(myId);
+
   messageEl.className = isCurrentUser ? 'message sent' : 'message received';
-  messageEl.dataset.messageId = messageData.message_id;
+
+  const msgId = messageData.message_id || messageData._id;
+  messageEl.dataset.id = msgId;
+  messageEl.dataset.messageId = msgId;
+  messageEl.dataset.senderName = messageData.sender_name || '';
+  messageEl.dataset.conversationType = 'group';
 
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
   const timeString = formatTime(messageData.timestamp);
 
+  // 1. XÁC ĐỊNH LOẠI NỘI DUNG
   let messageType = messageData.message_type || 'text';
   let parsedContent = messageData.content;
 
-  // ... (phần xử lý message type giữ nguyên)
+  if (typeof messageData.content === 'string') {
+    const trimmed = messageData.content.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const test = JSON.parse(trimmed);
+        if (test && (test.type === 'file' || test.type === 'image')) {
+          messageType = test.type;
+          parsedContent = test;
+        }
+      } catch (e) {
+        messageType = 'text';
+      }
+    } else {
+      const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
+      if (stickerCodes.includes(trimmed)) messageType = 'sticker';
+    }
+  }
 
+  // 2. KHUNG TRÍCH DẪN (REPLY)
+  let replyBlock = '';
+  if (messageData.reply_context) {
+    const isMyQuote = String(messageData.reply_context.sender_id) === String(myId);
+    let quoteText = messageData.reply_context.content || '';
+
+    try {
+      if (typeof quoteText === 'string' && quoteText.trim().startsWith('{')) {
+        const qObj = JSON.parse(quoteText);
+        if (qObj.type === 'image') quoteText = '📷 [Hình ảnh]';
+        else if (qObj.type === 'file') quoteText = `📎 [File] ${qObj.name || ''}`;
+      } else {
+        const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
+        if (stickerCodes.includes(quoteText)) {
+          quoteText = '😊 [Sticker]';
+        }
+      }
+    } catch (e) {}
+
+    replyBlock = `
+      <div class="message-reply-quote" onclick="window.scrollToMessage('${messageData.reply_context.message_id}')">
+        <div class="reply-decoration"></div>
+        <div class="reply-info">
+          <div class="reply-sender">
+            ${isMyQuote ? 'Chính bạn' : (messageData.reply_context.sender_name || 'Unknown')}
+          </div>
+          <div class="reply-text-short">
+            ${escapeHtml(quoteText)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 3. NỘI DUNG CHÍNH
   let messageContent = '';
 
   if (messageType === 'file') {
-    const fileInfo = parsedContent;
+    const fileInfo = parsedContent || {};
     messageContent = `
       <div class="file-message">
         <div class="file-info">
           <div class="file-icon"><i class="fi fi-rr-file"></i></div>
           <div class="file-details">
-            <div class="file-name">${escapeHtml(fileInfo.name)}</div>
-            <div class="file-size">${formatFileSize(fileInfo.size)}</div>
+            <div class="file-name">${escapeHtml(fileInfo.name || 'File')}</div>
+            <div class="file-size">${formatFileSize(fileInfo.size || 0)}</div>
           </div>
         </div>
-        <a href="${fileInfo.url}" class="file-download" download="${escapeHtml(fileInfo.name)}">
-          <i class="fi fi-rr-download"></i> Tải xuống
+        <a href="${fileInfo.url || '#'}" class="file-download" download>
+          Tải xuống
         </a>
       </div>
     `;
   } else if (messageType === 'image') {
-    const imageInfo = parsedContent;
+    const imageInfo = parsedContent || {};
     messageContent = `
       <div class="image-message">
         <div class="image-info">
-          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name)}
+          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name || 'Hình ảnh')}
         </div>
         <img src="${imageInfo.thumbnail || imageInfo.url}" 
              class="uploaded-image" 
-             alt="${escapeHtml(imageInfo.name)}"
-             onclick="window.openImageModal('${imageInfo.url}')">
+             alt="${escapeHtml(imageInfo.name || '')}"
+             onclick="window.openImageModal && window.openImageModal('${imageInfo.url}')">
         <div class="image-actions">
           <a href="${imageInfo.url}" target="_blank" class="view-original">
-            <i class="fi fi-rr-external-link"></i> Xem ảnh gốc
+            Xem ảnh gốc
           </a>
         </div>
       </div>
     `;
   } else if (messageType === 'sticker') {
     messageContent = `
-      <div class="sticker-message">${getStickerHTML(parsedContent)}</div>
+      <div class="sticker-message">${getStickerHTML(messageData.content)}</div>
     `;
   } else {
     messageContent = `
-      <div class="message-text">${escapeHtml(messageData.content)}</div>
+      <div class="message-text">${escapeHtml(messageData.content || '')}</div>
     `;
   }
 
+  // 4. LẮP RÁP HTML THEO CẤU TRÚC MỚI (CÓ .message-content + NÚT REPLY)
   messageEl.innerHTML = `
-    ${!isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+    ${!isCurrentUser ? `
+      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
+           class="message-avatar" title="${messageData.sender_name || ''}">
+    ` : ''}
+
     <div class="message-content-container">
+      ${!isCurrentUser ? `<div class="sender-info">${messageData.sender_name || ''}</div>` : ''}
+
       <div class="message-content-wrapper">
-        <div class="message-bubble">
-          ${!isCurrentUser ? `<div class="message-header"><span class="sender-name">${messageData.sender_name}</span></div>` : ''}
-          ${messageContent}
+        <div class="message-content">
+          <div class="message-bubble">
+            ${replyBlock}
+            ${messageContent}
+          </div>
+          <div class="message-status-container">
+            <span class="message-time" title="${messageData.timestamp || ''}">
+              ${timeString}
+            </span>
+          </div>
         </div>
-        <span class="message-time">${timeString}</span>
+
+        <div class="message-actions">
+          <button class="message-action-btn reply-btn" title="Trả lời">
+            <i class="fas fa-reply"></i>
+          </button>
+        </div>
       </div>
     </div>
-    ${isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+
+    ${isCurrentUser ? `
+      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
+           class="message-avatar" title="${messageData.sender_name || ''}">
+    ` : ''}
   `;
 
+  messageEl.classList.add('message-item');
   return messageEl;
 }
+
+
+// ====== HÀM HIỂN THỊ TIN NHẮN NHÓM (ĐỒNG BỘ VỚI PRIVATE + SWIPE/REPLY) ======
 function appendGroupMessage(messageData) {
   const messagesContainer = document.getElementById('messages');
   if (!messagesContainer) return;
 
-  const messageEl = document.createElement('div');
-  const isCurrentUser = messageData.sender_id === window.session.user_id;
-  messageEl.className = isCurrentUser ? 'message sent' : 'message received';
-  messageEl.dataset.messageId = messageData.message_id; 
+  // Tin nhắn hệ thống
+  if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
+    const systemEl = document.createElement('div');
+    systemEl.className = 'system-message';
+    systemEl.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
+    systemEl.innerHTML = `<span>${escapeHtml(messageData.content || '')}</span>`;
+    messagesContainer.appendChild(systemEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    return;
+  }
 
-  // Sử dụng avatar từ messageData, fallback về default nếu không có
+  const messageEl = document.createElement('div');
+  const myId = window.session?.user_id;
+  const isCurrentUser = String(messageData.sender_id) === String(myId);
+
+  messageEl.className = isCurrentUser ? 'message sent' : 'message received';
+
+  const msgId = messageData.message_id || messageData._id;
+  messageEl.dataset.id = msgId;
+  messageEl.dataset.messageId = msgId;
+  messageEl.dataset.senderName = messageData.sender_name || '';
+  messageEl.dataset.conversationType = 'group';
+
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
-  
-  // Format timestamp
   const timeString = formatTime(messageData.timestamp);
 
-  // QUAN TRỌNG: Xác định message_type và parse content - PHIÊN BẢN MỚI
+  // 1. LOẠI NỘI DUNG
   let messageType = messageData.message_type || 'text';
   let parsedContent = messageData.content;
 
-  console.log('[DEBUG] Processing message:', { 
-    messageType, 
-    content: messageData.content,
-    hasMessageType: !!messageData.message_type
-  });
-
-  // TRƯỜNG HỢP 1: Nếu message_type đã được set đúng
-  if (messageType === 'file' || messageType === 'image') {
-    if (typeof messageData.content === 'string') {
+  if (typeof messageData.content === 'string') {
+    const trimmed = messageData.content.trim();
+    if (trimmed.startsWith('{')) {
       try {
-        parsedContent = JSON.parse(messageData.content);
-        console.log('[DEBUG] Parsed content for file/image:', parsedContent);
+        const test = JSON.parse(trimmed);
+        if (test && (test.type === 'file' || test.type === 'image')) {
+          messageType = test.type;
+          parsedContent = test;
+        }
       } catch (e) {
-        console.error('Error parsing file/image content:', e);
-        // Fallback: xử lý như text
         messageType = 'text';
       }
+    } else {
+      const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
+      if (stickerCodes.includes(trimmed)) messageType = 'sticker';
     }
   }
-  // TRƯỜNG HỢP 2: Nếu không có message_type hoặc là text, thử detect
-  else if (!messageData.message_type || messageType === 'text') {
-    // Thử parse JSON để xem có phải file/image không
-    if (typeof messageData.content === 'string') {
-      try {
-        const testParse = JSON.parse(messageData.content);
-        if (testParse && typeof testParse === 'object') {
-          if (testParse.type === 'file') {
-            messageType = 'file';
-            parsedContent = testParse;
-            console.log('[DEBUG] Detected file message:', parsedContent);
-          } else if (testParse.type === 'image') {
-            messageType = 'image';
-            parsedContent = testParse;
-            console.log('[DEBUG] Detected image message:', parsedContent);
-          }
-        }
-      } catch (e) {
-        // Không phải JSON, kiểm tra sticker
-        const stickerCodes = ['sticker1', 'sticker2', 'sticker3', 'sticker4', 'sticker5', 'sticker6'];
-        if (stickerCodes.includes(messageData.content)) {
-          messageType = 'sticker';
-          console.log('[DEBUG] Detected sticker message:', messageData.content);
+
+  // 2. KHUNG TRÍCH DẪN (REPLY)
+  let replyBlock = '';
+  if (messageData.reply_context) {
+    const isMyQuote = String(messageData.reply_context.sender_id) === String(myId);
+    let quoteText = messageData.reply_context.content || '';
+
+    try {
+      if (typeof quoteText === 'string' && quoteText.trim().startsWith('{')) {
+        const qObj = JSON.parse(quoteText);
+        if (qObj.type === 'image') quoteText = '📷 [Hình ảnh]';
+        else if (qObj.type === 'file') quoteText = `📎 [File] ${qObj.name || ''}`;
+      } else {
+        const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
+        if (stickerCodes.includes(quoteText)) {
+          quoteText = '😊 [Sticker]';
         }
       }
-    }
+    } catch (e) {}
+
+    replyBlock = `
+      <div class="message-reply-quote" onclick="window.scrollToMessage('${messageData.reply_context.message_id}')">
+        <div class="reply-decoration"></div>
+        <div class="reply-info">
+          <div class="reply-sender">
+            ${isMyQuote ? 'Chính bạn' : (messageData.reply_context.sender_name || 'Unknown')}
+          </div>
+          <div class="reply-text-short">
+            ${escapeHtml(quoteText)}
+          </div>
+        </div>
+      </div>
+    `;
   }
 
-  // Xử lý các loại tin nhắn đặc biệt
+  // 3. NỘI DUNG CHÍNH
   let messageContent = '';
-
   if (messageType === 'file') {
-    const fileInfo = parsedContent;
-    console.log('[DEBUG] Rendering file message:', fileInfo);
-    
+    const fileInfo = parsedContent || {};
     messageContent = `
       <div class="file-message">
         <div class="file-info">
           <div class="file-icon"><i class="fi fi-rr-file"></i></div>
           <div class="file-details">
-            <div class="file-name">${escapeHtml(fileInfo.name)}</div>
-            <div class="file-size">${formatFileSize(fileInfo.size)}</div>
+            <div class="file-name">${escapeHtml(fileInfo.name || 'File')}</div>
+            <div class="file-size">${formatFileSize(fileInfo.size || 0)}</div>
           </div>
         </div>
-        <a href="${fileInfo.url}" class="file-download" download="${escapeHtml(fileInfo.name)}">
-          <i class="fi fi-rr-download"></i> Tải xuống
+        <a href="${fileInfo.url || '#'}" class="file-download" download>
+          Tải
         </a>
-      </div>
-    `;
+      </div>`;
   } else if (messageType === 'image') {
-    const imageInfo = parsedContent;
-    console.log('[DEBUG] Rendering image message:', imageInfo);
-    
+    const imageInfo = parsedContent || {};
     messageContent = `
       <div class="image-message">
-        <div class="image-info">
-          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name)}
-        </div>
+        <div class="image-info"><i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name || 'Hình ảnh')}</div>
         <img src="${imageInfo.thumbnail || imageInfo.url}" 
              class="uploaded-image" 
-             alt="${escapeHtml(imageInfo.name)}"
-             onclick="openImageModal('${imageInfo.url}')">
+             alt="${escapeHtml(imageInfo.name || '')}"
+             onclick="window.openImageModal && window.openImageModal('${imageInfo.url}')">
         <div class="image-actions">
           <a href="${imageInfo.url}" target="_blank" class="view-original">
-            <i class="fi fi-rr-external-link"></i> Xem ảnh gốc
+            Xem ảnh gốc
           </a>
         </div>
-      </div>
-    `;
+      </div>`;
   } else if (messageType === 'sticker') {
-    messageContent = `
-      <div class="sticker-message">${getStickerHTML(parsedContent)}</div>
-    `;
+    messageContent = `<div class="sticker-message">${getStickerHTML(messageData.content)}</div>`;
   } else {
-    // Tin nhắn text thông thường - HIỂN THỊ TRỰC TIẾP, KHÔNG PARSE JSON
-    messageContent = `
-      <div class="message-text">${escapeHtml(messageData.content)}</div>
-    `;
+    messageContent = `<div class="message-text">${escapeHtml(messageData.content || '')}</div>`;
   }
 
+  // 4. LẮP RÁP THEO CẤU TRÚC MỚI
   messageEl.innerHTML = `
-    ${!isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+    ${!isCurrentUser ? `
+      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
+           class="message-avatar" title="${messageData.sender_name || ''}">
+    ` : ''}
+
     <div class="message-content-container">
+      ${!isCurrentUser ? `<div class="sender-info">${messageData.sender_name || ''}</div>` : ''}
+
       <div class="message-content-wrapper">
-        <div class="message-bubble">
-          ${!isCurrentUser ? `<div class="message-header"><span class="sender-name">${messageData.sender_name}</span></div>` : ''}
-          ${messageContent}
+        <div class="message-content">
+          <div class="message-bubble">
+            ${replyBlock}
+            ${messageContent}
+          </div>
+          <div class="message-status-container">
+            <span class="message-time" title="${messageData.timestamp || ''}">
+              ${timeString}
+            </span>
+          </div>
         </div>
-        <span class="message-time">${timeString}</span>
+
+        <div class="message-actions">
+          <button class="message-action-btn reply-btn" title="Trả lời">
+            <i class="fas fa-reply"></i>
+          </button>
+        </div>
       </div>
     </div>
-    ${isCurrentUser ? `<img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar">` : ''}
+
+    ${isCurrentUser ? `
+      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
+           class="message-avatar" title="${messageData.sender_name || ''}">
+    ` : ''}
   `;
 
+  messageEl.classList.add('message-item');
   messagesContainer.appendChild(messageEl);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
+
 
 // Thêm các hàm utility nếu chưa có
 function formatFileSize(bytes) {
@@ -2011,3 +2176,20 @@ styleCall.innerHTML = `
 }
 `;
 document.head.appendChild(styleCall);
+
+// --- THÊM VÀO CUỐI FILE group.js ---
+
+window.scrollToMessage = function(messageId) {
+    console.log("Cuộn tới tin nhắn:", messageId);
+    // Tìm tin nhắn theo data-id hoặc data-message-id
+    const el = document.querySelector(`.message[data-id="${messageId}"]`) || 
+               document.querySelector(`.message[data-message-id="${messageId}"]`);
+    
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight-message'); // CSS highlight sẽ làm nó nháy sáng
+        setTimeout(() => el.classList.remove('highlight-message'), 2000);
+    } else {
+        console.warn("Không tìm thấy tin nhắn gốc (có thể chưa load lịch sử).");
+    }
+};

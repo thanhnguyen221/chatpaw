@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
 </head>
 <body>
-    <div class="profile-container">
+    <div class="profile-container" data-user-id="{{ profile_user._id }}">
         <!-- Integrated Profile Header with Cover and Hero -->
         <section class="profile-header">
             <div class="header-background">
@@ -58,24 +58,30 @@
                         </div>
                     </div>
                 </div>
-                
-                <div class="profile-actions">
-                    {% if profile_user._id|string == current_user_id %}
-                    <button id="edit-profile-btn" class="btn btn-primary">
-                        <i class="fi fi-rr-edit"></i>
-                        Chỉnh sửa
-                    </button>
-                    {% else %}
-                    <button class="btn btn-primary">
+            <!-- Trong phần profile-actions -->
+            <div class="profile-actions">
+                {% if profile_user._id|string == current_user_id %}
+                <button id="edit-profile-btn" class="btn btn-primary">
+                    <i class="fas fa-pen-to-square"></i>
+                    Chỉnh sửa
+                </button>
+                {% else %}
+                <!-- Hiển thị cho profile người khác -->
+                <div class="friend-actions">
+                    <button class="btn btn-primary" id="add-friend-btn">
                         <i class="fi fi-rr-user-add"></i>
                         Kết bạn
                     </button>
-                    {% endif %}
-                    <button class="btn btn-outline">
-                        <i class="fi fi-rr-envelope"></i>
+                    <button class="btn btn-outline" id="send-message-btn">
+                        <i class="fas fa-paper-plane"></i>
                         Nhắn tin
                     </button>
+                    <button class="btn btn-outline" id="more-actions-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
                 </div>
+                {% endif %}
+            </div>
             </div>
         </section>
 
@@ -85,24 +91,23 @@
             <div class="posts-column">
                 <!-- Create Post (only for profile owner) -->
                 {% if profile_user._id|string == current_user_id %}
+                <!-- Trong phần create-post -->
                 <section class="create-post">
                     <div class="post-input-container">
                         <textarea id="post-content" class="post-input" placeholder="Hôm nay bạn muốn chia sẻ điều gì? 🌟"></textarea>
                     </div>
                     
-                    <!-- Media Preview -->
-                    <div id="media-preview" class="media-preview"></div>
+                    <!-- Media Preview với grid layout -->
+                    <div id="media-preview" class="media-preview-grid"></div>
                     
                     <div class="post-actions">
                         <div class="media-buttons">
+                            <!-- Thay đổi nút ảnh để hỗ trợ multiple -->
                             <button id="add-image-btn" type="button" class="media-btn">
                                 <i class="fi fi-rr-picture"></i>
-                                Ảnh
+                                Ảnh/Video
                             </button>
-                            <button id="add-video-btn" type="button" class="media-btn">
-                                <i class="fi fi-rr-video"></i>
-                                Video
-                            </button>
+                            <!-- Xóa nút video riêng vì đã gộp chung -->
                             <input type="file" id="media-upload" multiple accept="image/*,video/*" class="file-input" style="display: none;">
                         </div>
                         <button id="submit-post" class="btn btn-primary btn-sm">
@@ -152,20 +157,50 @@
                             {{ post.content }}
                         </div>
                         
+                        <!-- PHẦN CAROUSEL ĐÃ SỬA Ở TRÊN -->
                         {% if post.media_urls %}
-                        <div class="post-media">
-                            {% for media in post.media_urls %}
-                                {% if media.type == 'image' %}
-                                    <img src="{{ media.url }}" alt="Post image" class="post-image">
-                                {% elif media.type == 'video' %}
-                                    <video controls class="post-image">
+                        <div class="post-media-carousel" data-media-count="{{ post.media_urls|length }}">
+                            <div class="carousel-container" id="carousel-{{ post._id }}" 
+                                 onclick="openMediaViewer('{{ post._id }}', 0)" 
+                                 style="cursor: pointer;">
+                                {% for media in post.media_urls %}
+                                <div class="carousel-slide {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}">
+                                    {% if media.type == 'image' %}
+                                    <img src="{{ media.url }}" alt="Post image" loading="lazy">
+                                    {% elif media.type == 'video' %}
+                                    <video controls class="post-media-item">
                                         <source src="{{ media.url }}" type="video/mp4">
                                         Trình duyệt không hỗ trợ video.
                                     </video>
-                                {% endif %}
-                            {% endfor %}
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                                
+                                 <!-- Navigation - KHÔNG mở viewer -->
+                                <div class="carousel-nav">
+                                    <button class="carousel-btn prev-btn" onclick="carouselPrev('{{ post._id }}', event)">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <button class="carousel-btn next-btn" onclick="carouselNext('{{ post._id }}', event)">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Indicators - KHÔNG mở viewer -->
+                                <div class="carousel-indicators">
+                                    {% for media in post.media_urls %}
+                                    <button class="carousel-indicator {% if loop.first %}active{% endif %}" 
+                                            onclick="carouselGoTo('{{ post._id }}', {{ loop.index0 }}, event)"></button>
+                                    {% endfor %}
+                                </div>
+                                
+                                <!-- Counter -->
+                                <div class="carousel-counter">
+                                    <span class="current-slide">1</span> / <span class="total-slides">{{ post.media_urls|length }}</span>
+                                </div>
+                            </div>
                         </div>
-                        {% endif %}
+                    {% endif %}
                         
                         <div class="post-stats">
                             <div class="post-stat like-btn {% if current_user_id in post.likes %}liked{% endif %}" 
@@ -186,29 +221,34 @@
                         </div>
                         
                         <!-- Comments Section -->
-                        <div id="comments-{{ post._id }}" class="comments-section">
-                            <div class="comments-list">
-                                {% for comment in post.comments %}
-                                <div class="comment-item">
-                                    <img src="{{ comment.user_avatar if comment.user_avatar and comment.user_avatar.startswith('http') else url_for('static', filename='img/default-avatar.png') }}" 
-                                         alt="Avatar" class="comment-avatar">
-                                    <div class="comment-content">
-                                        <div class="comment-author">{{ comment.username }}</div>
-                                        <p class="comment-text">{{ comment.content }}</p>
-                                        <div class="comment-time">{{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment.created_at else '' }}</div>
+              <!-- Comments Section -->
+                    <div id="comments-{{ post._id }}" class="comments-section">
+                        <div class="comments-list">
+                            {% for comment in post.comments %}
+                            <div class="comment-item">
+                                <img src="{{ comment.user_avatar }}" 
+                                    alt="Avatar" 
+                                    class="comment-avatar"
+                                    onerror="this.src='{{ url_for('static', filename='img/default-avatar.png') }}'">
+                                <div class="comment-content">
+                                    <div class="comment-author">{{ comment.username }}</div>
+                                    <p class="comment-text">{{ comment.content }}</p>
+                                    <div class="comment-time">
+                                        {{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment.created_at else '' }}
                                     </div>
                                 </div>
-                                {% endfor %}
                             </div>
-                            
-                            <div class="add-comment">
-                                <input type="text" id="comment-input-{{ post._id }}" class="comment-input" 
-                                       placeholder="Viết bình luận..." data-post-id="{{ post._id }}">
-                                <button class="btn btn-primary btn-sm comment-submit-btn" data-post-id="{{ post._id }}">
-                                    <i class="fas fa-paper-plane"></i>
-                                </button>
-                            </div>
+                            {% endfor %}
                         </div>
+                        
+                        <div class="add-comment">
+                            <input type="text" id="comment-input-{{ post._id }}" class="comment-input" 
+                                placeholder="Viết bình luận..." data-post-id="{{ post._id }}">
+                            <button class="btn btn-primary btn-sm comment-submit-btn" data-post-id="{{ post._id }}">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
                     </article>
                     {% else %}
                     <div class="no-posts">
@@ -221,7 +261,6 @@
                     {% endfor %}
                 </div>
             </div>
-
             <!-- Right Column - Sidebar -->
             <aside class="sidebar-column">
                 <!-- Friends Card -->
@@ -231,17 +270,20 @@
                             <i class="fa-regular fa-user-group"></i>
                         </div>
                         <h3 class="card-title">Bạn bè</h3>
+                        <span class="friends-count" id="friends-count">
+                            {{ profile_user.friends|length if profile_user.friends else 0 }} người bạn
+                        </span>
                     </div>
                     
-                    <div class="friends-grid">
-                        {% for i in range(6) %}
-                        <div class="friend-avatar">
-                            <span class="friend-initial">{{ 'ABCDEF'[i] }}</span>
+                    <div class="friends-grid" id="friends-grid">
+                        <!-- Loading state sẽ được thay thế bằng JS -->
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Đang tải bạn bè...</span>
                         </div>
-                        {% endfor %}
                     </div>
                     
-                    <button class="btn btn-outline btn-sm view-all-btn">
+                    <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllFriends()" style="display: none;" id="view-all-friends-btn">
                         <i class="fi fi-rr-search"></i> Xem tất cả bạn bè
                     </button>
                 </div>
@@ -253,15 +295,20 @@
                             <i class="fa-solid fa-images"></i>
                         </div>
                         <h3 class="card-title">Ảnh gần đây</h3>
+                        <span class="photos-count" id="photos-count">Đang tải...</span>
                     </div>
                     
-                    <div class="photos-grid">
-                        {% for i in range(6) %}
-                        <div class="photo-item">
-                            <i class="fas fa-camera"></i>
+                    <div class="photos-grid" id="photos-grid">
+                        <!-- Loading state sẽ được thay thế bằng JS -->
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Đang tải ảnh...</span>
                         </div>
-                        {% endfor %}
                     </div>
+                    
+                    <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllPhotos()" style="display: none;" id="view-all-photos-btn">
+                        <i class="fi fi-rr-gallery"></i> Xem tất cả ảnh
+                    </button>
                 </div>
             </aside>
         </main>
@@ -310,6 +357,126 @@
             </div>
         </div>
     </div>
+    <!-- Edit Profile Modal -->
+<div id="edit-profile-modal" class="modal">
+    <div class="modal-content profile-modal">
+        <div class="modal-header">
+            <h3>Chỉnh sửa hồ sơ</h3>
+            <button class="close-btn" id="close-edit-profile-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="edit-profile-form">
+                <!-- Avatar Section -->
+                <div class="avatar-section">
+                    <div class="avatar-preview" id="profile-avatar-preview">
+                        <img src="{{ user_avatar }}" alt="Avatar">
+                    </div>
+                    <div class="avatar-actions">
+                        <button type="button" class="btn btn-outline btn-sm" id="change-profile-avatar-btn">
+                            <i class="fas fa-camera"></i> Đổi ảnh đại diện
+                        </button>
+                        <input type="file" id="profile-avatar-upload" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Form Fields -->
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="edit-full-name">Họ và tên</label>
+                        <input type="text" id="edit-full-name" class="form-input" placeholder="Nhập họ và tên">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-username">Tên đăng nhập</label>
+                        <input type="text" id="edit-username" class="form-input" placeholder="Nhập tên đăng nhập">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-email">Email</label>
+                        <input type="email" id="edit-email" class="form-input" placeholder="Nhập email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-phone">Số điện thoại</label>
+                        <input type="tel" id="edit-phone" class="form-input" placeholder="Nhập số điện thoại">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-dob">Ngày sinh</label>
+                        <input type="date" id="edit-dob" class="form-input">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-gender">Giới tính</label>
+                        <select id="edit-gender" class="form-input">
+                            <option value="male">Nam</option>
+                            <option value="female">Nữ</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Cover Photo Section -->
+                <div class="form-group">
+                    <label>Ảnh bìa</label>
+                    <button type="button" class="btn btn-outline btn-sm" id="change-cover-btn">
+                        <i class="fas fa-camera"></i> Đổi ảnh bìa
+                    </button>
+                    <input type="file" id="cover-upload" accept="image/*" style="display: none;">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="cancel-edit-profile">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="submit-edit-profile">
+                        <i class="fas fa-save"></i> Lưu thay đổi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Fullscreen Media Viewer Modal -->
+<div id="media-viewer-modal" class="media-viewer-modal">
+    <div class="media-viewer-content">
+        <button class="close-viewer-btn" id="close-media-viewer">
+            <i class="fas fa-times"></i>
+        </button>
+        
+        <div class="viewer-container">
+            <button class="viewer-nav-btn prev-btn" id="viewer-prev-btn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            
+            <div class="viewer-media" id="viewer-media">
+                <!-- Media will be inserted here by JavaScript -->
+            </div>
+            
+            <button class="viewer-nav-btn next-btn" id="viewer-next-btn">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+        
+        <div class="viewer-counter" id="viewer-counter">
+            <span class="current-slide">1</span> / <span class="total-slides">0</span>
+        </div>
+        
+        <div class="viewer-indicators" id="viewer-indicators">
+            <!-- Indicators will be inserted here by JavaScript -->
+        </div>
+        
+        <div class="viewer-actions">
+            <button class="viewer-action-btn" id="download-media-btn" title="Tải xuống">
+                <i class="fas fa-download"></i>
+            </button>
+            <button class="viewer-action-btn" id="zoom-in-btn" title="Phóng to">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button class="viewer-action-btn" id="zoom-out-btn" title="Thu nhỏ">
+                <i class="fas fa-search-minus"></i>
+            </button>
+        </div>
+    </div>
+</div>
     <!-- Load JavaScript trước -->
     <script type="module" src="{{ url_for('static', filename='js/socket/profile.js') }}"></script>
     <script>
@@ -317,7 +484,7 @@
         let profileManagerInitialized = false;
     
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', function() {
             // CHỈ KHỞI TẠO MỘT LẦN
             if (profileManagerInitialized) return;
             profileManagerInitialized = true;
@@ -325,7 +492,7 @@
             console.log('Initializing profile page from inline script...');
             
             // Ẩn tất cả comments sections
-            document.querySelectorAll('.comments-section').forEach(section => {
+            document.querySelectorAll('.comments-section').forEach(function(section) {
                 section.style.display = 'none';
             });
             
@@ -335,8 +502,99 @@
                 console.log('ProfileManager initialized from inline script');
             }
             
+            // Khởi tạo Profile Editor nếu modal tồn tại
+            if (typeof ProfileEditor !== 'undefined' && document.getElementById('edit-profile-modal')) {
+                window.profileEditor = new ProfileEditor();
+                console.log('ProfileEditor initialized from inline script');
+            }
+            
             console.log('Inline script initialization completed');
         });
+    
+        // Xử lý đổi ảnh bìa
+        document.addEventListener('DOMContentLoaded', function() {
+            const changeCoverBtn = document.getElementById('change-cover-btn');
+            
+            if (changeCoverBtn) {
+                changeCoverBtn.addEventListener('click', function() {
+                    // Kích hoạt input file ẩn từ ProfileManager
+                    if (window.profileManager && window.profileManager.coverUploadInput) {
+                        window.profileManager.coverUploadInput.click();
+                    } else {
+                        console.error('ProfileManager not initialized');
+                        alert('Hệ thống chưa sẵn sàng. Vui lòng thử lại sau.');
+                    }
+                });
+            } else {
+                console.warn('Change cover button not found');
+            }
+        });
+    
+        // Carousel Functions - Simple implementation
+        function carouselPrev(postId) {
+            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+            if (!carousel) return;
+            
+            const currentSlide = carousel.querySelector('.carousel-slide.active');
+            const slides = carousel.querySelectorAll('.carousel-slide');
+            const currentIndex = parseInt(currentSlide.dataset.index);
+            
+            let prevIndex = currentIndex - 1;
+            if (prevIndex < 0) {
+                prevIndex = slides.length - 1;
+            }
+            
+            goToSlide(carousel, prevIndex);
+        }
+    
+        function carouselNext(postId) {
+            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+            if (!carousel) return;
+            
+            const currentSlide = carousel.querySelector('.carousel-slide.active');
+            const slides = carousel.querySelectorAll('.carousel-slide');
+            const currentIndex = parseInt(currentSlide.dataset.index);
+            
+            let nextIndex = currentIndex + 1;
+            if (nextIndex >= slides.length) {
+                nextIndex = 0;
+            }
+            
+            goToSlide(carousel, nextIndex);
+        }
+    
+        function carouselGoTo(postId, index) {
+            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+            if (!carousel) return;
+            
+            goToSlide(carousel, index);
+        }
+    
+        function goToSlide(carousel, newIndex) {
+            const slides = carousel.querySelectorAll('.carousel-slide');
+            const indicators = carousel.querySelectorAll('.carousel-indicator');
+            const counter = carousel.querySelector('.carousel-counter .current-slide');
+            
+            if (newIndex < 0 || newIndex >= slides.length) return;
+            
+            // Ẩn slide hiện tại
+            carousel.querySelector('.carousel-slide.active').classList.remove('active');
+            carousel.querySelector('.carousel-indicator.active').classList.remove('active');
+            
+            // Hiển thị slide mới
+            slides[newIndex].classList.add('active');
+            indicators[newIndex].classList.add('active');
+            
+            // Cập nhật counter
+            if (counter) {
+                counter.textContent = newIndex + 1;
+            }
+        }
+    
+        // Export functions to global scope
+        window.carouselPrev = carouselPrev;
+        window.carouselNext = carouselNext;
+        window.carouselGoTo = carouselGoTo;
     </script>
 </body>
 </html>

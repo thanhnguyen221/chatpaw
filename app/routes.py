@@ -1812,7 +1812,6 @@ def update_cover_photo():
 
     return jsonify({'error': 'File type not allowed'}), 400
 
-
 @main.route('/create_post', methods=['POST'])
 def create_post():
     if 'user_id' not in session:
@@ -1826,10 +1825,16 @@ def create_post():
         if not content and not media_urls:
             return jsonify({'error': 'Nội dung hoặc media là bắt buộc'}), 400
 
+        # Validate media URLs
+        valid_media_urls = []
+        for media in media_urls:
+            if isinstance(media, dict) and media.get('url') and media.get('type') in ['image', 'video']:
+                valid_media_urls.append(media)
+
         post_data = {
             'user_id': session['user_id'],
             'content': content,
-            'media_urls': media_urls,
+            'media_urls': valid_media_urls,
             'created_at': get_vietnam_time(),
             'likes': [],
             'comments': [],
@@ -1847,8 +1852,7 @@ def create_post():
     except Exception as e:
         print(f"Error creating post: {str(e)}")
         return jsonify({'error': 'Lỗi khi đăng bài'}), 500
-
-
+    
 @main.route('/upload_post_media', methods=['POST'])
 def upload_post_media():
     if 'user_id' not in session:
@@ -1862,30 +1866,54 @@ def upload_post_media():
 
     for file in files:
         if file and file.filename != '':
-            if allowed_file(file.filename):
-                # Kiểm tra loại file
+            # Kiểm tra loại file
+            file_type = 'image'
+            filename_lower = file.filename.lower()
+            
+            # Xác định loại file dựa trên extension và MIME type
+            if filename_lower.endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+                file_type = 'video'
+            elif filename_lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
                 file_type = 'image'
-                if file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+            else:
+                # Nếu không xác định được qua extension, dùng MIME type
+                if file.content_type.startswith('video/'):
                     file_type = 'video'
+                elif file.content_type.startswith('image/'):
+                    file_type = 'image'
+                else:
+                    # Bỏ qua file không hợp lệ
+                    continue
 
-                filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-                upload_folder = 'app/static/uploads/posts'
-                os.makedirs(upload_folder, exist_ok=True)
+            # Kiểm tra kích thước file
+            max_size = 50 * 1024 * 1024  # 50MB cho video, 10MB cho ảnh
+            if file_type == 'image':
+                max_size = 10 * 1024 * 1024
+                
+            if len(file.read()) > max_size:
+                file.seek(0)  # Reset file pointer
+                continue
+            file.seek(0)  # Reset file pointer sau khi kiểm tra
 
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+            # Tạo tên file duy nhất
+            filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+            upload_folder = 'app/static/uploads/posts'
+            os.makedirs(upload_folder, exist_ok=True)
 
-                media_url = f"/static/uploads/posts/{filename}"
-                media_urls.append({
-                    'url': media_url,
-                    'type': file_type
-                })
+            filepath = os.path.join(upload_folder, filename)
+            file.save(filepath)
+
+            media_url = f"/static/uploads/posts/{filename}"
+            media_urls.append({
+                'url': media_url,
+                'type': file_type,
+                'filename': file.filename
+            })
 
     return jsonify({
         'success': True,
         'media_urls': media_urls
     })
-
 
 @main.route('/like_post', methods=['POST'])
 def like_post():
@@ -1950,11 +1978,22 @@ def comment_post():
         if not user:
             return jsonify({'error': 'Người dùng không tồn tại'}), 404
 
+        # Xử lý avatar URL trước khi lưu
+        user_avatar = user.get('avatar', '')
+        if user_avatar:
+            if user_avatar.startswith('data:image'):
+                # Giữ nguyên base64
+                pass
+            elif not user_avatar.startswith(('http', '/static')):
+                user_avatar = url_for('static', filename=user_avatar)
+        else:
+            user_avatar = url_for('static', filename='img/default-avatar.png')
+
         comment = {
             'id': str(uuid.uuid4()),
             'user_id': session['user_id'],
             'username': user.get('username', 'Unknown'),
-            'user_avatar': user.get('avatar', ''),
+            'user_avatar': user_avatar,  # Đã xử lý URL
             'content': content,
             'created_at': get_vietnam_time()
         }
@@ -1964,21 +2003,14 @@ def comment_post():
             {'$push': {'comments': comment}}
         )
 
-        # Xử lý avatar cho response
-        if comment['user_avatar'] and not comment['user_avatar'].startswith(('http', 'data:image')):
-            comment['user_avatar'] = url_for('static', filename=comment['user_avatar'])
-        else:
-            comment['user_avatar'] = url_for('static', filename='img/default-avatar.png')
-
         return jsonify({
             'success': True,
-            'comment': comment
+            'comment': comment  # Avatar đã được xử lý
         })
 
     except Exception as e:
         print(f"Error commenting post: {str(e)}")
         return jsonify({'error': 'Lỗi khi bình luận'}), 500
-
 
 @main.route('/profile/<username>')
 def user_profile(username):
@@ -2006,12 +2038,33 @@ def user_profile(username):
         else:
             user_avatar = url_for('static', filename='img/default-avatar.png')
 
+        # Xử lý cover photo
+        if user.get('cover_photo'):
+            if not user['cover_photo'].startswith(('http', '/static')):
+                user['cover_photo'] = url_for('static', filename=user['cover_photo'])
+        else:
+            user['cover_photo'] = None
+
+        # KIỂM TRA QUAN HỆ BẠN BÈ CHÍNH XÁC
+        is_friend = False
+        current_user = users_col().find_one({'_id': ObjectId(session['user_id'])})
+        if current_user and str(user['_id']) in current_user.get('friends', []):
+            # KIỂM TRA NGƯỢC LẠI (friendship thường là 2 chiều)
+            if session['user_id'] in user.get('friends', []):
+                is_friend = True
+                print(f"DEBUG: {session['user_id']} and {user['_id']} are mutual friends")
+            else:
+                print(f"DEBUG: Friendship not mutual - only one side")
+
+        print(f"DEBUG: is_friend result: {is_friend}")
+
         return render_template(
             'profile.html',
             profile_user=user,
             user_avatar=user_avatar,
             posts=posts,
-            current_user_id=session['user_id']
+            current_user_id=session['user_id'],
+            is_friend=is_friend
         )
 
     except Exception as e:
@@ -2118,3 +2171,222 @@ def get_post(post_id):
     except Exception as e:
         print(f"Error getting post: {str(e)}")
         return jsonify({'error': 'Lỗi khi lấy thông tin bài viết'}), 500
+
+@main.route('/get_user_friends/<user_id>')
+def get_user_friends(user_id):
+    """Lấy danh sách bạn bè THẬT SỰ của người dùng"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        target_user_id = ObjectId(user_id)
+        user = users_col().find_one({'_id': target_user_id})
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # LẤY DANH SÁCH BẠN BÈ THẬT SỰ - KIỂM TRA KỸ
+        friend_ids = user.get('friends', [])
+        print(f"DEBUG: Raw friend_ids for user {user_id}: {friend_ids}")
+        
+        # Lọc các friend_id hợp lệ và KIỂM TRA TỒN TẠI
+        valid_friend_ids = []
+        for fid in friend_ids:
+            if ObjectId.is_valid(fid):
+                # KIỂM TRA NGƯỜI DÙNG CÓ TỒN TẠI KHÔNG
+                friend_exists = users_col().find_one({'_id': ObjectId(fid)})
+                if friend_exists:
+                    valid_friend_ids.append(ObjectId(fid))
+                else:
+                    print(f"DEBUG: Friend {fid} not found in database")
+        
+        print(f"DEBUG: Valid friend_ids: {[str(fid) for fid in valid_friend_ids]}")
+
+        # Lấy thông tin bạn bè
+        friends = list(users_col().find(
+            {'_id': {'$in': valid_friend_ids}},
+            {'username': 1, 'avatar': 1, 'online': 1}
+        ))
+
+        print(f"DEBUG: Found {len(friends)} actual friends")
+
+        # Format dữ liệu bạn bè
+        friends_data = []
+        for friend in friends:
+            avatar = friend.get('avatar')
+            # Xử lý avatar URL
+            if not avatar:
+                avatar = url_for('static', filename='img/default-avatar.png')
+            elif avatar.startswith('data:image'):
+                # Giữ nguyên base64
+                pass
+            elif not avatar.startswith(('http', '/static')):
+                avatar = url_for('static', filename=avatar)
+            
+            friends_data.append({
+                '_id': str(friend['_id']),
+                'username': friend['username'],
+                'avatar': avatar,
+                'online': friend.get('online', False)
+            })
+
+        return jsonify({
+            'success': True, 
+            'friends': friends_data,
+            'total_count': len(friends_data)
+        })
+
+    except Exception as e:
+        print(f"Error getting user friends: {str(e)}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+@main.route('/check_friendship/<target_user_id>')
+def check_friendship(target_user_id):
+    """Kiểm tra quan hệ bạn bè với người dùng hiện tại"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        current_user = users_col().find_one({'_id': ObjectId(session['user_id'])})
+        if not current_user:
+            return jsonify({'error': 'Current user not found'}), 404
+
+        is_friend = target_user_id in current_user.get('friends', [])
+        
+        return jsonify({
+            'success': True,
+            'is_friend': is_friend,
+            'current_user_id': session['user_id'],
+            'target_user_id': target_user_id
+        })
+
+    except Exception as e:
+        print(f"Error checking friendship: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/get_recent_photos/<user_id>')
+def get_recent_photos(user_id):
+    """Lấy ảnh gần đây từ các bài viết của người dùng"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        target_user_id = ObjectId(user_id)
+        
+        # Lấy tất cả bài viết của người dùng có media
+        posts_with_media = list(posts_col().find({
+            'user_id': str(target_user_id),
+            'media_urls': {'$exists': True, '$ne': []}
+        }, {'media_urls': 1, 'created_at': 1}).sort('created_at', -1).limit(20))
+
+        # Lấy tất cả ảnh từ media_urls
+        recent_photos = []
+        for post in posts_with_media:
+            for media in post.get('media_urls', []):
+                if media.get('type') == 'image':
+                    recent_photos.append({
+                        'url': media['url'],
+                        'post_id': str(post['_id']),
+                        'created_at': post.get('created_at')
+                    })
+                # Giới hạn số lượng ảnh hiển thị
+                if len(recent_photos) >= 12:  # Hiển thị tối đa 12 ảnh
+                    break
+            if len(recent_photos) >= 12:
+                break
+
+        return jsonify({'success': True, 'photos': recent_photos})  # THÊM 'success': True
+
+    except Exception as e:
+        print(f"Error getting recent photos: {str(e)}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+    
+@main.route('/get_friend_profile/<friend_id>')
+def get_friend_profile(friend_id):
+    """Lấy thông tin profile của bạn bè bằng ID"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        friend_oid = ObjectId(friend_id)
+        friend = users_col().find_one({'_id': friend_oid}, {'password': 0})
+        
+        if not friend:
+            return jsonify({'error': 'Friend not found'}), 404
+
+        # Kiểm tra xem có phải là bạn bè không
+        current_user = users_col().find_one({'_id': ObjectId(session['user_id'])})
+        if not current_user or friend_id not in current_user.get('friends', []):
+            return jsonify({'error': 'Not friends'}), 403
+
+        # Format dữ liệu trả về
+        friend_data = {
+            '_id': str(friend['_id']),
+            'username': friend.get('username'),
+            'full_name': friend.get('full_name', ''),
+            'avatar': friend.get('avatar', ''),
+            'cover_photo': friend.get('cover_photo', ''),
+            'email': friend.get('email', ''),
+            'phone': friend.get('phone', ''),
+            'date_of_birth': friend.get('date_of_birth', ''),
+            'gender': friend.get('gender', ''),
+            'friends': friend.get('friends', [])
+        }
+
+        # Xử lý avatar URL
+        if friend_data['avatar'] and not friend_data['avatar'].startswith(('http', 'data:image')):
+            friend_data['avatar'] = url_for('static', filename=friend_data['avatar'])
+        elif not friend_data['avatar']:
+            friend_data['avatar'] = url_for('static', filename='img/default-avatar.png')
+
+        # Xử lý cover photo URL
+        if friend_data['cover_photo'] and not friend_data['cover_photo'].startswith(('http', '/static')):
+            friend_data['cover_photo'] = url_for('static', filename=friend_data['cover_photo'])
+
+        return jsonify({'success': True, 'friend': friend_data})
+
+    except Exception as e:
+        print(f"Error getting friend profile: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@main.route('/cleanup_friends', methods=['POST'])
+def cleanup_friends():
+    """Dọn dẹp bạn bè không tồn tại trong database"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+        user = users_col().find_one({'_id': user_id})
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        friend_ids = user.get('friends', [])
+        clean_friend_ids = []
+        removed_count = 0
+
+        for fid in friend_ids:
+            if ObjectId.is_valid(fid):
+                friend_exists = users_col().find_one({'_id': ObjectId(fid)})
+                if friend_exists:
+                    clean_friend_ids.append(fid)
+                else:
+                    removed_count += 1
+                    print(f"Removed non-existent friend: {fid}")
+
+        # Cập nhật danh sách bạn bè đã làm sạch
+        users_col().update_one(
+            {'_id': user_id},
+            {'$set': {'friends': clean_friend_ids}}
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Đã dọn dẹp {removed_count} bạn bè không tồn tại',
+            'remaining_friends': len(clean_friend_ids)
+        })
+
+    except Exception as e:
+        print(f"Error cleaning up friends: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500

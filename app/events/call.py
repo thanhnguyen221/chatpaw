@@ -340,3 +340,60 @@ def register_call_events(socketio, mongo):
                 )
                 if other_id:
                     emit('call:declined', payload, room=str(other_id))
+
+    
+    
+    # --- 7. DRAWING (CẬP NHẬT) ---
+    @socketio.on('call:draw_stroke')
+    def handle_draw_stroke(data):
+        conversation_id = data.get('conversation_id')
+        if not conversation_id:
+            return
+
+        room_id = f"call_{conversation_id}"
+
+        emit(
+            'call:draw_stroke',
+            {
+                'x': data.get('x'),
+                'y': data.get('y'),
+                'color': data.get('color'),
+                'width': data.get('width'),
+                'type': data.get('type'),
+                'brush_type': data.get('brush_type', 'pen'), # <--- MỚI: Truyền loại cọ
+                'from_sid': request.sid
+            },
+            room=room_id,
+            include_self=False
+        )
+
+    @socketio.on('call:clear_board')
+    def handle_clear_board(data):
+        """
+        Xóa toàn bộ nét vẽ trên màn hình của mọi người
+        """
+        conversation_id = data.get('conversation_id')
+        if conversation_id:
+            room_id = f"call_{conversation_id}"
+            emit('call:clear_board', {'from_sid': request.sid}, room=room_id)
+
+    @socketio.on('call:toggle_drawing_mode')
+    def handle_toggle_drawing(data):
+        """
+        (Tuỳ chọn) Báo cho người khác biết mình đang bật/tắt chế độ vẽ 
+        """
+        conversation_id = data.get('conversation_id')
+        is_drawing = data.get('is_drawing', False)
+        
+        if conversation_id:
+            room_id = f"call_{conversation_id}"
+            emit(
+                'call:drawing_mode_status', 
+                {
+                    'from_sid': request.sid,
+                    'is_drawing': is_drawing,
+                    'user_info': get_user_info(session.get('user_id'))
+                }, 
+                room=room_id,
+                include_self=False
+            )

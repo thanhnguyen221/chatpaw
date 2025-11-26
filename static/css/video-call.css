@@ -1,312 +1,415 @@
-/* ================= PAW TALK VIDEO CALL STYLES (FINAL) ================= */
+/* ================= PAW TALK VIDEO CALL (PREMIUM GLASS UI) ================= */
 
-/* --- 1. CALL OVERLAY (Màn hình cuộc gọi chính) --- */
+:root {
+    --bg-overlay: #0f1012;
+    --primary-color: #3eb489;
+    --primary-hover: #2ca076;
+    --danger-color: #ff4757;
+    --text-main: #ffffff;
+    --text-sub: #d1d5db;
+    --glass-bg: rgba(20, 20, 25, 0.75);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --shadow-lg: 0 15px 40px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* --- 1. CALL OVERLAY (Nền chính) --- */
 .call-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
-    background-color: #1e1f22; /* Nền tối chuyên nghiệp */
+    background-color: var(--bg-overlay);
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-/* Container chứa lưới video */
+/* Container chính */
 .call-container {
     flex: 1;
     position: relative;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* Gradient nền tinh tế tạo chiều sâu */
+    background: radial-gradient(circle at 50% 50%, #1a1c23 0%, #0b0c0e 100%);
 }
 
-/* Lưới Video (Grid System) */
+/* Lưới Video thông minh */
 #video-grid {
     flex: 1;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 20px;
-    padding: 20px;
+    gap: 24px;
+    padding: 24px;
     overflow-y: auto;
+    
+    /* Scrollbar ẩn cho đẹp */
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
 }
+#video-grid::-webkit-scrollbar { display: none; }
 
 /* Khung video từng người */
 .video-box {
     position: relative;
-    width: 480px;
+    width: 500px;
     max-width: 100%;
     aspect-ratio: 16/9;
     background: #000;
-    border-radius: 16px;
+    border-radius: 24px; /* Bo góc mềm mại hơn */
     overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
+    box-shadow: var(--shadow-lg);
+    border: var(--glass-border);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center;
 }
 
-/* Hiệu ứng khi chỉ có 1 người (Phóng to) */
+/* Tự động phóng to khi chỉ có 1 người */
 .video-box:only-child {
-    width: 85%;
-    max-height: 80vh;
-    border: 1px solid #3eb489; /* Viền xanh khi focus */
+    width: 92%;
+    max-height: 82vh;
+    border: 1px solid rgba(62, 180, 137, 0.2);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
 }
 
 .video-box video {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     object-fit: cover;
     display: block;
+    background: #121212;
 }
 
-/* Xử lý lật gương (Cam trước) */
+/* Xử lý lật gương */
 .video-box video:not(.env-mode) { transform: scaleX(-1); }
 .video-box video.env-mode { transform: none; }
+
+/* --- CANVAS VẼ (LỚP ĐÈ) --- */
+.drawing-canvas {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 10;
+    pointer-events: none;
+    cursor: crosshair;
+}
+
+/* Kích hoạt vẽ */
+.video-box.drawing-active .drawing-canvas {
+    pointer-events: all;
+    /* Hiệu ứng viền sáng neon khi vẽ */
+    box-shadow: inset 0 0 0 3px var(--primary-color), inset 0 0 20px rgba(62, 180, 137, 0.3);
+}
 
 /* Nhãn tên người dùng */
 .user-label {
     position: absolute;
-    bottom: 15px; left: 15px;
-    background: rgba(0, 0, 0, 0.6);
+    bottom: 16px; left: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     color: #fff;
-    padding: 6px 14px;
-    border-radius: 20px;
+    padding: 8px 16px;
+    border-radius: 30px;
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 8px;
-    backdrop-filter: blur(4px);
-    border-left: 3px solid #3eb489; /* Điểm nhấn xanh */
-    z-index: 2;
+    gap: 10px;
+    z-index: 20;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
 }
-.user-label img { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #fff; }
+.user-label:hover { transform: scale(1.02); }
+.user-label img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #fff; }
 
-/* --- 2. CONTROLS BAR (Thanh điều khiển) --- */
+/* --- 2. THANH ĐIỀU KHIỂN (CONTROLS - FLOATING BAR) --- */
+/* Thiết kế dạng thanh nổi (Floating Island) thay vì full width */
 #call-controls {
-    height: 90px;
-    background: #2b2d31;
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: auto;
+    padding: 12px 20px;
+    background: rgba(20, 20, 25, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 100px; /* Hình viên thuốc */
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
-    flex-shrink: 0;
+    gap: 16px;
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
     z-index: 100;
+    width: auto;
+    min-width: fit-content;
+    transition: bottom 0.3s ease;
 }
 
 .btn-control {
-    width: 56px;
-    height: 56px;
+    width: 54px; height: 54px;
     border-radius: 50%;
     border: none;
-    font-size: 1.3rem;
+    font-size: 1.35rem;
     cursor: pointer;
-    color: #fff;
-    background-color: #404249; /* Màu xám đậm */
+    color: var(--text-sub);
+    background-color: rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); /* Hiệu ứng nảy */
     position: relative;
 }
 
-/* Hover hiệu ứng */
 .btn-control:hover {
-    background-color: #3eb489; /* Xanh lá khi hover */
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(62, 180, 137, 0.4);
-}
-
-/* Trạng thái tắt (Mic/Cam off) */
-.btn-control.btn-off {
-    background-color: #ea4335; /* Đỏ */
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-5px) scale(1.05);
     color: #fff;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
 }
-.btn-control.btn-off:hover { background-color: #d93025; }
 
-/* Nút kết thúc cuộc gọi */
+/* Active State (Vẽ/Reaction đang bật) */
+.btn-control.btn-active {
+    background-color: var(--primary-color);
+    color: #fff;
+    box-shadow: 0 0 25px rgba(62, 180, 137, 0.5);
+}
+
+/* Off State (Mic/Cam tắt) */
+.btn-control.btn-off {
+    background-color: rgba(255, 71, 87, 0.15);
+    color: var(--danger-color);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+.btn-control.btn-off:hover {
+    background-color: var(--danger-color);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(255, 71, 87, 0.4);
+}
+
+/* Hangup Button - Nổi bật */
 .btn-control.btn-danger {
-    background-color: #ea4335;
-    width: 64px; height: 64px;
-    font-size: 1.6rem;
-    margin-left: 20px;
+    background-color: var(--danger-color);
+    width: 80px; 
+    border-radius: 40px;
+    color: white;
+    margin-left: 15px;
 }
 .btn-control.btn-danger:hover {
-    background-color: #c0392b;
-    transform: scale(1.1);
+    background-color: #e84118;
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: 0 10px 25px rgba(255, 71, 87, 0.5);
 }
 
-/* --- 3. REACTION BAR (Thả tim/like) --- */
-.reaction-bar {
+/* --- 3. TOOLBAR VẼ (Floating Palette - Nổi trên controls) --- */
+.drawing-toolbar {
     position: absolute;
-    bottom: 110px; /* Nổi lên trên thanh control */
+    bottom: 115px; /* Cao hơn controls một chút */
     left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(16px);
-    padding: 10px 25px;
-    border-radius: 50px;
+    transform: translateX(-50%);
+    background: rgba(25, 25, 30, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 14px 30px;
+    border-radius: 24px;
     display: flex;
+    align-items: center;
     gap: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 90;
 }
 
-/* Hiện thanh reaction khi hover vùng điều khiển hoặc chính nó */
-.call-container:hover .reaction-bar,
-#call-controls:hover ~ .reaction-bar,
-.reaction-bar:hover {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateX(-50%) translateY(0);
+.brush-options {
+    display: flex; gap: 8px;
+    background: rgba(255,255,255,0.05);
+    padding: 6px; border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.tool-icon {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px;
+    color: #999;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tool-icon:hover { color: #fff; background: rgba(255,255,255,0.1); transform: scale(1.1); }
+
+.tool-icon.active {
+    color: #fff;
+    background: var(--primary-color);
+    box-shadow: 0 4px 15px rgba(62, 180, 137, 0.4);
+}
+
+/* Input màu & slider - Custom style */
+.drawing-toolbar input[type="color"] {
+    width: 40px; height: 40px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    padding: 0; margin: 0;
+    cursor: pointer;
+    background: none;
+    transition: transform 0.2s;
+}
+.drawing-toolbar input[type="color"]:hover { transform: scale(1.15) rotate(90deg); }
+
+.drawing-toolbar input[type="range"] {
+    width: 120px;
+    height: 6px;
+    background: #444;
+    border-radius: 10px;
+    appearance: none;
+    cursor: pointer;
+}
+.drawing-toolbar input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px; height: 18px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(62, 180, 137, 0.6);
+    transition: transform 0.2s;
+}
+.drawing-toolbar input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+/* --- 4. REACTION BAR --- */
+.reaction-bar {
+    position: absolute;
+    bottom: 115px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 35, 0.9);
+    backdrop-filter: blur(20px);
+    padding: 12px 30px;
+    border-radius: 50px;
+    display: flex; gap: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+    z-index: 90;
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .reaction-bar button {
-    background: transparent;
-    border: none;
-    font-size: 2rem;
-    cursor: pointer;
-    transition: transform 0.2s;
+    background: transparent; border: none;
+    font-size: 2.2rem; cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     padding: 0;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
 }
+.reaction-bar button:hover { transform: scale(1.5) rotate(10deg) translateY(-10px); }
+.reaction-bar button:active { transform: scale(0.9); }
 
-.reaction-bar button:hover {
-    transform: scale(1.5) rotate(10deg);
-}
-
-/* --- 4. REACTION ANIMATION (Bong bóng bay) --- */
+/* --- 5. HIỆU ỨNG & POPUP --- */
 .reaction-container {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-    z-index: 10;
+    position: absolute; inset: 0;
+    pointer-events: none; overflow: hidden;
+    z-index: 30;
 }
 
 .floating-emoji {
-    position: absolute;
-    bottom: -50px;
-    font-size: 2.5rem;
-    animation: floatUpBubble 3s ease-in-out forwards;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    opacity: 0;
+    position: absolute; bottom: -50px;
+    font-size: 3.5rem;
+    animation: floatUp 3s ease-out forwards;
+    text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));
 }
 
-@keyframes floatUpBubble {
-    0% { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
-    10% { opacity: 1; }
-    25% { transform: translateY(-20vh) scale(1.2) rotate(-15deg); opacity: 1; }
-    50% { transform: translateY(-50vh) scale(1) rotate(15deg); opacity: 0.8; }
-    100% { transform: translateY(-90vh) scale(0.8) rotate(-30deg); opacity: 0; }
-}
-
-/* --- 5. INCOMING CALL POPUP (Lời mời gọi) --- */
+/* Incoming Call Popup - Thiết kế thẻ nổi */
 .incoming-popup {
-    position: fixed;
-    top: 30px; right: 30px;
-    background: #2b2d31; /* Nền tối */
+    position: fixed; top: 30px; right: 30px;
+    width: 360px;
+    background: rgba(30, 32, 38, 0.95);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
     color: #fff;
-    width: 340px;
-    padding: 25px;
-    border-radius: 16px;
-    box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+    padding: 30px;
+    border-radius: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     z-index: 10000;
-    border-left: 5px solid #3eb489; /* Viền xanh */
-    animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes slideIn {
-    from { transform: translateX(120%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    border: 1px solid rgba(255,255,255,0.1);
+    animation: slideInRight 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .incoming-content { text-align: center; }
-
-/* Avatar người gọi & Hiệu ứng sóng tỏa (Đã Fix Lệch Tâm) */
 .caller-avatar {
-    width: 80px; height: 80px;
-    margin: 0 auto 15px;
+    width: 90px; height: 90px; margin: 0 auto 20px;
     position: relative;
 }
 .caller-avatar img {
     width: 100%; height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid #3eb489;
-    position: relative;
-    z-index: 2; /* Nằm trên vòng sóng */
+    border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--primary-color);
+    z-index: 2; position: relative;
+    box-shadow: 0 0 25px rgba(62, 180, 137, 0.5);
 }
 
-.pulse-ring {
-    position: absolute;
-    top: 50%; left: 50%;
+/* Pulse Animation */
+.pulse-ring, .pulse-ring::before {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
     width: 100%; height: 100%;
-    border: 2px solid #3eb489;
     border-radius: 50%;
-    transform: translate(-50%, -50%); /* Căn giữa chuẩn */
-    animation: pulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    border: 2px solid var(--primary-color);
+    animation: pulse 2s infinite;
     z-index: 1;
-    pointer-events: none;
+    box-shadow: 0 0 15px var(--primary-color);
 }
+.pulse-ring::before { content: ''; animation-delay: 0.6s; opacity: 0.5; }
 
-/* Vòng sóng thứ 2 */
-.pulse-ring::before {
-    content: '';
-    position: absolute;
-    top: -10px; left: -10px; right: -10px; bottom: -10px;
-    border: 1px solid rgba(62, 180, 137, 0.5);
-    border-radius: 50%;
-    animation: pulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
-    animation-delay: 0.5s;
+.incoming-content h3 { 
+    margin: 10px 0 5px; font-size: 1.5rem; font-weight: 700;
+    background: linear-gradient(135deg, #fff 0%, #ccc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
+.incoming-content p { color: var(--text-sub); margin-bottom: 25px; font-size: 1rem; }
 
-@keyframes pulseGreen {
-    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
-    50% { opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
-}
-
-.incoming-content h3 { margin: 10px 0 5px; font-size: 1.3rem; color: #fff; }
-.incoming-content p { margin: 0 0 20px; color: #b9bbbe; font-size: 0.95rem; }
-
-.incoming-actions {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-}
-
+.incoming-actions { display: flex; justify-content: center; gap: 20px; }
 .btn-accept, .btn-decline {
-    border: none;
-    padding: 12px 25px;
-    border-radius: 30px;
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: transform 0.2s;
+    border: none; padding: 14px 32px;
+    border-radius: 50px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; gap: 10px;
+    font-size: 1rem; transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+.btn-accept { background: linear-gradient(135deg, #3eb489 0%, #27ae60 100%); color: white; }
+.btn-accept:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4); }
+.btn-decline { background: rgba(255, 255, 255, 0.1); color: #ddd; backdrop-filter: blur(5px); }
+.btn-decline:hover { background: var(--danger-color); color: #fff; transform: scale(1.05); box-shadow: 0 8px 20px rgba(255, 71, 87, 0.4); }
+
+/* --- KEYFRAMES --- */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes popIn { from { opacity: 0; transform: translate(-50%, 15px) scale(0.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes floatUp { 
+    0% { transform: translateY(0) scale(0.5); opacity: 0; } 
+    10% { opacity: 1; transform: translateY(-10px) scale(1); } 
+    100% { transform: translateY(-70vh) scale(1.2) rotate(20deg); opacity: 0; } 
+}
+@keyframes pulse { 
+    0% { width: 100%; height: 100%; opacity: 1; } 
+    100% { width: 220%; height: 220%; opacity: 0; } 
 }
 
-/* Nút Trả lời (Xanh lá) */
-.btn-accept {
-    background: #3eb489;
-    color: #fff;
-    box-shadow: 0 4px 15px rgba(62, 180, 137, 0.4);
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    #call-controls { 
+        bottom: 20px; width: 90%; left: 5%; right: 5%; 
+        border-radius: 20px; height: 70px; padding: 0;
+    }
+    .drawing-toolbar, .reaction-bar { bottom: 100px; width: 90%; padding: 10px 15px; gap: 10px; }
+    .video-box { flex: 1 1 100%; max-height: 50vh; border-radius: 16px; }
+    #video-grid { padding: 10px; gap: 10px; align-items: flex-start; }
+    .btn-control { width: 48px; height: 48px; font-size: 1.1rem; }
 }
-.btn-accept:hover { background: #359b74; transform: scale(1.05); }
-
-/* Nút Từ chối (Xám/Đỏ) */
-.btn-decline {
-    background: #404249;
-    color: #ddd;
-}
-.btn-decline:hover { background: #ea4335; color: #fff; transform: scale(1.05); }

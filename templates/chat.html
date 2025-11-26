@@ -200,7 +200,6 @@
           <button id="close-reply" class="close-reply-btn"><i class="fas fa-times"></i></button>
       </div>
 
-      <!-- [MỚI] Thanh hiển thị "đang nhập..." -->
       <div id="typing-indicator" class="typing-indicator hidden">
         <div class="typing-inner">
           <span class="typing-text">Đang nhập...</span>
@@ -351,44 +350,80 @@
 
   <div class="overlay" id="sidebar-overlay"></div>
 
-  <div id="call-overlay" class="call-overlay" style="display: none;">
-    <div class="call-container">
-        <div id="video-grid">
-            <div class="video-box" id="local-box">
-                <video id="local-video" autoplay playsinline muted></video>
-                <div class="user-label">Bạn</div>
-                <div class="reaction-container"></div> 
+<div id="call-overlay" class="call-overlay" style="display: none;">
+    
+    <div id="video-grid">
+        <div class="video-box" id="local-box">
+            <video id="local-video" autoplay playsinline muted></video>
+            <canvas class="drawing-canvas"></canvas> 
+            <div class="user-label">
+                <img src="/static/img/default-avatar.png" alt="">
+                <span>Bạn</span>
             </div>
-        </div>
-
-        <div class="reaction-bar">
-            <button onclick="window.sendReaction('❤️')" title="Yêu thích">❤️</button>
-            <button onclick="window.sendReaction('👍')" title="Like">👍</button>
-            <button onclick="window.sendReaction('😂')" title="Haha">😂</button>
-            <button onclick="window.sendReaction('😮')" title="Wow">😮</button>
-            <button onclick="window.sendReaction('😢')" title="Buồn">😢</button>
-            <button onclick="window.sendReaction('🎉')" title="Chúc mừng">🎉</button>
-        </div>
-
-        <div id="call-controls">
-            <button class="btn-control" id="btn-mic" onclick="toggleMic()" title="Bật/Tắt Mic">
-                <i class="fas fa-microphone"></i>
-            </button>
-            <button class="btn-control" id="btn-cam" onclick="toggleCam()" title="Bật/Tắt Camera">
-                <i class="fas fa-video"></i>
-            </button>
-            
-            <button class="btn-control" id="btn-flip" onclick="flipCamera()" title="Lật Cam" style="display: none;">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-
-            <button class="btn-control btn-danger" onclick="endCall()" title="Kết thúc">
-                <i class="fas fa-phone-slash"></i>
-            </button>
+            <div class="reaction-container"></div>
         </div>
     </div>
-  </div>
 
+    <div id="drawing-toolbar" class="drawing-toolbar" style="display: none;">
+        <div class="brush-options">
+            <button class="tool-icon active" data-brush="pen" title="Bút tròn">
+                <i class="fas fa-pen"></i>
+            </button>
+            <button class="tool-icon" data-brush="marker" title="Bút vuông">
+                <i class="fas fa-square"></i>
+            </button>
+            <button class="tool-icon" data-brush="neon" title="Bút Neon">
+                <i class="fas fa-highlighter"></i>
+            </button>
+        </div>
+
+        <div class="separator" style="width:1px; height:20px; background:#555; margin:0 5px;"></div>
+
+        <input type="color" id="draw-color" value="#ff0000" title="Chọn màu">
+        <input type="range" id="draw-width" min="2" max="20" value="4" title="Độ dày">
+        
+        <div class="separator" style="width:1px; height:20px; background:#555; margin:0 5px;"></div>
+
+        <div class="tool-icon" id="btn-clear-draw" title="Xóa tất cả">
+            <i class="fas fa-trash-alt"></i>
+        </div>
+    </div>
+
+    <div id="reaction-bar" class="reaction-bar" style="display: none;">
+        <button onclick="window.sendReaction('❤️')" title="Yêu thích">❤️</button>
+        <button onclick="window.sendReaction('👍')" title="Like">👍</button>
+        <button onclick="window.sendReaction('😂')" title="Haha">😂</button>
+        <button onclick="window.sendReaction('😮')" title="Wow">😮</button>
+        <button onclick="window.sendReaction('😢')" title="Buồn">😢</button>
+        <button onclick="window.sendReaction('🎉')" title="Chúc mừng">🎉</button>
+    </div>
+
+    <div id="call-controls">
+        <button class="btn-control" id="btn-mic" onclick="toggleMic()" title="Mic">
+            <i class="fas fa-microphone"></i>
+        </button>
+        
+        <button class="btn-control" id="btn-cam" onclick="toggleCam()" title="Camera">
+            <i class="fas fa-video"></i>
+        </button>
+
+        <button class="btn-control" id="btn-draw-toggle" onclick="toggleDrawingMode()" title="Vẽ">
+            <i class="fas fa-palette"></i>
+        </button>
+
+        <button class="btn-control" id="btn-reaction-toggle" onclick="toggleReactionBar()" title="Cảm xúc">
+            <i class="fas fa-smile"></i>
+        </button>
+
+        <button class="btn-control" id="btn-flip" onclick="flipCamera()" style="display: none;" title="Lật Cam">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+
+        <button class="btn-control btn-danger" onclick="endCall()" title="Kết thúc">
+            <i class="fas fa-phone-slash"></i>
+        </button>
+    </div>
+  </div>
   <div id="incoming-call-popup" class="incoming-popup" style="display: none;">
     <div class="incoming-content">
         <div class="caller-avatar">

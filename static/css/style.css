@@ -2765,3 +2765,280 @@ body {
 
 
 
+/* =========================================
+   MESSAGE REACTION STYLES - NÂNG CẤP MƯỢT MÀ
+   ========================================= */
+
+/* --- 1. Menu chọn cảm xúc (Popup Container) --- */
+.reaction-popup {
+    position: absolute;
+    /* Vị trí mặc định: nằm trên tin nhắn */
+    top: -55px; 
+    left: 10px; 
+    
+    background: #fff;
+    padding: 6px 12px;
+    border-radius: 30px;
+    /* Shadow mềm hơn, hiện đại hơn */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15), 0 2px 5px rgba(0,0,0,0.05);
+    
+    display: flex; 
+    gap: 8px;
+    z-index: 1000;
+    
+    /* --- CẤU HÌNH ANIMATION --- */
+    /* Bắt đầu: mờ, nhỏ 50%, và nằm thấp hơn một chút */
+    opacity: 0;
+    transform: scale(0.5) translateY(15px);
+    
+    /* Điểm neo: animation bắt đầu từ giữa đáy của popup */
+    transform-origin: center bottom;
+    
+    /* Không cho click khi đang ẩn */
+    pointer-events: none; 
+    
+    /* Hiệu ứng chuyển động: Dùng cubic-bezier để tạo độ "nảy" (bouncy) */
+    /* Thời gian: 0.4s cho transform (nảy), 0.25s cho opacity (hiện rõ) */
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                opacity 0.25s ease-out;
+}
+
+/* Khi tin nhắn là của mình (.me) thì popup canh lề phải */
+.message.me .reaction-popup { 
+    left: auto; 
+    right: 10px; 
+}
+
+/* --- Trạng thái KÍCH HOẠT (.show) --- */
+/* Class này được JS thêm vào sau khi tạo popup */
+.reaction-popup.show {
+    /* Kết thúc: rõ nét, kích thước thật, vị trí chuẩn */
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    
+    /* Cho phép click */
+    pointer-events: auto;
+}
+
+
+/* --- 2. Các nút icon bên trong --- */
+.reaction-btn {
+    font-size: 24px; /* Icon to hơn một chút */
+    cursor: pointer;
+    background: none; 
+    border: none; 
+    padding: 0 2px;
+    
+    /* Hiệu ứng khi rê chuột vào từng icon */
+    transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    
+    /* Mẹo nhỏ: giúp icon nét hơn trên một số màn hình */
+    backface-visibility: hidden;
+}
+
+/* Hover vào icon thì phóng to lên */
+.reaction-btn:hover { 
+    transform: scale(1.35); 
+}
+
+/* Hiệu ứng khi click vào icon (nhún xuống một chút) */
+.reaction-btn:active {
+    transform: scale(1.1);
+    transition-duration: 0.1s;
+}
+
+/* --- GIỮ NGUYÊN CÁC PHẦN KHÁC --- */
+
+/* Nút "Mặt cười" trigger (Desktop) */
+.btn-react-trigger {
+    width: 26px; height: 26px;
+    border-radius: 50%; background: #fff;
+    border: 1px solid #eee; color: #888;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0; /* Ẩn mặc định */
+    transition: all 0.2s;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.btn-react-trigger:hover { color: #ff9f43; transform: scale(1.1); }
+.message-content-wrapper:hover .btn-react-trigger { opacity: 1; }
+
+/* Hiển thị cảm xúc đã thả */
+.message-reactions-display {
+    position: absolute;
+    bottom: -12px; right: 0;
+    background: #fff; border: 1px solid #eee;
+    border-radius: 12px; padding: 2px 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    font-size: 11px; display: flex; align-items: center; gap: 2px;
+    z-index: 5; cursor: pointer; height: 18px;
+    transition: transform 0.2s ease; /* Thêm hiệu ứng nhẹ khi hiện */
+}
+.message.me .message-reactions-display { right: auto; left: 0; }
+
+/* Ẩn nút trigger trên Mobile */
+@media (max-width: 768px) {
+    .btn-react-trigger { display: none !important; }
+}
+
+/* =========================================
+   REACTION DETAILS MODAL STYLES
+   ========================================= */
+
+.reaction-modal-content {
+    max-width: 400px;
+    width: 90%;
+    border-radius: 15px; /* BO TRÒN TOÀN BỘ MODAL */
+    padding: 0;
+    overflow: hidden;
+}
+
+.reaction-modal-header {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.reaction-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.close-reaction-modal {
+    font-size: 24px;
+    cursor: pointer;
+    color: #888;
+    line-height: 1;
+}
+
+/* --- KHUNG CHỨA CÁC TAB ICON --- */
+.reaction-tabs {
+    display: flex;
+    padding: 8px 15px;
+    background-color: #f7f7f7;
+    overflow-x: auto;
+    border-bottom: 1px solid #eee;
+}
+
+.reaction-tab {
+    background: none;
+    border: none;
+    padding: 6px 12px;
+    margin-right: 8px;
+    border-radius: 20px; /* Bo tròn nút tab */
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+    white-space: nowrap; 
+}
+
+.reaction-tab span {
+    font-weight: bold;
+    color: #333;
+}
+
+.reaction-tab.active {
+    background-color: #e2f0ff; 
+    color: #007bff; 
+    font-weight: 600;
+}
+
+.reaction-tab:hover:not(.active) {
+    background-color: #ebebeb;
+}
+
+
+/* --- DANH SÁCH USER --- */
+.reaction-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.reaction-user-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #f9f9f9;
+    transition: background 0.2s;
+    border-radius: 8px; /* Bo tròn từng dòng user */
+}
+.reaction-user-item:last-child { border-bottom: none; }
+
+.reaction-user-avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+}
+
+.reaction-user-info { flex: 1; }
+
+.reaction-user-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: #333;
+}
+
+.reaction-emoji-icon {
+    font-size: 20px;
+    margin-left: 10px;
+}
+
+/* =========================================
+   MÀN HÌNH CHÀO MỪNG (FIX LỖI CHÈN)
+   ========================================= */
+.welcome-screen {
+    position: absolute;
+    top: 0; 
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* 🔥 QUAN TRỌNG: Màu nền trắng để che khuất tin nhắn cũ/rỗng phía sau */
+    background: #fff; 
+    
+    /* 🔥 QUAN TRỌNG: Z-index cao để nằm đè lên mọi thứ (trừ modal) */
+    z-index: 20; 
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.welcome-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Hiệu ứng hiện ra nhẹ nhàng */
+    animation: fadeIn 0.5s ease-out;
+}
+
+.welcome-screen h3 {
+    margin-top: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #4CAF50; /* Xanh lá */
+}
+
+.welcome-screen p {
+    font-size: 15px;
+    color: #888;
+    margin-top: 10px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

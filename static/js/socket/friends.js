@@ -205,50 +205,18 @@ export function fetchFriends() {
     });
 }
 
-export function fetchFriendRequests() {
-  fetch('/friend_requests')
-    .then(res => res.json())
-    .then(data => {
-      const container = document.getElementById('friend-requests');
-      if (!container) return;
-      container.innerHTML = '';
 
-      if (data.requests.length === 0) {
-          container.innerHTML = '<div class="no-requests" style="padding:10px;color:#888;text-align:center">Không có lời mời nào</div>';
-          return;
-      }
 
-      data.requests.forEach(req => {
-        const reqEl = document.createElement('div');
-        reqEl.className = 'friend-request-item'; // CSS class style.css
-        
-        // Tìm avatar (backend trả về req.sender_id nhưng cần avatar)
-        // Tạm thời dùng default nếu API chưa trả avatar sender
-        const avatarSrc = '/static/img/default-avatar.png'; 
-
-        reqEl.innerHTML = `
-          <div class="req-info">
-             <strong>${req.username}</strong>
-          </div>
-          <div class="req-actions">
-            <button class="btn-accept" data-id="${req.request_id}" data-sender="${req.sender_id}"><i class="fas fa-check"></i></button>
-            <button class="btn-decline" data-id="${req.request_id}"><i class="fas fa-times"></i></button>
-          </div>
-        `;
-
-        reqEl.querySelector('.btn-accept').addEventListener('click', function() {
-            socket.emit('accept_friend_request', { request_id: this.dataset.id, sender_id: this.dataset.sender });
-            reqEl.remove();
-        });
-        reqEl.querySelector('.btn-decline').addEventListener('click', function() {
-            socket.emit('decline_friend_request', { request_id: this.dataset.id });
-            reqEl.remove();
-        });
-
-        container.appendChild(reqEl);
-      });
-    });
+/**
+ * Xem trang cá nhân của người gửi lời mời (cho trang chat)
+ */
+function viewSenderProfile(senderId) {
+  console.log('Viewing sender profile from chat:', senderId);
+  
+  // Mở tab mới để xem profile
+  window.open(`/profile/${senderId}`, '_blank');
 }
+
 
 function showFriendRequestNotification(data) {
     // Tạo toast notification đơn giản
@@ -305,3 +273,236 @@ export async function openOrCreateConversation(friendId) {
     console.error('Lỗi mở hội thoại:', err);
   }
 }
+// Thêm vào cuối friends.js
+export function setupFriendRequestsPage() {
+  console.log('[Friends] Setting up friend requests page...');
+  
+  // Override hàm fetchFriendRequests để cập nhật UI trang requests
+  const originalFetchFriendRequests = fetchFriendRequests;
+  
+  window.fetchFriendRequests = async function() {
+      try {
+          const response = await fetch('/friend_requests');
+          
+          if (!response.ok) {
+              throw new Error('Không thể tải danh sách lời mời');
+          }
+          
+          const data = await response.json();
+          
+          // Nếu đang ở trang friend requests, cập nhật UI
+          if (window.friendRequestsManager && typeof window.friendRequestsManager.displayRequests === 'function') {
+              window.friendRequestsManager.displayRequests(data.requests);
+          }
+          
+          // Vẫn giữ chức năng gốc cho chat page
+          const container = document.getElementById('friend-requests');
+          if (container) {
+              if (data.requests.length === 0) {
+                  container.innerHTML = '<div class="no-requests" style="padding:10px;color:#888;text-align:center">Không có lời mời nào</div>';
+                  return;
+              }
+
+              container.innerHTML = '';
+              data.requests.forEach(req => {
+                  const reqEl = document.createElement('div');
+                  reqEl.className = 'friend-request-item';
+                  
+                  reqEl.innerHTML = `
+                      <div class="req-info">
+                          <strong>${req.username}</strong>
+                      </div>
+                      <div class="req-actions">
+                          <button class="btn-accept" data-id="${req.request_id}" data-sender="${req.sender_id}">
+                              <i class="fas fa-check"></i>
+                          </button>
+                          <button class="btn-decline" data-id="${req.request_id}">
+                              <i class="fas fa-times"></i>
+                          </button>
+                      </div>
+                  `;
+
+                  reqEl.querySelector('.btn-accept').addEventListener('click', function() {
+                      socket.emit('accept_friend_request', { 
+                          request_id: this.dataset.id, 
+                          sender_id: this.dataset.sender 
+                      });
+                      reqEl.remove();
+                  });
+                  
+                  reqEl.querySelector('.btn-decline').addEventListener('click', function() {
+                      socket.emit('decline_friend_request', { request_id: this.dataset.id });
+                      reqEl.remove();
+                  });
+
+                  container.appendChild(reqEl);
+              });
+          }
+          
+      } catch (error) {
+          console.error('Error fetching friend requests:', error);
+          
+          // Thông báo lỗi cho cả hai trang
+          if (window.friendRequestsManager) {
+              window.friendRequestsManager.showError('Không thể tải danh sách lời mời');
+          }
+          
+          const container = document.getElementById('friend-requests');
+          if (container) {
+              container.innerHTML = '<div class="error-state">Lỗi khi tải lời mời</div>';
+          }
+      }
+  };
+  
+  return window.fetchFriendRequests;
+}
+function createRequestElement(request) {
+  const div = document.createElement('div');
+  div.className = 'request-item';
+  
+  const avatarSrc = request.avatar || '/static/img/default-avatar.png';
+  const mutualFriends = request.mutual_friends || 0;
+  const isOnline = request.is_online || false;
+  
+  div.innerHTML = `
+      ${isOnline ? '<div class="online-indicator"></div>' : ''}
+      <img src="${avatarSrc}" alt="${request.username}" class="request-avatar"
+           onerror="this.src='/static/img/default-avatar.png'">
+      <div class="request-info">
+          <div class="request-name">${escapeHtml(request.username)}</div>
+          <div class="request-meta">${request.email || 'Người dùng PAW TALK'}</div>
+          ${mutualFriends > 0 ? `<div class="mutual-friends">${mutualFriends} bạn chung</div>` : ''}
+      </div>
+      <div class="request-actions">
+          <button class="btn btn-primary" onclick="acceptRequest('${request.request_id}', '${request.sender_id}')">
+              <i class="fas fa-check"></i> Đồng ý
+          </button>
+          <button class="btn btn-outline" onclick="declineRequest('${request.request_id}')">
+              <i class="fas fa-times"></i> Từ chối
+          </button>
+      </div>
+  `;
+
+  return div;
+}
+// --- 6. CẬP NHẬT BADGE LỜI MỜI KẾT BẠN ---
+export function updateFriendRequestsBadge(count) {
+  // Cập nhật badge trong side navigation
+  const navBadge = document.getElementById('friend-requests-nav-badge');
+  if (navBadge) {
+    if (count > 0) {
+      navBadge.textContent = count;
+      navBadge.style.display = 'flex';
+    } else {
+      navBadge.style.display = 'none';
+    }
+  }
+  
+  // Cập nhật badge trong chat page (nếu có)
+  const chatBadge = document.getElementById('friend-requests-badge');
+  if (chatBadge) {
+    if (count > 0) {
+      chatBadge.textContent = count;
+      chatBadge.style.display = 'inline';
+    } else {
+      chatBadge.style.display = 'none';
+    }
+  }
+}
+
+// ✅ Chỉ còn 1 phiên bản fetchFriendRequests
+export function fetchFriendRequests() {
+  fetch('/friend_requests')
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById('friend-requests');
+      const requests = data.requests || [];
+
+      // Cập nhật badge với số lượng thực tế
+      updateFriendRequestsBadge(requests.length);
+
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      if (requests.length === 0) {
+        container.innerHTML = `
+          <div class="no-requests" style="padding:10px;color:#888;text-align:center">
+            Không có lời mời nào
+          </div>`;
+        return;
+      }
+
+      requests.forEach(req => {
+        const reqEl = document.createElement('div');
+        reqEl.className = 'friend-request-item';
+        
+        const avatarSrc = req.avatar || '/static/img/default-avatar.png';
+        
+        reqEl.innerHTML = `
+          <div class="req-avatar-container" onclick="viewSenderProfile('${req.sender_id}')" style="cursor: pointer;">
+            <img src="${avatarSrc}" alt="${req.username}" class="req-avatar"
+                 onerror="this.src='/static/img/default-avatar.png'">
+          </div>
+          <div class="req-info" onclick="viewSenderProfile('${req.sender_id}')" style="cursor: pointer; flex: 1;">
+            <strong>${req.username}</strong>
+            <div class="req-email">${req.email || ''}</div>
+          </div>
+          <div class="req-actions">
+            <button class="btn-accept" data-id="${req.request_id}" data-sender="${req.sender_id}">
+              <i class="fas fa-check"></i>
+            </button>
+            <button class="btn-decline" data-id="${req.request_id}">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
+
+        const acceptBtn = reqEl.querySelector('.btn-accept');
+        const declineBtn = reqEl.querySelector('.btn-decline');
+
+        acceptBtn.addEventListener('click', function () {
+          socket.emit('accept_friend_request', { 
+            request_id: this.dataset.id, 
+            sender_id: this.dataset.sender 
+          });
+          // Xóa khỏi UI rồi reload lại list + badge cho chắc
+          reqEl.remove();
+          fetchFriendRequests();
+        });
+
+        declineBtn.addEventListener('click', function () {
+          socket.emit('decline_friend_request', { request_id: this.dataset.id });
+          reqEl.remove();
+          fetchFriendRequests();
+        });
+
+        container.appendChild(reqEl);
+      });
+
+      // Nếu có trang quản lý riêng (friend_requests_page) thì cập nhật luôn
+      if (window.friendRequestsManager && 
+          typeof window.friendRequestsManager.displayRequests === 'function') {
+        window.friendRequestsManager.displayRequests(requests);
+      }
+    })
+    .catch(err => {
+      console.error('Error fetching friend requests:', err);
+
+      const container = document.getElementById('friend-requests');
+      if (container) {
+        container.innerHTML = `
+          <div class="error-state" style="padding:10px;color:#e74c3c;text-align:center">
+            Lỗi khi tải lời mời
+          </div>`;
+      }
+
+      if (window.friendRequestsManager && 
+          typeof window.friendRequestsManager.showError === 'function') {
+        window.friendRequestsManager.showError('Không thể tải danh sách lời mời');
+      }
+    });
+}
+
+// Giữ dòng này ở cuối file để dùng được onclick trong HTML
+window.viewSenderProfile = viewSenderProfile;

@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lời mời kết bạn - PAW TALK</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/friend_requests.css') }}">
+    <!-- Load socket.io từ CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <!-- Side Navigation -->
+    <button class="nav-toggle" id="nav-toggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="nav-overlay" id="nav-overlay"></div>
+
+    <aside class="side-nav" id="side-nav">
+        <div class="nav-header">
+            <div class="nav-logo">PT</div>
+            <div class="nav-title">PAW TALK</div>
+        </div>
+        
+        <nav class="nav-menu">
+            <a href="/chat" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-home"></i>
+                </div>
+                <span class="nav-text">Trang chủ</span>
+            </a>
+            
+            <a href="/profile/{{ current_user.username }}" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-user"></i>
+                </div>
+                <span class="nav-text">Trang cá nhân</span>
+            </a>
+            
+            <a href="/friend_requests_page" class="nav-item active">
+                <div class="nav-icon">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <span class="nav-text">Lời mời kết bạn</span>
+                <span class="nav-badge" id="friend-requests-nav-badge">0</span>
+            </a>
+            
+            <div class="nav-divider"></div>
+            
+            <a href="/messages" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <span class="nav-text">Tin nhắn</span>
+                <span class="nav-badge">5</span>
+            </a>
+            
+            <a href="/notifications" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <span class="nav-text">Thông báo</span>
+                <span class="nav-badge">12</span>
+            </a>
+            
+            <div class="nav-divider"></div>
+            
+            <a href="/settings" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span class="nav-text">Cài đặt</span>
+            </a>
+            
+            <a href="/logout" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <span class="nav-text">Đăng xuất</span>
+            </a>
+        </nav>
+    </aside>
+
+    <div class="friend-requests-container">
+        <!-- Header -->
+        <header class="requests-header">
+            <div class="header-content">
+                <!-- SEARCH CONTAINER - ĐẶT Ở ĐẦU TIÊN -->
+                <div class="search-container">
+                    <input type="text" id="search-friends-input" placeholder="Tìm kiếm bạn bè..." class="search-input">
+                    <i class="fas fa-search search-icon"></i>
+                    
+                    <!-- Kết quả tìm kiếm -->
+                    <div id="search-results" class="search-results" style="display: none;">
+                        <div class="search-results-header">
+                            <h4>Kết quả tìm kiếm</h4>
+                            <button class="btn-close-search" onclick="closeSearchResults()" aria-label="Đóng tìm kiếm">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="search-results-list" class="search-results-list"></div>
+                    </div>
+                </div>
+
+                <!-- TIÊU ĐỀ Ở GIỮA -->
+                <h1>Lời mời kết bạn</h1>
+
+                <!-- HEADER ACTIONS - NÚT BÊN PHẢI -->
+                <div class="header-actions">
+                    <button class="back-btn" onclick="goBack()" aria-label="Quay lại">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <button class="refresh-btn" onclick="loadFriendRequests()" aria-label="Làm mới">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="requests-main">
+            <!-- Loading State -->
+            <div id="loading-state" class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Đang tải lời mời kết bạn...</span>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-icon">
+                </div>
+                <h3>Không có lời mời nào</h3>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="error-state" style="display: none;">
+                <div class="error-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3>Đã xảy ra lỗi</h3>
+                <p id="error-message">Không thể tải danh sách lời mời</p>
+                <button class="btn btn-primary" onclick="loadFriendRequests()">
+                    <i class="fas fa-redo"></i> Thử lại
+                </button>
+            </div>
+
+            <!-- Requests List -->
+            <div id="requests-list" class="requests-list" style="display: none;"></div>
+        </main>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+    </div>
+
+    <script>
+        // Khởi tạo socket connection
+        let socket;
+        
+        // Global state
+        let friendRequests = [];
+        let searchTimeout = null;
+
+        // Khởi tạo socket khi trang load
+        function initializeSocket() {
+            try {
+                socket = io();
+                setupSocketEvents();
+                console.log('Socket initialized for friend requests page');
+            } catch (error) {
+                console.error('Failed to initialize socket:', error);
+            }
+        }
+
+        // Thiết lập socket events
+        function setupSocketEvents() {
+            if (!socket) return;
+
+            socket.on('connect', () => {
+                console.log('Connected to server for friend requests');
+                // Load số lượng lời mời khi kết nối
+                updateFriendRequestsBadge();
+            });
+
+            socket.on('new_friend_request', (data) => {
+                showNotification(`Bạn có lời mời kết bạn từ ${data.sender_name}`, 'success');
+                loadFriendRequests(); // Reload danh sách
+                updateFriendRequestsBadge(); // Cập nhật badge
+            });
+
+            socket.on('friend_request_accepted', (data) => {
+                showNotification('Đã chấp nhận lời mời kết bạn', 'success');
+                updateFriendRequestsBadge(); // Cập nhật badge sau khi chấp nhận
+            });
+
+            socket.on('friend_request_declined', (data) => {
+                updateFriendRequestsBadge(); // Cập nhật badge sau khi từ chối
+            });
+
+            socket.on('friend_added', (data) => {
+                showNotification('Đã thêm bạn bè thành công', 'success');
+                loadFriendRequests(); // Reload để cập nhật danh sách
+                updateFriendRequestsBadge(); // Cập nhật badge
+            });
+
+            socket.on('friend_error', (data) => {
+                showNotification(data.message, 'error');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
+        }
+
+        // Cập nhật badge số lượng lời mời kết bạn
+        async function updateFriendRequestsBadge() {
+            try {
+                const response = await fetch('/friend_requests_count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('friend-requests-nav-badge');
+                    if (badge) {
+                        if (data.count > 0) {
+                            badge.textContent = data.count;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating friend requests badge:', error);
+            }
+        }
+// Cập nhật hàm initializeSideNavigation
+function initializeSideNavigation() {
+    const sideNav = document.getElementById('side-nav');
+    const navToggle = document.getElementById('nav-toggle');
+    const navOverlay = document.getElementById('nav-overlay');
+    const isMobile = window.innerWidth <= 768;
+
+    if (!sideNav) return;
+
+    // Toggle menu chỉ dành cho mobile
+    if (navToggle) {
+        navToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMenu();
+        });
+    }
+
+    // Close menu when clicking overlay (mobile only)
+    if (navOverlay) {
+        navOverlay.addEventListener('click', () => closeMenu());
+    }
+
+    // Close menu when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+        if (isMobile && sideNav.classList.contains('active') && 
+            !sideNav.contains(e.target) && e.target !== navToggle) {
+            closeMenu();
+        }
+    });
+
+    // Handle resize
+    window.addEventListener('resize', handleResize);
+
+    function toggleMenu() {
+        if (isMobile) {
+            sideNav.classList.toggle('active');
+            navOverlay.classList.toggle('active');
+            document.body.classList.toggle('side-nav-open');
+        }
+        // Trên desktop không cần toggle bằng click
+    }
+
+    function closeMenu() {
+        if (isMobile) {
+            sideNav.classList.remove('active');
+            navOverlay.classList.remove('active');
+            document.body.classList.remove('side-nav-open');
+        }
+    }
+
+    function handleResize() {
+        const newIsMobile = window.innerWidth <= 768;
+        if (newIsMobile && !isMobile) {
+            // Switching to mobile - ensure menu is closed
+            closeMenu();
+        }
+    }
+
+    // Trên desktop: tự động mở rộng khi hover (đã được CSS xử lý)
+    // Không cần thêm event listeners cho desktop
+}
+        // UI Functions
+        function showLoading(show) {
+            const loadingState = document.getElementById('loading-state');
+            const mainContent = document.getElementById('requests-list');
+            const emptyState = document.getElementById('empty-state');
+            const errorState = document.getElementById('error-state');
+            const searchResults = document.getElementById('search-results');
+            
+            if (show) {
+                loadingState.style.display = 'block';
+                mainContent.style.display = 'none';
+                emptyState.style.display = 'none';
+                errorState.style.display = 'none';
+                searchResults.style.display = 'none';
+            } else {
+                loadingState.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const errorState = document.getElementById('error-state');
+            const errorMessage = document.getElementById('error-message');
+            const mainContent = document.getElementById('requests-list');
+            const loadingState = document.getElementById('loading-state');
+            const emptyState = document.getElementById('empty-state');
+            const searchResults = document.getElementById('search-results');
+            
+            errorMessage.textContent = message;
+            errorState.style.display = 'block';
+            mainContent.style.display = 'none';
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'none';
+            searchResults.style.display = 'none';
+        }
+
+        function showNotification(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function displayRequests(requests) {
+            const listContainer = document.getElementById('requests-list');
+            const emptyState = document.getElementById('empty-state');
+            const errorState = document.getElementById('error-state');
+            const searchResults = document.getElementById('search-results');
+
+            emptyState.style.display = 'none';
+            errorState.style.display = 'none';
+            searchResults.style.display = 'none';
+
+            if (!requests || requests.length === 0) {
+                listContainer.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            listContainer.innerHTML = '';
+            listContainer.style.display = 'block';
+
+            requests.forEach(request => {
+                const requestElement = createRequestElement(request);
+                listContainer.appendChild(requestElement);
+            });
+        }
+
+        function createRequestElement(request) {
+        const div = document.createElement('div');
+        div.className = 'request-item';
+        
+        const avatarSrc = request.avatar || '/static/img/default-avatar.png';
+        
+        div.innerHTML = `
+            <div class="request-avatar-container" onclick="viewSenderProfile('${request.sender_id}')" style="cursor: pointer;">
+                <img src="${avatarSrc}" alt="${request.username}" class="request-avatar"
+                     onerror="this.src='/static/img/default-avatar.png'">
+            </div>
+            <div class="request-info" onclick="viewSenderProfile('${request.sender_id}')" style="cursor: pointer;">
+                <div class="request-name">${escapeHtml(request.username)}</div>
+                <div class="request-meta">${request.email || 'Người dùng PAW TALK'}</div>
+            </div>
+            <div class="request-actions">
+                <button class="btn btn-primary btn-sm" onclick="acceptRequest('${request.request_id}', '${request.sender_id}')">
+                    <i class="fas fa-check"></i> Đồng ý
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="declineRequest('${request.request_id}')">
+                    <i class="fas fa-times"></i> Từ chối
+                </button>
+            </div>
+        `;
+
+        return div;
+    }
+    /**
+     * Xem trang cá nhân của người gửi lời mời
+     */
+     async function viewSenderProfile(senderId) {
+        try {
+            console.log('Viewing sender profile:', senderId);
+            
+            // Hiển thị loading
+            showNotification('Đang tải trang cá nhân...', 'info');
+            
+            // THỬ CÁCH 1: Chuyển hướng trực tiếp bằng user_id
+            window.location.href = `/profile_by_id/${senderId}`;
+            
+        } catch (error) {
+            console.error('Error viewing sender profile:', error);
+            
+            // THỬ CÁCH 2: Sử dụng API để lấy username
+            try {
+                const response = await fetch(`/get_user_profile/${senderId}`);
+                const result = await response.json();
+                
+                if (result.success && result.profile) {
+                    window.location.href = `/profile/${result.profile.username}`;
+                } else {
+                    showNotification('Không thể tải trang cá nhân', 'error');
+                }
+            } catch (apiError) {
+                console.error('API error:', apiError);
+                showNotification('Lỗi khi tải trang cá nhân', 'error');
+            }
+        }
+    }
+
+function setupSearch() {
+    const searchInput = document.getElementById('search-friends-input');
+    if (!searchInput) return;
+
+    let isSearching = false;
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.trim();
+        
+        // Clear previous timeout
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+
+        if (searchTerm.length === 0) {
+            closeSearchResults();
+            return;
+        }
+
+        // Hiển thị trạng thái loading
+        if (searchTerm.length >= 2 && !isSearching) {
+            showSearchLoading();
+        }
+
+        // Debounce search
+        searchTimeout = setTimeout(() => {
+            if (searchTerm.length >= 2) {
+                searchFriends(searchTerm);
+            } else {
+                closeSearchResults();
+            }
+        }, 300);
+    });
+
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeSearchResults();
+            this.blur();
+        }
+    });
+
+    // Close search when clicking outside
+    document.addEventListener('click', (e) => {
+        const searchContainer = document.querySelector('.search-container');
+        const searchResults = document.getElementById('search-results');
+        
+        if (searchResults && !searchContainer.contains(e.target) && !searchResults.contains(e.target)) {
+            closeSearchResults();
+        }
+    });
+}
+
+async function searchFriends(searchTerm) {
+    if (!searchTerm || searchTerm.length < 2) {
+        closeSearchResults();
+        return;
+    }
+
+    try {
+        const response = await fetch(`/search_friends?q=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+        
+        displaySearchResults(data.results, searchTerm);
+    } catch (error) {
+        console.error('Error searching friends:', error);
+        showSearchError();
+    }
+}
+
+function showSearchLoading() {
+    const searchResults = document.getElementById('search-results');
+    const resultsList = document.getElementById('search-results-list');
+    
+    resultsList.innerHTML = `
+        <div class="search-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Đang tìm kiếm...</span>
+        </div>
+    `;
+    
+    searchResults.style.display = 'block';
+}
+
+function showSearchError() {
+    const resultsList = document.getElementById('search-results-list');
+    
+    resultsList.innerHTML = `
+        <div class="no-search-results">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>Lỗi khi tìm kiếm</p>
+            <button class="btn btn-outline btn-sm" onclick="retrySearch()" style="margin-top: 10px;">
+                <i class="fas fa-redo"></i> Thử lại
+            </button>
+        </div>
+    `;
+}
+
+function displaySearchResults(results, searchTerm) {
+    const searchResults = document.getElementById('search-results');
+    const resultsList = document.getElementById('search-results-list');
+    
+    if (!results || results.length === 0) {
+        resultsList.innerHTML = `
+            <div class="no-search-results">
+                <i class="fas fa-search"></i>
+                <p>Không tìm thấy kết quả cho<br>"${escapeHtml(searchTerm)}"</p>
+            </div>
+        `;
+    } else {
+        resultsList.innerHTML = '';
+        results.forEach((user, index) => {
+            const userElement = createSearchResultElement(user);
+            // Thêm hiệu ứng xuất hiện tuần tự
+            userElement.style.animationDelay = `${index * 0.05}s`;
+            userElement.classList.add('search-result-animate');
+            resultsList.appendChild(userElement);
+        });
+    }
+    
+    searchResults.style.display = 'block';
+}
+
+function createSearchResultElement(user) {
+    const div = document.createElement('div');
+    div.className = 'search-result-item';
+    
+    const avatarSrc = user.avatar || '/static/img/default-avatar.png';
+    const isFriend = user.is_friend;
+    const isPending = user.is_pending;
+    const isCurrentUser = user._id === '{{ session.user_id }}';
+
+    div.innerHTML = `
+        <img src="${avatarSrc}" alt="${user.username}" class="search-result-avatar"
+             onerror="this.src='/static/img/default-avatar.png'">
+        <div class="search-result-info">
+            <div class="search-result-name">${escapeHtml(user.username)}</div>
+            <div class="search-result-email">${user.email || 'Người dùng PAW TALK'}</div>
+        </div>
+        <div class="search-result-actions">
+            ${isCurrentUser ? 
+                '<span class="current-user-badge">Bạn</span>' :
+                isFriend ? 
+                    '<span class="friend-badge">Bạn bè</span>' :
+                    isPending ?
+                        '<span class="pending-badge">Đã gửi</span>' :
+                        `<button class="btn btn-primary btn-sm" onclick="sendFriendRequest('${user._id}')">
+                            <i class="fas fa-user-plus"></i> Kết bạn
+                        </button>`
+            }
+        </div>
+    `;
+
+    // Thêm sự kiện click để xem profile
+    div.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-result-actions')) {
+            viewUserProfile(user._id);
+        }
+    });
+
+    return div;
+}
+
+    function closeSearchResults() {
+        const searchResults = document.getElementById('search-results');
+        const searchInput = document.getElementById('search-friends-input');
+        
+        if (searchResults) {
+            searchResults.style.display = 'none';
+        }
+        if (searchInput) {
+            // Không xóa nội dung input khi đóng kết quả
+            // searchInput.value = '';
+        }
+    }
+
+    function retrySearch() {
+        const searchInput = document.getElementById('search-friends-input');
+        if (searchInput && searchInput.value.trim().length >= 2) {
+            searchFriends(searchInput.value.trim());
+        }
+    }
+
+    function viewUserProfile(userId) {
+        // Chuyển hướng đến trang profile của người dùng
+        window.location.href = `/profile/${userId}`;
+    }
+
+        async function loadFriendRequests() {
+            showLoading(true);
+            closeSearchResults(); // Đóng kết quả tìm kiếm khi load lại
+            
+            try {
+                const response = await fetch('/friend_requests');
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải danh sách lời mời');
+                }
+                
+                const data = await response.json();
+                friendRequests = data.requests;
+                displayRequests(friendRequests);
+                
+                // Cập nhật badge sau khi load
+                updateFriendRequestsBadge();
+                
+            } catch (error) {
+                console.error('Error loading friend requests:', error);
+                showError('Không thể tải danh sách lời mời');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function acceptRequest(requestId, senderId) {
+            try {
+                if (socket) {
+                    socket.emit('accept_friend_request', {
+                        request_id: requestId,
+                        sender_id: senderId
+                    });
+                } else {
+                    // Fallback: sử dụng fetch API nếu socket không khả dụng
+                    fetch('/accept_friend_request', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            request_id: requestId,
+                            sender_id: senderId
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            showNotification('Đã chấp nhận lời mời kết bạn', 'success');
+                            updateRequestUI(requestId, 'accepted');
+                            updateFriendRequestsBadge(); // Cập nhật badge
+                        }
+                    });
+                    return;
+                }
+                
+                updateRequestUI(requestId, 'accepted');
+                showNotification('Đã chấp nhận lời mời kết bạn', 'success');
+                updateFriendRequestsBadge(); // Cập nhật badge
+                
+            } catch (error) {
+                console.error('Error accepting request:', error);
+                showNotification('Lỗi khi chấp nhận lời mời', 'error');
+            }
+        }
+
+        function declineRequest(requestId) {
+            try {
+                if (socket) {
+                    socket.emit('decline_friend_request', {
+                        request_id: requestId
+                    });
+                } else {
+                    // Fallback: sử dụng fetch API
+                    fetch('/decline_friend_request', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            request_id: requestId
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            showNotification('Đã từ chối lời mời', 'info');
+                            updateRequestUI(requestId, 'declined');
+                            updateFriendRequestsBadge(); // Cập nhật badge
+                        }
+                    });
+                    return;
+                }
+                
+                updateRequestUI(requestId, 'declined');
+                showNotification('Đã từ chối lời mời', 'info');
+                updateFriendRequestsBadge(); // Cập nhật badge
+                
+            } catch (error) {
+                console.error('Error declining request:', error);
+                showNotification('Lỗi khi từ chối lời mời', 'error');
+            }
+        }
+
+        function sendFriendRequest(userId) {
+            try {
+                if (socket) {
+                    socket.emit('send_friend_request', { recipient_id: userId });
+                    showNotification('Đã gửi lời mời kết bạn', 'success');
+                    
+                    // Update UI
+                    const button = document.querySelector(`[onclick="sendFriendRequest('${userId}')"]`);
+                    if (button) {
+                        button.innerHTML = '<i class="fas fa-clock"></i> Đã gửi';
+                        button.disabled = true;
+                        button.className = 'btn btn-outline btn-sm';
+                    }
+                } else {
+                    showNotification('Không thể kết nối đến server', 'error');
+                }
+            } catch (error) {
+                console.error('Error sending friend request:', error);
+                showNotification('Lỗi khi gửi lời mời kết bạn', 'error');
+            }
+        }
+
+        function updateRequestUI(requestId, status) {
+            const requestElement = document.querySelector(`[onclick*="${requestId}"]`)?.closest('.request-item');
+            if (requestElement) {
+                if (status === 'accepted') {
+                    requestElement.className = 'request-item request-accepted';
+                    requestElement.innerHTML = `
+                        <div class="request-accepted-content">
+                            <i class="fas fa-check-circle"></i>
+                            <div>Đã chấp nhận lời mời</div>
+                        </div>
+                    `;
+                    setTimeout(() => {
+                        requestElement.remove();
+                        checkEmptyList();
+                    }, 2000);
+                } else {
+                    requestElement.remove();
+                    checkEmptyList();
+                }
+            }
+        }
+
+        function checkEmptyList() {
+            const listContainer = document.getElementById('requests-list');
+            const emptyState = document.getElementById('empty-state');
+            
+            if (listContainer.children.length === 0) {
+                listContainer.style.display = 'none';
+                emptyState.style.display = 'block';
+            }
+        }
+
+        // Utility Functions
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeSideNavigation();
+            setupSearch();
+            loadFriendRequests();
+            
+            // Load badge ngay khi trang được tải
+            updateFriendRequestsBadge();
+        });
+
+        // Thêm CSS animation cho kết quả tìm kiếm
+        const style = document.createElement('style');
+        style.textContent = `
+            .search-result-animate {
+                animation: slideInLeft 0.3s ease-out forwards;
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            
+            @keyframes slideInLeft {
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

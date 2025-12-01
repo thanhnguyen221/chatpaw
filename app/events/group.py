@@ -150,7 +150,7 @@ def register_group_events(socketio, mongo):
             'group_id': group_id
         }, room=request.sid)
 
-    # ------------------ SEND MESSAGE ------------------
+    # ------------------ SEND MESSAGE (GROUP + GIFT) ------------------
     @socketio.on('send_group_message')
     def handle_send_group_message(data):
         group_id = data.get('group_id')
@@ -159,10 +159,13 @@ def register_group_events(socketio, mongo):
         user_id = session.get('user_id')
         reply_to_id = data.get('reply_to_id')  # ID tin nhắn đang reply (nếu có)
         
+        # [MỚI] Kiểu hộp quà
+        gift_style = data.get('gift_style') 
+        
         print(
             f"[DEBUG] Received group message: group_id={group_id}, "
             f"content={content}, message_type={message_type}, "
-            f"user_id={user_id}, reply_to_id={reply_to_id}"
+            f"user_id={user_id}, reply_to_id={reply_to_id}, gift_style={gift_style}"
         )
         
         if not all([group_id, content, user_id]):
@@ -213,17 +216,19 @@ def register_group_events(socketio, mongo):
                 reply_to_oid = None
                 reply_context = None
 
-        # Tạo message object với message_type
+        # Tạo message object
         message = {
             'group_id': group_oid,
             'sender_id': user_oid,
             'content': content,
             'message_type': message_type,
             'timestamp': now,
-            'read_by': [user_oid]
+            'read_by': [user_oid],
+            
+            # [MỚI] Lưu gift_style vào DB
+            'gift_style': gift_style 
         }
 
-        # Lưu quan hệ reply vào DB — dùng field 'reply_to' cho thống nhất với private
         if reply_to_oid:
             message['reply_to'] = reply_to_oid
 
@@ -231,6 +236,27 @@ def register_group_events(socketio, mongo):
         inserted = messages_col.insert_one(message)
         message_id = inserted.inserted_id
         print(f"[DEBUG] Message inserted with ID: {message_id}")
+
+        # Cập nhật last_message cho groups_col
+        try:
+            # [MỚI] Nếu là quà thì hiển thị preview khác
+            if gift_style:
+                preview = "🎁 Đã gửi một hộp quà"
+            else:
+                preview = content if message_type == 'text' else f'[{message_type}]'
+
+            groups_col.update_one(
+                {'_id': group_oid},
+                {
+                    '$set': {
+                        'last_message': preview,
+                        'last_message_time': now,
+                        'last_message_user': user_oid
+                    }
+                }
+            )
+        except Exception as e:
+            print(f"[DEBUG] Cannot update group last_message: {e}")
 
         # Emit tới room
         emit_data = {
@@ -243,9 +269,12 @@ def register_group_events(socketio, mongo):
             'timestamp': now.isoformat(),
             'sender_avatar': sender_avatar,
 
-            # dữ liệu cho UI reply
+            # dữ liệu reply
             'reply_to_id': reply_to_id,
-            'reply_context': reply_context
+            'reply_context': reply_context,
+            
+            # [MỚI] Gửi gift_style về client
+            'gift_style': gift_style
         }
         
         print(f"[DEBUG] Emitting group_message: {emit_data}")
@@ -510,6 +539,7 @@ def register_group_events(socketio, mongo):
         user_info = get_user_info(user_id)
         emit('group_typing', {
             'group_id': group_id,
+            'conversation_id': group_id,  # [MỚI] cho đồng bộ với FE nếu cần
             'user_id': user_id,
             'username': user_info['username']
         }, room=f"group_{group_id}", include_self=False)
@@ -523,5 +553,6 @@ def register_group_events(socketio, mongo):
 
         emit('group_stop_typing', {
             'group_id': group_id,
+            'conversation_id': group_id,  # [MỚI]
             'user_id': user_id
         }, room=f"group_{group_id}", include_self=False)

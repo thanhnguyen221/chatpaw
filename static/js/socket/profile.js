@@ -1,11 +1,112 @@
 // app/static/js/profile.js
-
 // ==================== CÁC HÀM TOÀN CỤC ====================
 
 let likeProcessing = false;
 let commentProcessing = false;
 let postProcessing = false;
+let socket;
 
+function initializeSocket() {
+    try {
+        // Sử dụng socket toàn cục đã được khởi tạo từ profile.html
+        if (window.socket && window.socket.connected) {
+            socket = window.socket;
+            console.log('Using global socket instance');
+        } else {
+            // Fallback: tạo socket mới
+            socket = io();
+            console.log('Created new socket instance');
+        }
+        
+        setupSocketEvents();
+    } catch (error) {
+        console.error('Failed to initialize socket:', error);
+        // Không hiển thị lỗi cho người dùng, chỉ log
+    }
+}
+/**
+ * Khởi tạo profile editor với debug
+ */
+function initializeProfileEditorWithDebug() {
+    console.log('🔧 [DEBUG] Initializing profile editor...');
+    
+    try {
+        // Kiểm tra xem modal có tồn tại không
+        const editProfileModal = document.getElementById('edit-profile-modal');
+        const editProfileBtn = document.getElementById('edit-profile-btn');
+        
+        console.log('🔧 [DEBUG] Edit profile modal exists:', !!editProfileModal);
+        console.log('🔧 [DEBUG] Edit profile button exists:', !!editProfileBtn);
+        
+        if (editProfileModal && editProfileBtn) {
+            // Khởi tạo ProfileEditor
+            if (typeof ProfileEditor !== 'undefined' && !window.profileEditor) {
+                window.profileEditor = new ProfileEditor();
+                console.log('✅ [DEBUG] Profile Editor initialized successfully');
+            } else {
+                console.log('⚠️ [DEBUG] Profile Editor already initialized or not defined');
+            }
+        } else {
+            console.warn('⚠️ [DEBUG] Required elements for profile editor not found');
+            
+            // Fallback: gắn sự kiện trực tiếp nếu cần
+            if (editProfileBtn && !editProfileBtn.hasAttribute('data-listener-attached')) {
+                editProfileBtn.setAttribute('data-listener-attached', 'true');
+                editProfileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('Edit profile clicked, but editor not available');
+                    alert('Tính năng chỉnh sửa profile đang được cập nhật. Vui lòng thử lại sau.');
+                });
+            }
+        }
+    } catch (error) {
+        console.error('❌ [DEBUG] Error initializing profile editor:', error);
+    }
+}
+
+// Thiết lập socket events
+function setupSocketEvents() {
+    if (!socket) return;
+
+    socket.on('connect', () => {
+        console.log('Connected to server');
+        // Load số lượng lời mời khi kết nối
+        updateFriendRequestsBadge();
+    });
+
+    socket.on('new_friend_request', (data) => {
+        updateFriendRequestsBadge(); // Cập nhật badge khi có lời mời mới
+    });
+
+    socket.on('friend_request_accepted', (data) => {
+        updateFriendRequestsBadge(); // Cập nhật badge sau khi chấp nhận
+    });
+
+    socket.on('friend_request_declined', (data) => {
+        updateFriendRequestsBadge(); // Cập nhật badge sau khi từ chối
+    });
+}
+
+// Hàm cập nhật badge (toàn cục)
+async function updateFriendRequestsBadge() {
+    try {
+        const response = await fetch('/friend_requests_count');
+        if (response.ok) {
+            const data = await response.json();
+            const badge = document.getElementById('friend-requests-nav-badge');
+            if (badge) {
+                if (data.count > 0) {
+                    badge.textContent = data.count;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error updating friend requests badge:', error);
+    }
+}
 /**
  * Hiển thị thông báo
  */
@@ -306,7 +407,187 @@ function changeCoverPhoto() {
         window.profileManager.coverUploadInput.click();
     }
 }
+// ===== SIDE NAVIGATION =====
+class SideNavigation {
+    constructor() {
+        this.sideNav = document.getElementById('side-nav');
+        this.navToggle = document.getElementById('nav-toggle');
+        this.navOverlay = document.getElementById('nav-overlay');
+        this.isMobile = window.innerWidth <= 768;
+        
+        if (this.sideNav) {
+            this.init();
+        }
+    }
 
+    init() {
+        console.log('Initializing side navigation...');
+        this.setupEventListeners();
+        this.loadFriendRequestsCount(); // Tải số lượng lời mời khi khởi tạo
+    }
+
+    // THÊM HÀM NÀY - Tải số lượng lời mời kết bạn
+    async loadFriendRequestsCount() {
+        try {
+            const response = await fetch('/friend_requests_count');
+            if (response.ok) {
+                const data = await response.json();
+                this.updateFriendRequestsBadge(data.count || 0);
+            }
+        } catch (error) {
+            console.error('Error loading friend requests count:', error);
+        }
+    }
+
+    // THÊM HÀM NÀY - Cập nhật badge
+    updateFriendRequestsBadge(count) {
+        const badge = document.getElementById('friend-requests-nav-badge');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+
+    setupEventListeners() {
+        // Toggle menu trên mobile
+        if (this.navToggle) {
+            this.navToggle.addEventListener('click', () => this.toggleMenu());
+        }
+
+        // Đóng menu khi click overlay
+        if (this.navOverlay) {
+            this.navOverlay.addEventListener('click', () => this.closeMenu());
+        }
+
+        // Xử lý resize window
+        window.addEventListener('resize', () => this.handleResize());
+    }
+
+    toggleMenu() {
+        if (this.isMobile) {
+            this.sideNav.classList.toggle('active');
+            this.navOverlay.classList.toggle('active');
+            document.body.classList.toggle('side-nav-open');
+        } else {
+            this.sideNav.classList.toggle('active');
+            document.body.classList.toggle('side-nav-open');
+        }
+    }
+
+    openMenu() {
+        this.sideNav.classList.add('active');
+        if (this.isMobile) {
+            this.navOverlay.classList.add('active');
+        }
+        document.body.classList.add('side-nav-open');
+    }
+
+    closeMenu() {
+        this.sideNav.classList.remove('active');
+        if (this.isMobile) {
+            this.navOverlay.classList.remove('active');
+        }
+        document.body.classList.remove('side-nav-open');
+    }
+
+    handleResize() {
+        this.isMobile = window.innerWidth <= 768;
+        
+        if (!this.isMobile) {
+            this.navOverlay.classList.remove('active');
+        } else {
+            this.closeMenu();
+        }
+    }
+
+    updateFriendRequestsBadge(count) {
+        const badge = document.getElementById('friend-requests-nav-badge');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+}
+
+// Khởi tạo side navigation
+let sideNavigation = null;
+
+// Thêm vào file profile.js hoặc trong thẻ script
+
+// Side Navigation Functions cho profile page
+function initializeSideNavigation() {
+    const sideNav = document.getElementById('side-nav');
+    const navToggle = document.getElementById('nav-toggle');
+    const navOverlay = document.getElementById('nav-overlay');
+    const isMobile = window.innerWidth <= 768;
+
+    if (!sideNav) return;
+
+    // Toggle menu chỉ dành cho mobile
+    if (navToggle) {
+        navToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMenu();
+        });
+    }
+
+    // Close menu when clicking overlay (mobile only)
+    if (navOverlay) {
+        navOverlay.addEventListener('click', () => closeMenu());
+    }
+
+    // Close menu when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+        if (isMobile && sideNav.classList.contains('active') && 
+            !sideNav.contains(e.target) && e.target !== navToggle) {
+            closeMenu();
+        }
+    });
+
+    // Handle resize
+    window.addEventListener('resize', handleResize);
+
+    function toggleMenu() {
+        if (isMobile) {
+            sideNav.classList.toggle('active');
+            navOverlay.classList.toggle('active');
+            document.body.classList.toggle('side-nav-open');
+        }
+        // Trên desktop không cần toggle bằng click
+    }
+
+    function closeMenu() {
+        if (isMobile) {
+            sideNav.classList.remove('active');
+            navOverlay.classList.remove('active');
+            document.body.classList.remove('side-nav-open');
+        }
+    }
+
+    function handleResize() {
+        const newIsMobile = window.innerWidth <= 768;
+        if (newIsMobile && !isMobile) {
+            // Switching to mobile - ensure menu is closed
+            closeMenu();
+        }
+    }
+    updateFriendRequestsBadge();
+}
+
+// Gọi hàm khởi tạo khi trang load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeSideNavigation();
+    
+    // Các hàm khởi tạo khác của profile page...
+});
 // ==================== CLASS PROFILE MANAGER ====================
 
 class ProfileManager {
@@ -789,62 +1070,122 @@ class ProfileManager {
         }
     }
 }
-
-// ==================== KHỞI TẠO ỨNG DỤNG ====================
-
 /**
- * Khởi tạo tất cả event listeners cho trang profile
+ * Xử lý nút trở về trang của tôi
+ */
+function handleBackToMyProfile() {
+    console.log('Back to my profile button clicked');
+    
+    // Lấy current user ID từ data attribute
+    const profileContainer = document.querySelector('.profile-container');
+    const currentUserId = profileContainer ? profileContainer.dataset.currentUserId : null;
+    
+    if (currentUserId) {
+        // Chuyển hướng đến profile của chính mình bằng ID
+        window.location.href = `/get_my_profile_url`;
+    } else {
+        // Fallback: quay lại trang chat
+        console.log('No current user ID found, redirecting to chat');
+        window.location.href = '/chat';
+    }
+}
+/**
+ * Khởi tạo nút trở về - HÀM MỚI
+ */
+function initializeBackButton() {
+    const backToMyProfileBtn = document.getElementById('back-to-my-profile-btn');
+    
+    if (backToMyProfileBtn) {
+        backToMyProfileBtn.addEventListener('click', handleBackToMyProfile);
+        console.log('Back button initialized successfully');
+    }
+}
+// ==================== KHỞI TẠO ỨNG DỤNG ====================
+/**
+ * Khởi tạo tất cả event listeners cho trang profile - PHIÊN BẢN ĐÃ SỬA
  */
 /**
- * Khởi tạo tất cả event listeners cho trang profile - ĐÃ SỬA
+ * Khởi tạo tất cả event listeners cho trang profile - PHIÊN BẢN ĐÃ SỬA
  */
 function initializeProfilePage() {
-    console.log('Initializing profile page...');
+    console.log('🎯 Initializing profile page...');
     
-    // Lấy user ID chính xác
-    const profileContainer = document.querySelector('.profile-container');
-    if (!profileContainer) {
-        console.error('Profile container not found');
-        return;
-    }
-    
-    const userId = profileContainer.dataset.userId;
-    console.log('Profile user ID:', userId);
-    
-    if (!userId) {
-        console.error('Cannot determine user ID');
-        return;
-    }
-    
-    // Khởi tạo carousels
-    initializeCarousels();
-    
-    // Tải bạn bè và ảnh - ĐÃ SỬA: chỉ gọi một lần
-    loadUserFriends(userId);
-    loadRecentPhotos(userId);
-    
-    // Ẩn tất cả sections bình luận
-    document.querySelectorAll('.comments-section').forEach(section => {
-        if (section.style.display !== 'none') {
-            section.style.display = 'none';
+    try {
+        // 1. Khởi tạo socket (không bắt buộc)
+        try {
+            initializeSocket();
+        } catch (socketError) {
+            console.warn('Socket initialization failed, continuing without socket:', socketError);
         }
-    });
-    
-    // Khởi tạo các listeners khác
-    initializePostEditDeleteListeners();
-    
-    // Initialize profile editor (chỉ cho chủ profile)
-    const currentUserId = '{{ current_user_id }}'; // Đảm bảo biến này được truyền từ template
-    if (userId === currentUserId) {
-        initializeProfileEditor();
+        
+        // 2. Khởi tạo side navigation đầu tiên
+        initializeSideNavigation();
+        
+        // 3. Lấy user ID chính xác
+        const profileContainer = document.querySelector('.profile-container');
+        if (!profileContainer) {
+            console.error('❌ Profile container not found');
+            return;
+        }
+        
+        const userId = profileContainer.dataset.userId;
+        const currentUserId = profileContainer.dataset.currentUserId;
+        
+        console.log('👤 Profile user ID:', userId);
+        console.log('🔐 Current user ID:', currentUserId);
+        
+        if (!userId || !currentUserId) {
+            console.error('❌ Cannot determine user IDs');
+            return;
+        }
+        
+        // 4. Nếu đang xem profile của người khác, gắn listeners cho nút bạn bè
+        if (userId !== currentUserId) {
+            attachFriendActionListeners(userId);
+        }
+        
+        // 5. Khởi tạo carousels
+        initializeCarousels();
+        
+        // 6. CHỈ TẢI BẠN BÈ VÀ ẢNH CHO CHÍNH NGƯỜI DÙNG
+        if (userId === currentUserId) {
+            console.log('💼 Loading data for own profile');
+            loadUserFriends(userId);
+            loadRecentPhotos(userId);
+            
+            // QUAN TRỌNG: Khởi tạo profile editor với debug
+            console.log('🔧 Initializing profile editor for current user...');
+            setTimeout(() => {
+                initializeProfileEditorWithDebug();
+            }, 500); // Delay để đảm bảo DOM đã sẵn sàng
+        } else {
+            console.log('👀 Viewing other user profile, loading limited data');
+            loadRecentPhotos(userId);
+        }
+        
+        // 7. Ẩn tất cả sections bình luận
+        document.querySelectorAll('.comments-section').forEach(section => {
+            if (section.style.display !== 'none') {
+                section.style.display = 'none';
+            }
+        });
+        
+        // 8. Khởi tạo các listeners khác
+        initializePostEditDeleteListeners();
+        
+        // 9. Gắn sự kiện cho các nút tương tác
+        attachPostInteractionListeners();
+        
+        // 10. Khởi tạo nút back (nếu có)
+        initializeBackButton();
+        
+        console.log('✅ Profile page initialization completed');
+        
+    } catch (error) {
+        console.error('❌ Error initializing profile page:', error);
+        showNotification('Lỗi khi tải trang. Vui lòng tải lại trang.', 'error');
     }
-    
-    // Gắn sự kiện cho các nút tương tác
-    attachPostInteractionListeners();
-    
-    console.log('Profile page initialization completed');
 }
-
 /**
  * Gắn sự kiện cho like, comment - ĐÃ SỬA
  */
@@ -1207,19 +1548,54 @@ function initializePostEditDeleteListeners() {
 
 // ==================== FRIENDS & PHOTOS FUNCTIONS ====================
 /**
- * Tải danh sách bạn bè - ĐÃ SỬA
+ * Tải danh sách bạn bè - ĐÃ SỬA (SỬA LẠI HOÀN TOÀN)
  */
 async function loadUserFriends(userId) {
     try {
         const friendsGrid = document.getElementById('friends-grid');
         const viewAllBtn = document.getElementById('view-all-friends-btn');
+        const friendsCount = document.getElementById('friends-count');
         
         if (!friendsGrid) {
             console.warn('Friends grid element not found');
             return;
         }
 
-        console.log('Loading friends for user:', userId);
+        // LẤY CURRENT USER ID TỪ DATA ATTRIBUTE
+        const profileContainer = document.querySelector('.profile-container');
+        const currentUserId = profileContainer ? profileContainer.dataset.currentUserId : null;
+        
+        console.log('Current user ID:', currentUserId);
+        console.log('Profile user ID:', userId);
+
+        // CHỈ TẢI BẠN BÈ NẾU LÀ CHÍNH CHỦ NHÂN
+        if (userId !== currentUserId) {
+            console.log('Not profile owner, showing restricted message');
+            
+            // Hiển thị thông báo thay vì bạn bè
+            friendsGrid.innerHTML = `
+                <div class="friends-restricted">
+                    <div class="restricted-message">
+                        <i class="fas fa-lock"></i>
+                        <p>Chỉ hiển thị với chủ nhân trang cá nhân</p>
+                    </div>
+                </div>
+            `;
+            
+            // Ẩn nút xem tất cả
+            if (viewAllBtn) {
+                viewAllBtn.style.display = 'none';
+            }
+            
+            // Cập nhật số lượng bạn bè thành ẩn
+            if (friendsCount) {
+                friendsCount.textContent = 'Đã ẩn';
+            }
+            
+            return;
+        }
+
+        console.log('Loading friends for current user:', userId);
         
         // Hiển thị loading
         friendsGrid.innerHTML = `
@@ -1240,23 +1616,212 @@ async function loadUserFriends(userId) {
         console.log('Friends API response:', result);
 
         if (result.success && result.friends && result.friends.length > 0) {
-            // SỬA: Hiển thị trực tiếp bạn bè từ API, không cần verify lại
             displayFriends(result.friends);
+            
+            // Cập nhật số lượng bạn bè
+            if (friendsCount) {
+                friendsCount.textContent = `${result.friends.length} người bạn`;
+            }
             
             // Hiển thị nút xem tất cả nếu có nhiều hơn 6 bạn
             if (viewAllBtn && result.friends.length > 6) {
                 viewAllBtn.style.display = 'block';
             }
             
-            console.log(`Displayed ${result.friends.length} friends`);
+            console.log(`Displayed ${result.friends.length} friends for user ${userId}`);
         } else {
             console.log('No friends found or API error');
             showNoFriends();
+            // Cập nhật số lượng bạn bè
+            if (friendsCount) {
+                friendsCount.textContent = '0 người bạn';
+            }
         }
     } catch (error) {
         console.error('Error loading friends:', error);
-        showNoFriends();
-        showNotification('Lỗi khi tải danh sách bạn bè', 'error');
+        showFriendsError('Lỗi khi tải danh sách bạn bè');
+    }
+}
+/**
+ * Thêm hàm xử lý kết bạn
+ */
+async function handleAddFriend(targetUserId) {
+    try {
+        console.log('Sending friend request to:', targetUserId);
+        
+        const response = await fetch('/send_friend_request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                target_user_id: targetUserId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Cập nhật UI tạm thời
+            updateFriendButtonUI(targetUserId, 'pending');
+            showNotification('Đã gửi lời mời kết bạn', 'success');
+        } else {
+            showNotification(result.error || 'Lỗi khi gửi lời mời kết bạn', 'error');
+        }
+    } catch (error) {
+        console.error('Error sending friend request:', error);
+        showNotification('Lỗi kết nối khi gửi lời mời kết bạn', 'error');
+    }
+}
+/**
+ * Xử lý hủy kết bạn
+ */
+async function handleUnfriend(targetUserId) {
+    if (!confirm('Bạn có chắc chắn muốn hủy kết bạn với người này?')) {
+        return;
+    }
+    
+    try {
+        console.log('Unfriending user:', targetUserId);
+        
+        const response = await fetch('/unfriend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                friend_id: targetUserId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Cập nhật UI sau khi hủy kết bạn
+            updateFriendButtonUI(targetUserId, 'not_friend');
+            showNotification('Đã hủy kết bạn thành công', 'success');
+            
+            // Có thể reload trang để cập nhật danh sách bạn bè
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification(result.error || 'Lỗi khi hủy kết bạn', 'error');
+        }
+    } catch (error) {
+        console.error('Error unfriending:', error);
+        showNotification('Lỗi kết nối khi hủy kết bạn', 'error');
+    }
+}
+
+/**
+ * Cập nhật UI nút bạn bè sau khi hủy kết bạn
+ */
+function updateFriendButtonUI(targetUserId, status) {
+    const friendActions = document.querySelector('.friend-actions');
+    if (!friendActions) return;
+    
+    switch(status) {
+        case 'pending':
+            friendActions.innerHTML = `
+                <button class="btn btn-outline" disabled>
+                    <i class="fas fa-clock"></i>
+                    Đã gửi lời mời
+                </button>
+                <button class="btn btn-outline" id="send-message-btn">
+                    <i class="fas fa-paper-plane"></i>
+                    Nhắn tin
+                </button>
+                <button class="btn btn-outline" id="more-actions-btn">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            `;
+            break;
+        case 'friend':
+            friendActions.innerHTML = `
+                <button class="btn btn-outline" id="send-message-btn">
+                    <i class="fas fa-paper-plane"></i>
+                    Nhắn tin
+                </button>
+                <button class="btn btn-outline" id="unfriend-btn">
+                    <i class="fas fa-user-times"></i>
+                    Hủy kết bạn
+                </button>
+                <button class="btn btn-outline" id="more-actions-btn">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            `;
+            break;
+        case 'not_friend':
+            friendActions.innerHTML = `
+                <button class="btn btn-primary" id="add-friend-btn">
+                <i class="fi fi-rr-users-add"></i>
+                    Kết bạn
+                </button>
+                <button class="btn btn-outline" id="send-message-btn">
+                    <i class="fas fa-paper-plane"></i>
+                    Nhắn tin
+                </button>
+                <button class="btn btn-outline" id="more-actions-btn">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            `;
+            break;
+    }
+    
+    // Gắn lại event listeners
+    attachFriendActionListeners(targetUserId);
+}
+
+/**
+ * Gắn sự kiện cho các nút hành động bạn bè - ĐÃ CẬP NHẬT
+ */
+/**
+ * Gắn sự kiện cho các nút hành động bạn bè - PHIÊN BẢN EVENT DELEGATION
+ */
+function attachFriendActionListeners(targetUserId) {
+    console.log('Attaching friend action listeners for user:', targetUserId);
+    
+    // SỬ DỤNG EVENT DELEGATION - CHỈ GẮN 1 LẦN
+    const friendActions = document.querySelector('.friend-actions');
+    if (!friendActions) return;
+    
+    // XÓA SỰ KIỆN CŨ VÀ GẮN LẠI
+    friendActions.replaceWith(friendActions.cloneNode(true));
+    const newFriendActions = document.querySelector('.friend-actions');
+    
+    newFriendActions.addEventListener('click', (e) => {
+        const target = e.target;
+        
+        if (target.id === 'add-friend-btn' || target.closest('#add-friend-btn')) {
+            e.preventDefault();
+            handleAddFriend(targetUserId);
+        }
+        else if (target.id === 'unfriend-btn' || target.closest('#unfriend-btn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleUnfriend(targetUserId);
+        }
+        else if (target.id === 'send-message-btn' || target.closest('#send-message-btn')) {
+            e.preventDefault();
+            sendMessageToFriend(targetUserId);
+        }
+    });
+    
+    // XỬ LÝ NÚT BACK RIÊNG
+    const backToMyProfileBtn = document.getElementById('back-to-my-profile-btn');
+    if (backToMyProfileBtn) {
+        backToMyProfileBtn.replaceWith(backToMyProfileBtn.cloneNode(true));
+        const newBackBtn = document.getElementById('back-to-my-profile-btn');
+        newBackBtn.addEventListener('click', handleBackToMyProfile);
     }
 }
 /**
@@ -2557,6 +3122,10 @@ window.viewerNavigatePrev = viewerPrev;
 window.viewerNavigateNext = viewerNext;
 window.downloadViewerMedia = downloadCurrentMedia;
 window.openMediaViewer = openMediaViewer;
+// Thêm các hàm mới
+window.handleUnfriend = handleUnfriend;
+window.handleAddFriend = handleAddFriend;
+window.updateFriendButtonUI = updateFriendButtonUI;
 // Giữ nguyên các exports khác
 window.ProfileManager = ProfileManager;
 window.likePost = likePost;
@@ -2573,5 +3142,13 @@ window.initializeProfileEditor = initializeProfileEditor;
 window.carouselPrev = carouselPrev;
 window.carouselNext = carouselNext;
 window.carouselGoTo = carouselGoTo;
-
 console.log('Profile JS loaded successfully');
+// Export functions
+window.SideNavigation = SideNavigation;
+window.initializeSideNavigation = initializeSideNavigation;
+
+// Khởi tạo khi DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded, initializing side navigation...');
+    initializeSideNavigation();
+});

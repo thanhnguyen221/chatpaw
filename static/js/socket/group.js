@@ -9,6 +9,9 @@ const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-gro
 let currentGroupId = null;
 let groupClickHandlerAttached = false; 
 let groupContextMenuAttached = false; 
+// Nhớ những group đang có cuộc gọi đang hoạt động
+const activeGroupCalls = new Set();
+
 
 function resetPrivateChat() {
   // QUAN TRỌNG: Chỉ reset nếu đang có conversation private
@@ -50,16 +53,23 @@ export function setupGroupSocketEvents() {
       setTimeout(() => toast.remove(), 3000);
   });
 
-  // [MỚI] Đổi trạng thái nút Gọi thành "Tham gia" nếu cuộc gọi đang diễn ra
+    // Đổi trạng thái nút Gọi ⇄ Tham gia khi server báo trạng thái phòng
   socket.on('call:status_update', (data) => {
-      // Chỉ đổi nếu đang mở đúng nhóm đó
-      if (currentGroupId && String(currentGroupId) === String(data.conversation_id)) {
-          // Hàm updateCallButtonState cần được định nghĩa hoặc import trong group.js
-          if (typeof updateCallButtonState === 'function') {
-            updateCallButtonState(data.is_active);
-          }
+      const convId = String(data.conversation_id);
+
+      // Cập nhật tập group đang có call
+      if (data.is_active) {
+          activeGroupCalls.add(convId);
+      } else {
+          activeGroupCalls.delete(convId);
+      }
+
+      // Nếu đang mở đúng group đó thì cập nhật nút ngay
+      if (currentGroupId && String(currentGroupId) === convId) {
+          updateCallButtonState(!!data.is_active);
       }
   });
+
 
   // Trong setupGroupSocketEvents
   socket.on('user_left_group', (data) => {
@@ -450,76 +460,128 @@ function openManageGroupModal(groupId) {
     });
 }
 
+// ============================================================
+// HÀM MỞ CHAT NHÓM (CẬP NHẬT FULL)
+// ============================================================
 export function openGroupChat(groupId, groupName) {
   console.log(`[Group] Opening group chat: ${groupId}`);
-  
-  // Nếu đang mở đúng group rồi thì thôi
+
+  // 1. XỬ LÝ GIAO DIỆN (UI) - QUAN TRỌNG NHẤT
+  // Hiện thanh nhập liệu (xóa class hidden)
+  const inputArea = document.querySelector('.message-input');
+  if (inputArea) inputArea.classList.remove('hidden');
+
+  // Ẩn màn hình chào mừng
+  const welcomeScreen = document.getElementById('welcome-screen');
+  if (welcomeScreen) welcomeScreen.style.display = 'none';
+
+  // Ẩn màn hình loading cũ (nếu có)
+  const animationScreen = document.getElementById('animation-screen');
+  if (animationScreen) animationScreen.style.display = 'none';
+
+  // 2. CHECK TRẠNG THÁI (Tránh load lại nếu đang ở đúng group)
   if (currentGroupId && String(currentGroupId) === String(groupId)) {
     console.log(`[Group] Group ${groupId} is already open, skipping...`);
     return;
   }
-  
-  // Reset chat cá nhân trước khi vào group
-  resetPrivateChat();
-  
+
+  // 3. RESET CHAT CÁ NHÂN & CẬP NHẬT STATE
+  // Hàm này đảm bảo clear các biến của chat 1-1
+  if (typeof resetPrivateChat === 'function') {
+      resetPrivateChat(); 
+  } else if (window.chatModule && window.chatModule.resetCurrentConversation) {
+      window.chatModule.resetCurrentConversation();
+  }
+
+  // Cập nhật biến toàn cục
   currentGroupId = groupId;
-  
-  // Set conversation cho file sharing
+  window.currentGroupId = groupId; 
+
+  // Cập nhật context cho Input (để gửi tin nhắn đúng chỗ)
   if (typeof setCurrentConversation === 'function') {
     setCurrentConversation(groupId, 'group');
   }
-
-  // UI: ẩn màn hình animation, show khung messages
-  const header = document.querySelector('.chat-header');
-  const animationScreen = document.getElementById('animation-screen');
-  const messagesDiv = document.getElementById('messages');
   
-  if (animationScreen) {
-    animationScreen.style.display = 'none';
+  // Cập nhật context cho Call (để gọi video đúng chỗ)
+  if (window.setCurrentConversationForCall) {
+    window.setCurrentConversationForCall(groupId, 'group');
   }
-  
+
+  // 4. RESET KHUNG TIN NHẮN
+  const messagesDiv = document.getElementById('messages');
   if (messagesDiv) {
     messagesDiv.style.display = 'block';
-    messagesDiv.innerHTML = '<div class="loading">Đang tải tin nhắn...</div>';
+    // Hiện loading tạm thời
+    messagesDiv.innerHTML = '<div class="loading" style="padding: 20px; text-align: center; color: #888; margin-top: 20px;">Đang tải tin nhắn nhóm...</div>';
   }
 
-  // Header tạm thời
+  // 5. CẬP NHẬT HEADER NHÓM
+  const header = document.querySelector('.chat-header');
   if (header) {
+    // Escape tên nhóm để tránh lỗi HTML
+    const safeGroupName = escapeHtml(groupName);
+    const avatarSrc = window.defaultGroupAvatar || '/static/img/default-group.png';
+
     header.innerHTML = `
-      <div class="group-header">
-        <img src="${defaultGroupAvatar}" 
-            alt="${groupName}" 
-            class="group-avatar-small">
+      <div class="group-header" style="display: flex; align-items: center; gap: 10px;">
+        <img src="${avatarSrc}" alt="${safeGroupName}" class="group-avatar-small" 
+             style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #eee;">
         <div class="group-name-wrap">
-          <h2 title="${escapeHtml(groupName)}">${escapeHtml(groupName)}</h2>
+          <h2 title="${safeGroupName}" style="margin: 0; font-size: 16px; font-weight: 600;">${safeGroupName}</h2>
+          <span style="font-size: 12px; color: #666;">Thành viên nhóm</span>
         </div>
       </div>
-      <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
-        <i class="fi fi-br-bars-staggered"></i>
-      </button>
+      
+      <div class="header-actions" style="display: flex; gap: 15px; align-items: center;">
+        <button id="btn-group-call" class="btn-icon" title="Gọi video nhóm" 
+                style="border: none; background: none; font-size: 18px; cursor: pointer; color: #555;">
+            <i class="fas fa-video"></i>
+        </button>
+        <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm" 
+                style="border: none; background: none; font-size: 18px; cursor: pointer; color: #555;">
+            <i class="fi fi-br-bars-staggered"></i>
+        </button>
+      </div>
     `;
     
+    // Gắn sự kiện nút Quản lý
     const manageBtn = document.getElementById('manage-group-btn');
     if (manageBtn) {
       manageBtn.addEventListener('click', () => {
         openManageGroupModal(groupId);
       });
     }
+
+    // Gắn sự kiện nút Gọi
+    const callBtn = document.getElementById('btn-group-call');
+    if (callBtn) {
+        callBtn.addEventListener('click', () => {
+            if (window.startGroupCall) {
+                window.startGroupCall(groupId, 'group');
+            } else {
+                alert('Chức năng gọi đang tải...');
+            }
+        });
+    }
   }
 
-  // Join group room
-  console.log(`[Group] Joining group: ${groupId}`);
-  socket.emit('join_group', { group_id: groupId });
+  // 6. SOCKET JOIN GROUP ROOM
+  console.log(`[Group] Joining group room: ${groupId}`);
+  if (socket) {
+      socket.emit('join_group', { group_id: groupId });
+  }
 
-  // Gắn context menu cho message group (chỉ 1 lần nhờ flag)
-  setupGroupMessageContextMenu();
+  // 7. SETUP TÍNH NĂNG KHÁC (Context Menu, Pin)
+  setupGroupMessageContextMenu(); // Menu chuột phải
+  loadGroupPinnedMessage(groupId); // Tin nhắn ghim
 
-  // Load tin nhắn ghim 1 lần duy nhất
-  console.log(`[Group] Loading pinned message for group: ${groupId}`);
-  loadGroupPinnedMessage(groupId);
-
-  // Load dữ liệu chi tiết (info + messages) tuần tự
+  // 8. LOAD DỮ LIỆU CHÍNH (Info chi tiết + Messages)
   loadGroupDataSequentially(groupId, groupName);
+  
+  // 9. HIGHLIGHT SIDEBAR (Đổi màu item đang chọn)
+  document.querySelectorAll('.group-item').forEach(el => el.classList.remove('active'));
+  const activeItem = document.querySelector(`.group-item[data-group-id="${groupId}"]`);
+  if (activeItem) activeItem.classList.add('active');
 }
 
 
@@ -573,12 +635,15 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
         <img src="${displayAvatar}" alt="${groupName}" class="group-avatar-small">
         <div class="group-name-wrap">
           <h2 title="${escapeHtml(groupName)}">${escapeHtml(groupName)}</h2>
-          <span style="font-size: 0.8rem; color: #888;">${groupInfo.members ? groupInfo.members.length : 0} thành viên</span>
+          <span style="font-size: 0.8rem; color: #888;">
+            ${groupInfo.members ? groupInfo.members.length : 0} thành viên
+          </span>
         </div>
       </div>
       
       <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
-          <button id="btn-group-call" class="btn-icon" title="Gọi nhóm" style="font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;">
+          <button id="btn-group-call" class="btn-icon" title="Gọi nhóm"
+                  style="font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;">
             <i class="fas fa-video"></i>
           </button>
 
@@ -591,24 +656,58 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
     // 2. GẮN SỰ KIỆN CHO NÚT GỌI
     const btnCall = document.getElementById('btn-group-call');
     if (btnCall) {
-        btnCall.addEventListener('click', () => {
-            console.log("[Group] Bấm nút gọi nhóm:", groupId);
+        // Mặc định
+        btnCall.dataset.callActive = "0";
 
-            // Gửi thông báo mời cho mọi người trong nhóm
-            socket.emit('call:invite_group', { 
-                conversation_id: groupId, 
-                conversation_type: 'group' 
-            });
-            
-            // Gọi hàm mở Overlay (Hàm này nằm bên file group_call.js và đã được gán vào window)
-            if (window.startGroupCall) {
-    window.startGroupCall(groupId, 'group');
-} else {
-
-                console.error("Lỗi: Không tìm thấy hàm window.startGroupCall. Hãy kiểm tra file group_call.js");
-                alert("Chưa tải được chức năng gọi video.");
+        // 🔥 HỎI SERVER XEM HIỆN TẠI GROUP NÀY CÓ CALL HAY KHÔNG
+        socket.emit('call:get_status', { conversation_id: groupId }, (res) => {
+            if (res && res.ok) {
+                if (res.is_active) {
+                    activeGroupCalls.add(String(groupId));
+                } else {
+                    activeGroupCalls.delete(String(groupId));
+                }
+                updateCallButtonState(!!res.is_active);
+            } else {
+                // nếu lỗi thì vẫn giữ trạng thái default (icon camera)
+                updateCallButtonState(false);
             }
         });
+
+        btnCall.addEventListener('click', () => {
+            const isActive = btnCall.dataset.callActive === "1";
+            console.log("[Group] Bấm nút gọi nhóm:", groupId, "state:", isActive ? "JOIN" : "CALL");
+
+            if (isActive) {
+                // Đang có call -> Tham gia
+                if (window.startGroupCall) {
+                    window.startGroupCall(groupId, 'group');
+                } else {
+                    console.error("Lỗi: Không tìm thấy hàm window.startGroupCall.");
+                    alert("Chưa tải được chức năng gọi video.");
+                }
+            } else {
+                // Chưa có call -> Mời cả nhóm + tự vào call
+                socket.emit('call:invite_group', {
+                    conversation_id: groupId,
+                    conversation_type: 'group'
+                });
+
+                if (window.startGroupCall) {
+                    window.startGroupCall(groupId, 'group');
+                } else {
+                    console.error("Lỗi: Không tìm thấy hàm window.startGroupCall.");
+                    alert("Chưa tải được chức năng gọi video.");
+                }
+            }
+        });
+
+        // fallback nếu trước đó server đã báo group này đang có call
+        if (activeGroupCalls.has(String(groupId))) {
+            updateCallButtonState(true);
+        } else {
+            updateCallButtonState(false);
+        }
     }
 
     // 3. GẮN SỰ KIỆN NÚT QUẢN LÝ (Giữ nguyên logic cũ)
@@ -617,6 +716,8 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
         manageBtn.addEventListener('click', () => openManageGroupModal(groupId));
     }
 }
+
+
 
 // THÊM: Hàm hiển thị tin nhắn
 function displayGroupMessages(messagesData) {
@@ -666,8 +767,15 @@ export function selectGroup(groupId, groupName) {
   }
 
   currentGroupId = groupId;
+  window.currentGroupId = groupId; // 🔥 [QUAN TRỌNG] THÊM DÒNG NÀY
   socket.emit('join_group', { group_id: groupId });
   console.log(`[Group] Tham gia nhóm mới: ${groupId}`);
+
+    // Thông báo cho module call biết đang đứng ở group này
+  if (window.setCurrentConversationForCall) {
+    window.setCurrentConversationForCall(groupId, 'group');
+  }
+
   
   // Cập nhật UI
   const headerH2 = document.querySelector('.chat-header h2');
@@ -931,6 +1039,7 @@ function loadGroupMessages(groupId) {
 export function resetGroupChat() {
   // Chỉ reset state phía client, KHÔNG báo server là rời nhóm
   currentGroupId = null;
+  window.currentGroupId = null; // 🔥 [QUAN TRỌNG] THÊM DÒNG NÀY
 }
 
 
@@ -959,7 +1068,7 @@ function createGroupMessageElement(messageData) {
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
   const timeString = formatTime(messageData.timestamp);
 
-  // 1. XÁC ĐỊNH LOẠI NỘI DUNG
+  // 1. XÁC ĐỊNH LOẠI NỘI DUNG (ĐÃ SỬA: THÊM audio)
   let messageType = messageData.message_type || 'text';
   let parsedContent = messageData.content;
 
@@ -968,7 +1077,8 @@ function createGroupMessageElement(messageData) {
     if (trimmed.startsWith('{')) {
       try {
         const test = JSON.parse(trimmed);
-        if (test && (test.type === 'file' || test.type === 'image')) {
+        // THÊM 'audio' vào điều kiện kiểm tra JSON
+        if (test && (test.type === 'file' || test.type === 'image' || test.type === 'audio')) {
           messageType = test.type;
           parsedContent = test;
         }
@@ -992,6 +1102,7 @@ function createGroupMessageElement(messageData) {
         const qObj = JSON.parse(quoteText);
         if (qObj.type === 'image') quoteText = '📷 [Hình ảnh]';
         else if (qObj.type === 'file') quoteText = `📎 [File] ${qObj.name || ''}`;
+        else if (qObj.type === 'audio') quoteText = '🎤 [Tin nhắn thoại]'; // THÊM AUDIO PREVIEW
       } else {
         const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
         if (stickerCodes.includes(quoteText)) {
@@ -1015,7 +1126,7 @@ function createGroupMessageElement(messageData) {
     `;
   }
 
-  // 3. NỘI DUNG CHÍNH
+  // 3. NỘI DUNG CHÍNH (ĐÃ SỬA: THÊM audio)
   let messageContent = '';
 
   if (messageType === 'file') {
@@ -1052,6 +1163,21 @@ function createGroupMessageElement(messageData) {
         </div>
       </div>
     `;
+  } else if (messageType === 'audio') { // KHỐI CODE MỚI CHO AUDIO MESSAGE
+    const audioInfo = parsedContent || {};
+    const audioUrl = audioInfo.url || '';
+    const audioName = audioInfo.name || 'Tin nhắn thoại';
+    messageContent = `
+      <div class="audio-message">
+        <div class="audio-info">
+          <i class="fas fa-microphone"></i> ${escapeHtml(audioName)}
+        </div>
+        ${audioUrl ? 
+            `<audio controls src="${audioUrl}" class="voice-audio"></audio>` 
+            : '<span>Không tìm thấy file audio</span>'
+        }
+      </div>
+    `;
   } else if (messageType === 'sticker') {
     messageContent = `
       <div class="sticker-message">${getStickerHTML(messageData.content)}</div>
@@ -1061,8 +1187,69 @@ function createGroupMessageElement(messageData) {
       <div class="message-text">${escapeHtml(messageData.content || '')}</div>
     `;
   }
+  // 🔥 [CẬP NHẬT] LOGIC HỘP QUÀ THÔNG MINH
+  if (messageData.gift_style) {
+    // Kiểm tra trạng thái từ server (nếu tin mới gửi thì mặc định là chưa mở)
+    const isOpenClass = messageData.is_gift_open ? 'is-open' : '';
+    
+    messageContent = `
+      <div class="gift-wrap gift-style-${messageData.gift_style} ${isOpenClass}" 
+           onclick="window.handleOpenGift(this, '${msgId}', 'group')">
+        <div class="gift-lid"></div>
+        <div class="gift-content-real">
+          ${messageContent}
+        </div>
+      </div>
+    `;
+  }
+// 🔥 [MỚI 1] XỬ LÝ HIỂN THỊ CÁC CẢM XÚC ĐÃ CÓ - ĐÃ CẬP NHẬT LOGIC SẮP XẾP
+let reactionsHTML = '';
 
-  // 4. LẮP RÁP HTML THEO CẤU TRÚC MỚI (CÓ .message-content + NÚT REPLY)
+// Khai báo các biến cần thiết
+const messageIdReal = messageData.message_id || messageData._id; 
+const conversationType = 'group'; // <-- RẤT QUAN TRỌNG: Loại hội thoại là 'group'
+
+if (messageData.reactions && Object.keys(messageData.reactions).length > 0) {
+    const allReactions = Object.values(messageData.reactions);
+    const totalCount = allReactions.length; // Tổng số lượt thả cảm xúc
+    
+    // 1. Nhóm và Đếm số lượng của từng icon
+    const reactionCounts = {};
+    for (const emoji of allReactions) {
+      reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+    }
+
+    // 2. Sắp xếp các icon theo số lượng giảm dần
+    // Kết quả là mảng: [['❤️', 3], ['👍', 1]]
+    const sortedReactions = Object.entries(reactionCounts).sort(([, countA], [, countB]) => countB - countA);
+
+    let iconsHtml = '';
+    // 3. Chỉ hiển thị tối đa 4 icon phổ biến nhất
+    for (let i = 0; i < Math.min(4, sortedReactions.length); i++) {
+      // sortedReactions[i][0] là icon emoji
+      iconsHtml += sortedReactions[i][0]; 
+    }
+    
+    // 4. Tạo HTML với ONCLICK
+    reactionsHTML = `
+        <div class="message-reactions-display" 
+             onclick="window.viewReactionDetails(event, '${messageIdReal}', '${conversationType}')"> 
+            ${iconsHtml} 
+            <span style="margin-left:3px; color:#555; font-size:10px; font-weight:bold;">${totalCount}</span>
+        </div>
+    `;
+}
+
+  // 🔥 [SỬA] Thêm event.stopPropagation() để không bị dính Reply
+  const reactionTriggerBtn = `
+    <button class="message-action-btn btn-react-trigger" 
+            title="Thả cảm xúc"
+            onclick="event.stopPropagation(); window.showReactionPopup(this.closest('.message-content-wrapper'))">
+        <i class="far fa-smile"></i>
+    </button>
+  `;
+
+  // 4. LẮP RÁP HTML (CẬP NHẬT ĐẦY ĐỦ)
   messageEl.innerHTML = `
     ${!isCurrentUser ? `
       <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
@@ -1077,7 +1264,9 @@ function createGroupMessageElement(messageData) {
           <div class="message-bubble">
             ${replyBlock}
             ${messageContent}
-          </div>
+            
+            ${reactionsHTML}  </div>
+          
           <div class="message-status-container">
             <span class="message-time" title="${messageData.timestamp || ''}">
               ${timeString}
@@ -1086,7 +1275,7 @@ function createGroupMessageElement(messageData) {
         </div>
 
         <div class="message-actions">
-          <button class="message-action-btn reply-btn" title="Trả lời">
+          ${reactionTriggerBtn} <button class="message-action-btn reply-btn" title="Trả lời">
             <i class="fas fa-reply"></i>
           </button>
         </div>
@@ -1104,22 +1293,26 @@ function createGroupMessageElement(messageData) {
 }
 
 
-// ====== HÀM HIỂN THỊ TIN NHẮN NHÓM (ĐỒNG BỘ VỚI PRIVATE + SWIPE/REPLY) ======
+
+// ============================================================
+// HÀM HIỂN THỊ TIN NHẮN NHÓM (FULL VERSION - CHUẨN NHẤT)
+// ============================================================
 function appendGroupMessage(messageData) {
   const messagesContainer = document.getElementById('messages');
   if (!messagesContainer) return;
 
-  // Tin nhắn hệ thống
+  // 1. TIN NHẮN HỆ THỐNG
   if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
     const systemEl = document.createElement('div');
     systemEl.className = 'system-message';
-    systemEl.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
+    systemEl.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px 12px; border-radius: 20px; width: fit-content; margin-left: auto; margin-right: auto; max-width: 80%;';
     systemEl.innerHTML = `<span>${escapeHtml(messageData.content || '')}</span>`;
     messagesContainer.appendChild(systemEl);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
     return;
   }
 
+  // 2. CHUẨN BỊ DỮ LIỆU
   const messageEl = document.createElement('div');
   const myId = window.session?.user_id;
   const isCurrentUser = String(messageData.sender_id) === String(myId);
@@ -1129,13 +1322,13 @@ function appendGroupMessage(messageData) {
   const msgId = messageData.message_id || messageData._id;
   messageEl.dataset.id = msgId;
   messageEl.dataset.messageId = msgId;
-  messageEl.dataset.senderName = messageData.sender_name || '';
+  messageEl.dataset.senderName = messageData.sender_name || 'Thành viên';
   messageEl.dataset.conversationType = 'group';
 
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
-  const timeString = formatTime(messageData.timestamp);
+  const timeString = formatTime(messageData.timestamp); // Đảm bảo bạn có hàm formatTime hoặc dùng moment
 
-  // 1. LOẠI NỘI DUNG
+  // 3. XỬ LÝ LOẠI NỘI DUNG (Content Type)
   let messageType = messageData.message_type || 'text';
   let parsedContent = messageData.content;
 
@@ -1144,12 +1337,12 @@ function appendGroupMessage(messageData) {
     if (trimmed.startsWith('{')) {
       try {
         const test = JSON.parse(trimmed);
-        if (test && (test.type === 'file' || test.type === 'image')) {
+        if (test && (test.type === 'file' || test.type === 'image' || test.type === 'audio')) {
           messageType = test.type;
           parsedContent = test;
         }
       } catch (e) {
-        messageType = 'text';
+        messageType = 'text'; // Fallback nếu parse lỗi
       }
     } else {
       const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
@@ -1157,7 +1350,7 @@ function appendGroupMessage(messageData) {
     }
   }
 
-  // 2. KHUNG TRÍCH DẪN (REPLY)
+  // 4. XỬ LÝ TRÍCH DẪN (Reply Quote)
   let replyBlock = '';
   if (messageData.reply_context) {
     const isMyQuote = String(messageData.reply_context.sender_id) === String(myId);
@@ -1168,20 +1361,22 @@ function appendGroupMessage(messageData) {
         const qObj = JSON.parse(quoteText);
         if (qObj.type === 'image') quoteText = '📷 [Hình ảnh]';
         else if (qObj.type === 'file') quoteText = `📎 [File] ${qObj.name || ''}`;
+        else if (qObj.type === 'audio') quoteText = '🎤 [Tin nhắn thoại]';
       } else {
         const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
-        if (stickerCodes.includes(quoteText)) {
-          quoteText = '😊 [Sticker]';
-        }
+        if (stickerCodes.includes(quoteText)) quoteText = '😊 [Sticker]';
       }
     } catch (e) {}
+
+    // Xử lý Hộp quà trong quote (nếu có)
+    if (quoteText.includes('gift-style')) quoteText = '🎁 [Hộp quà]';
 
     replyBlock = `
       <div class="message-reply-quote" onclick="window.scrollToMessage('${messageData.reply_context.message_id}')">
         <div class="reply-decoration"></div>
         <div class="reply-info">
           <div class="reply-sender">
-            ${isMyQuote ? 'Chính bạn' : (messageData.reply_context.sender_name || 'Unknown')}
+            ${isMyQuote ? 'Chính bạn' : (messageData.reply_context.sender_name || 'Thành viên')}
           </div>
           <div class="reply-text-short">
             ${escapeHtml(quoteText)}
@@ -1191,8 +1386,9 @@ function appendGroupMessage(messageData) {
     `;
   }
 
-  // 3. NỘI DUNG CHÍNH
+  // 5. TẠO HTML NỘI DUNG CHÍNH
   let messageContent = '';
+  
   if (messageType === 'file') {
     const fileInfo = parsedContent || {};
     messageContent = `
@@ -1204,24 +1400,30 @@ function appendGroupMessage(messageData) {
             <div class="file-size">${formatFileSize(fileInfo.size || 0)}</div>
           </div>
         </div>
-        <a href="${fileInfo.url || '#'}" class="file-download" download>
-          Tải
-        </a>
+        <a href="${fileInfo.url || '#'}" class="file-download" download>Tải</a>
       </div>`;
   } else if (messageType === 'image') {
     const imageInfo = parsedContent || {};
     messageContent = `
       <div class="image-message">
         <div class="image-info"><i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name || 'Hình ảnh')}</div>
-        <img src="${imageInfo.thumbnail || imageInfo.url}" 
-             class="uploaded-image" 
+        <img src="${imageInfo.thumbnail || imageInfo.url}" class="uploaded-image" 
              alt="${escapeHtml(imageInfo.name || '')}"
              onclick="window.openImageModal && window.openImageModal('${imageInfo.url}')">
         <div class="image-actions">
-          <a href="${imageInfo.url}" target="_blank" class="view-original">
-            Xem ảnh gốc
-          </a>
+          <a href="${imageInfo.url}" target="_blank" class="view-original">Xem ảnh gốc</a>
         </div>
+      </div>`;
+  } else if (messageType === 'audio') {
+    const audioInfo = parsedContent || {};
+    const audioUrl = audioInfo.url || '';
+    const audioName = audioInfo.name || 'Tin nhắn thoại';
+    messageContent = `
+      <div class="audio-message">
+        <div class="audio-info">
+          <i class="fas fa-microphone"></i> ${escapeHtml(audioName)}
+        </div>
+        ${audioUrl ? `<audio controls src="${audioUrl}" class="voice-audio"></audio>` : '<span>Lỗi audio</span>'}
       </div>`;
   } else if (messageType === 'sticker') {
     messageContent = `<div class="sticker-message">${getStickerHTML(messageData.content)}</div>`;
@@ -1229,22 +1431,78 @@ function appendGroupMessage(messageData) {
     messageContent = `<div class="message-text">${escapeHtml(messageData.content || '')}</div>`;
   }
 
-  // 4. LẮP RÁP THEO CẤU TRÚC MỚI
+  // 🔥 [QUAN TRỌNG] BỌC HỘP QUÀ (NẾU CÓ)
+  if (messageData.gift_style) {
+    const isOpenClass = messageData.is_gift_open ? 'is-open' : '';
+    // Bọc toàn bộ nội dung trong hộp quà
+    messageContent = `
+      <div class="gift-wrap gift-style-${messageData.gift_style} ${isOpenClass}" 
+           onclick="window.handleOpenGift(this, '${msgId}', 'group')">
+        <div class="gift-lid"></div>
+        <div class="gift-content-real">
+          ${messageContent}
+        </div>
+      </div>
+    `;
+  }
+
+  // 6. XỬ LÝ CẢM XÚC (REACTIONS) - SẮP XẾP & ĐẾM
+  let reactionsHTML = '';
+  if (messageData.reactions && Object.keys(messageData.reactions).length > 0) {
+      const allReactions = Object.values(messageData.reactions);
+      const totalCount = allReactions.length;
+      
+      // Đếm số lượng từng icon
+      const reactionCounts = {};
+      for (const emoji of allReactions) {
+        reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+      }
+
+      // Sắp xếp giảm dần
+      const sortedReactions = Object.entries(reactionCounts).sort(([, a], [, b]) => b - a);
+
+      let iconsHtml = '';
+      for (let i = 0; i < Math.min(3, sortedReactions.length); i++) {
+        iconsHtml += sortedReactions[i][0];
+      }
+      
+      // Tạo HTML có sự kiện onclick
+      reactionsHTML = `
+        <div class="message-reactions-display" 
+             onclick="window.viewReactionDetails(event, '${msgId}', 'group')">
+            ${iconsHtml} 
+            <span style="margin-left:3px; color:#555; font-size:10px; font-weight:bold;">${totalCount}</span>
+        </div>
+      `;
+  }
+
+  // 7. NÚT ACTION (Reaction Trigger + Reply)
+  const reactionTriggerBtn = `
+    <button class="message-action-btn btn-react-trigger" 
+            title="Thả cảm xúc"
+            onclick="event.stopPropagation(); window.showReactionPopup(this.closest('.message-content-wrapper'))">
+        <i class="far fa-smile"></i>
+    </button>
+  `;
+
+  // 8. LẮP RÁP HTML CUỐI CÙNG
+  // Lưu ý: Avatar bên phải cho tin nhắn của mình (nếu muốn giống Messenger) hoặc ẩn đi
+  // Ở đây giữ logic chuẩn: Avatar bên trái cho người khác, ẩn cho mình
+  
   messageEl.innerHTML = `
     ${!isCurrentUser ? `
-      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
-           class="message-avatar" title="${messageData.sender_name || ''}">
+      <img src="${avatarSrc}" alt="${messageData.sender_name}" class="message-avatar" title="${messageData.sender_name}">
     ` : ''}
 
     <div class="message-content-container">
-      ${!isCurrentUser ? `<div class="sender-info">${messageData.sender_name || ''}</div>` : ''}
+      ${!isCurrentUser ? `<div class="sender-info">${messageData.sender_name}</div>` : ''}
 
       <div class="message-content-wrapper">
         <div class="message-content">
           <div class="message-bubble">
             ${replyBlock}
-            ${messageContent}
-          </div>
+            ${messageContent} ${reactionsHTML}  </div>
+          
           <div class="message-status-container">
             <span class="message-time" title="${messageData.timestamp || ''}">
               ${timeString}
@@ -1253,17 +1511,13 @@ function appendGroupMessage(messageData) {
         </div>
 
         <div class="message-actions">
+          ${reactionTriggerBtn} 
           <button class="message-action-btn reply-btn" title="Trả lời">
             <i class="fas fa-reply"></i>
           </button>
         </div>
       </div>
     </div>
-
-    ${isCurrentUser ? `
-      <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
-           class="message-avatar" title="${messageData.sender_name || ''}">
-    ` : ''}
   `;
 
   messageEl.classList.add('message-item');
@@ -2138,6 +2392,10 @@ async function loadGroupMessageAndScroll(messageId) {
 // ====== THÊM HÀM getMessagePreview VÀO group.js ======
 function getMessagePreview(message) {
   if (!message || !message.content) return 'Bắt đầu trò chuyện';
+  // 🔥 [MỚI] Ưu tiên check Hộp quà trước
+  if (message.gift_style) {
+    return '🎁 Tin nhắn hộp quà';
+  }
 
   let messageType = message.message_type || 'text';
   let content = message.content;
@@ -2206,10 +2464,12 @@ window.deleteGroupMessage = deleteGroupMessage;
 window.scrollToGroupPinnedMessage = scrollToGroupPinnedMessage;
 // --- CÁC HÀM HỖ TRỢ GỌI VIDEO ---
 
-// Hàm cập nhật giao diện nút gọi
 function updateCallButtonState(isActive) {
     const btn = document.getElementById('btn-group-call');
     if (!btn) return;
+
+    // Lưu state để click handler biết đang JOIN hay CALL
+    btn.dataset.callActive = isActive ? "1" : "0";
 
     if (isActive) {
         // Trạng thái: Đang có cuộc gọi -> Hiển thị "Tham gia" xanh lá
@@ -2224,10 +2484,17 @@ function updateCallButtonState(isActive) {
     } else {
         // Trạng thái: Bình thường -> Hiển thị icon Camera
         btn.innerHTML = '<i class="fas fa-video"></i>';
-        btn.style.cssText = "font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;";
+        btn.style.cssText = `
+            font-size: 1.2rem; border:none; background:none;
+            cursor:pointer; color: #555;
+        `;
         btn.title = "Gọi nhóm";
     }
 }
+
+// Cho call.js / nơi khác gọi được
+window.updateCallButtonState = updateCallButtonState;
+
 
 // Thêm Animation cho Toast và Nút tham gia (Inject CSS vào trang)
 const styleCall = document.createElement('style');
@@ -2245,6 +2512,31 @@ styleCall.innerHTML = `
 }
 `;
 document.head.appendChild(styleCall);
+// Nhận tín hiệu bắt đầu / kết thúc call từ call.js (dispatchEvent trên window)
+window.addEventListener('call:started', (e) => {
+    const detail = e.detail || {};
+    if (detail.conversationType !== 'group') return;
+
+    const convId = String(detail.conversationId);
+    activeGroupCalls.add(convId);
+
+    if (currentGroupId && String(currentGroupId) === convId) {
+        updateCallButtonState(true);
+    }
+});
+
+window.addEventListener('call:ended', (e) => {
+    const detail = e.detail || {};
+    if (detail.conversationType !== 'group') return;
+
+    const convId = String(detail.conversationId);
+    activeGroupCalls.delete(convId);
+
+    if (currentGroupId && String(currentGroupId) === convId) {
+        updateCallButtonState(false);
+    }
+});
+
 
 // --- THÊM VÀO CUỐI FILE group.js ---
 

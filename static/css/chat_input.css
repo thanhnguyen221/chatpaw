@@ -783,3 +783,449 @@ html, body {
     opacity: 1;
   }
 }
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #e53935;
+  padding: 4px 8px;
+  margin: 4px 12px 0;
+}
+
+.recording-indicator i {
+  font-size: 10px;
+}
+
+/* Khi đang ghi âm, tô màu nút micro */
+#record-voice.recording {
+  color: #e53935;
+}
+
+.hidden {
+  display: none !important;
+}
+/* =========================================
+   10. GIFT MESSAGE & PANEL (TÍNH NĂNG HỘP QUÀ - NÂNG CẤP)
+   ========================================= */
+
+/* --- Nút Hộp quà trên thanh input --- */
+#btn-gift {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+#btn-gift.active { 
+  color: #ff4757; 
+  transform: scale(1.1);
+}
+
+/* --- GIFT PANEL (Menu chọn kiểu hộp) --- */
+.gift-panel {
+  position: absolute; 
+  bottom: 70px; /* Hiện phía trên thanh input */
+  left: 50%; 
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+  border: 1px solid rgba(0,0,0,0.05);
+  padding: 15px;
+  width: 320px; 
+  z-index: 100; 
+  display: flex; 
+  flex-direction: column;
+  animation: slideUpFade 0.2s ease-out;
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.gift-panel.hidden { 
+  display: none; 
+}
+
+.gift-header { 
+  display: flex; 
+  justify-content: space-between; 
+  padding-bottom: 10px; 
+  border-bottom: 1px solid #eee; 
+  margin-bottom: 15px; 
+  font-weight: 600; 
+  font-size: 14px;
+  color: #333;
+}
+
+.close-gift { 
+  cursor: pointer; 
+  font-size: 18px;
+  color: #999;
+  transition: color 0.2s;
+}
+.close-gift:hover { color: #ff4757; }
+
+.gift-options { 
+  display: flex; 
+  gap: 10px; 
+  justify-content: space-between; 
+}
+
+.gift-option { 
+  text-align: center; 
+  cursor: pointer; 
+  padding: 8px 5px; 
+  border-radius: 12px; 
+  transition: all 0.2s ease; 
+  flex: 1;
+  border: 1px solid transparent;
+}
+
+.gift-option:hover { 
+  background: #f5f5f5; 
+  transform: translateY(-2px);
+}
+
+.gift-option.selected { 
+  background: rgba(255, 71, 87, 0.1); 
+  border-color: #ff4757;
+}
+
+.gift-preview { 
+  font-size: 28px; 
+  margin-bottom: 5px;
+}
+
+.gift-option span { 
+  font-size: 11px; 
+  display: block; 
+  color: #555;
+  font-weight: 500;
+}
+
+
+/* --- GIFT MESSAGE WRAPPER (Cái hộp tin nhắn) --- */
+.gift-wrap {
+  position: relative;
+  cursor: pointer;
+  min-width: 140px; 
+  min-height: 80px; /* Độ cao tối thiểu để che nội dung */
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  border-radius: 12px;
+  overflow: hidden; /* Quan trọng: để nắp che hết */
+  background: #fff; /* Nền mặc định */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  margin-top: 5px;
+  
+  /* Chuẩn bị hiệu ứng chuyển màu nền và viền */
+  border: 2px solid transparent; 
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* LỚP PHỦ NẮP HỘP (Che nội dung) */
+.gift-lid {
+  position: absolute; 
+  top: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100%;
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  z-index: 10;
+  transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.4s;
+}
+
+/* Icon trên nắp hộp */
+.gift-lid::after {
+  font-size: 32px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+/* NỘI DUNG THẬT (Ẩn/Mờ đi khi chưa mở) */
+.gift-content-real {
+  opacity: 0; 
+  transition: opacity 0.5s ease 0.3s; /* Delay hiện nội dung sau khi nắp bay */
+  z-index: 1;
+  padding: 8px;
+  width: 100%;
+  pointer-events: none; /* Không cho click link khi chưa mở */
+}
+
+/* --- TRẠNG THÁI MỞ HỘP (.is-open) --- */
+.gift-wrap.is-open {
+  cursor: default;
+  /* Khi mở, bóng đổ nhẹ hơn */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.gift-wrap.is-open .gift-lid {
+  /* Bay nắp lên trên, thu nhỏ và xoay nhẹ */
+  transform: translateY(-120%) scale(0.8) rotate(10deg); 
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gift-wrap.is-open .gift-content-real {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =========================================================
+   STYLE TỪNG LOẠI HỘP (KHI ĐÓNG & KHI MỞ)
+   ========================================================= */
+
+/* 1. Classic (Cổ điển - Đỏ) */
+/* --- Đóng --- */
+.gift-style-gift-classic .gift-lid { 
+  background: #ff4757; 
+  background-image: linear-gradient(135deg, #ff6b81 25%, transparent 25%), 
+                    linear-gradient(225deg, #ff6b81 25%, transparent 25%), 
+                    linear-gradient(45deg, #ff6b81 25%, transparent 25%), 
+                    linear-gradient(315deg, #ff6b81 25%, transparent 25%);
+  background-position: 10px 0, 10px 0, 0 0, 0 0;
+  background-size: 20px 20px;
+  background-repeat: repeat;
+}
+.gift-style-gift-classic .gift-lid::after { content: '🎁'; }
+
+/* --- Mở (Hiện nền đỏ nhạt + viền đỏ) --- */
+.gift-wrap.is-open.gift-style-gift-classic {
+  border-color: #ff4757;
+  background-color: rgba(255, 71, 87, 0.08); /* Đỏ rất nhạt */
+}
+
+
+/* 2. Love (Tình yêu - Hồng) */
+/* --- Đóng --- */
+.gift-style-gift-love .gift-lid { 
+  background: #ff9ff3; 
+  background-image: radial-gradient(#f368e0 15%, transparent 16%);
+  background-size: 16px 16px;
+}
+.gift-style-gift-love .gift-lid::after { content: '💝'; }
+
+/* --- Mở (Hiện nền hồng nhạt + viền hồng) --- */
+.gift-wrap.is-open.gift-style-gift-love {
+  border-color: #ff9ff3;
+  background-color: rgba(255, 159, 243, 0.15); /* Hồng nhạt */
+}
+
+
+/* 3. Mystery (Bí ẩn - Đen/Xám) */
+/* --- Đóng --- */
+.gift-style-gift-mystery .gift-lid { 
+  background: #2d3436; 
+  background-image: repeating-linear-gradient(45deg, #2d3436 0, #2d3436 10px, #636e72 10px, #636e72 20px);
+}
+.gift-style-gift-mystery .gift-lid::after { content: '🫣'; }
+
+/* --- Mở (Hiện nền xám nhạt + viền đen) --- */
+.gift-wrap.is-open.gift-style-gift-mystery {
+  border-color: #2d3436;
+  background-color: rgba(45, 52, 54, 0.08); /* Xám nhạt */
+}
+
+
+/* 4. Fire (Cháy bỏng - Cam) */
+/* --- Đóng --- */
+.gift-style-gift-fire .gift-lid { 
+  background: linear-gradient(45deg, #ff9f43, #ff6b6b); 
+}
+.gift-style-gift-fire .gift-lid::after { content: '🔥'; }
+
+/* --- Mở (Hiện nền cam nhạt + viền cam) --- */
+.gift-wrap.is-open.gift-style-gift-fire {
+  border-color: #ff9f43;
+  background-color: rgba(255, 159, 67, 0.15); /* Cam nhạt */
+}
+
+/* =======================================================
+   🌿 GREEN THEME INPUT STYLES (MÀU XANH LÁ CHỦ ĐẠO)
+   ======================================================= */
+
+/* --- 1. CẤU TRÚC KHU VỰC CHAT --- */
+.chat-area {
+    position: relative; 
+    overflow: hidden; 
+}
+
+/* KHU VỰC NHẬP LIỆU (Căn chỉnh Flexbox chuẩn) */
+.message-input {
+    display: flex; 
+    align-items: flex-end; /* Căn đáy để thẳng hàng */
+    
+    padding: 10px 15px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    position: relative; 
+    z-index: 10;
+}
+
+/* Ẩn thanh input khi chưa chọn chat */
+.message-input.hidden {
+    display: none !important;
+}
+
+/* --- 2. CÁC NÚT BẤM (BUTTONS) --- */
+
+/* Định nghĩa chung cho các nút icon nhỏ */
+.message-input button {
+    width: 38px; 
+    height: 38px; 
+    min-width: 38px; 
+    min-height: 38px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease-in-out;
+    font-size: 18px;
+    color: #606060;
+    margin: 0 4px; 
+    background: transparent; 
+}
+
+/* Hover vào nút thường -> Xanh lá nhạt */
+.message-input button:hover {
+    color: #4CAF50; /* 🌿 Icon xanh lá */
+    background: #E8F5E9; /* 🌿 Nền xanh lá siêu nhạt */
+}
+
+/* NÚT TOGGLE CỘNG (+) - Nổi bật */
+#btn-toggle-actions {
+    background: #4CAF50; /* 🌿 Nền xanh lá */
+    color: #fff; 
+    font-size: 18px;
+    margin-left: 0; 
+    margin-right: 8px; 
+}
+
+#btn-toggle-actions:hover {
+    background: #388E3C; /* 🌿 Xanh lá đậm khi hover */
+    color: #fff;
+}
+
+/* NÚT GỬI (Send) */
+#send {
+    background: #4CAF50; /* 🌿 Nền xanh lá */
+    color: #fff;
+    font-size: 20px; 
+    margin-right: 0;
+    margin-left: 8px;
+}
+#send:hover {
+    background: #388E3C; /* 🌿 Xanh lá đậm khi hover */
+    color: #fff;
+}
+
+/* TRƯỜNG NHẬP TEXT */
+.message-input input[type="text"] {
+    flex-grow: 1; 
+    height: 38px; 
+    line-height: 38px;
+    padding: 0 15px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    margin: 0 8px; 
+}
+/* Khi focus vào ô nhập liệu -> Viền xanh lá */
+.message-input input[type="text"]:focus {
+    border-color: #4CAF50;
+    outline: none;
+}
+
+/* --- 3. MENU HÀNH ĐỘNG (ACTION MENU) --- */
+.action-menu {
+    position: absolute; 
+    bottom: 100%; 
+    left: 10px;
+    
+    display: flex;
+    gap: 4px; 
+    
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px); 
+    transition: all 0.2s ease-in-out;
+    
+    background: #fff;
+    padding: 6px 8px;
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 9; 
+}
+
+.action-menu.expanded {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0); 
+}
+
+.action-menu button {
+    margin: 0; 
+}
+/* Hover vào nút trong menu -> Xanh lá */
+.action-menu button:hover {
+    color: #4CAF50;
+    background: #E8F5E9;
+}
+
+
+/* --- 4. CANVAS VẼ (DRAWING STYLES) --- */
+.drawing-canvas-overlay {
+    position: absolute; 
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 1000; 
+    pointer-events: none; 
+    cursor: default;
+}
+
+.chat-area.drawing-mode-active .drawing-canvas-overlay {
+    pointer-events: auto; 
+    cursor: crosshair; 
+}
+
+.chat-drawing-toolbar {
+    position: absolute;
+    top: 10px; right: 10px;
+    z-index: 1005; 
+    background: rgba(255, 255, 255, 0.95);
+    padding: 8px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.chat-drawing-toolbar input[type="color"],
+.chat-drawing-toolbar input[type="range"] {
+    cursor: pointer;
+}
+
+.chat-drawing-toolbar button {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 16px;
+    padding: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+    width: auto; 
+    height: auto;
+}
+
+/* Hover nút trong toolbar vẽ -> Xanh lá */
+.chat-drawing-toolbar button:hover {
+    color: #4CAF50; /* 🌿 */
+    background: #E8F5E9; /* 🌿 */
+}

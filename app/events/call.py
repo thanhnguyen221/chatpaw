@@ -100,6 +100,7 @@ def register_call_events(socketio, mongo):
         - xóa sid khỏi call_rooms
         - emit 'call:user_left'
         - nếu phòng call trống -> phát 'call:status_update' is_active = False
+          và emit 'call:ended' để FE reset nút Tham gia -> Gọi video
         """
         leave_room(room_id)
 
@@ -117,6 +118,58 @@ def register_call_events(socketio, mongo):
         if room_empty and room_id.startswith("call_"):
             conv_id = room_id.replace("call_", "", 1)
             _broadcast_call_status(conv_id, False)
+
+            # --- NEW: Bắn event call:ended để FE đổi nút ---
+            payload = {
+                'conversation_id': conv_id,
+                # Nếu conv_id là group_id -> group, còn lại coi như private
+                'conversation_type': 'group'
+            }
+
+            try:
+                # Nếu không tìm thấy group với id này -> coi là private
+                grp = groups_col.find_one({'_id': ObjectId(conv_id)})
+                if not grp:
+                    payload['conversation_type'] = 'private'
+            except Exception:
+                payload['conversation_type'] = 'private'
+
+            # Gửi cho room group_<group_id> (nếu là group)
+            if payload['conversation_type'] == 'group':
+                emit('call:ended', payload, room=f"group_{conv_id}")
+
+            # Gửi cho các participant của conversation 1-1 (nếu là private)
+            try:
+                conv = conversations_col.find_one({'_id': ObjectId(conv_id)})
+            except Exception:
+                conv = None
+
+            if conv:
+                for pid in conv.get('participants', []):
+                    emit('call:ended', payload, room=str(pid))
+
+    @socketio.on('call:get_status')
+    def handle_get_status(data):
+        """
+        Client hỏi: cuộc gọi của conversation_id hiện đang ACTIVE không?
+        Trả về qua ack của Socket.IO
+        """
+        user_id = session.get('user_id')
+        conv_id = data.get('conversation_id')
+
+        if not user_id or not conv_id:
+            return {'ok': False, 'error': 'missing_params'}
+
+        has_access, _ = _can_access(conv_id, user_id)
+        if not has_access:
+            return {'ok': False, 'error': 'no_access'}
+
+        room_id = f"call_{conv_id}"
+        is_active = room_id in call_rooms and bool(call_rooms[room_id])
+
+        # Trả lời bằng ACK
+        return {'ok': True, 'is_active': is_active}
+
 
     # ================== SOCKET EVENTS ================== #
 
@@ -343,29 +396,33 @@ def register_call_events(socketio, mongo):
 
     
     
-    # --- 7. DRAWING (CẬP NHẬT) ---
-    @socketio.on('call:draw_stroke')
-    def handle_draw_stroke(data):
+        # --- 7. DRAWING (ĐỒNG BỘ NÉT VẼ GIỮA CÁC CLIENT) ---
+    @socketio.on('call:draw')
+    def handle_call_draw(data):
+        user_id = session.get('user_id')
         conversation_id = data.get('conversation_id')
-        if not conversation_id:
+        if not user_id or not conversation_id:
             return
 
         room_id = f"call_{conversation_id}"
 
         emit(
-            'call:draw_stroke',
+            'call:draw',
             {
-                'x': data.get('x'),
-                'y': data.get('y'),
+                'conversation_id': conversation_id,
+                'from_sid': request.sid,
+                'x0': data.get('x0'),
+                'y0': data.get('y0'),
+                'x1': data.get('x1'),
+                'y1': data.get('y1'),
                 'color': data.get('color'),
                 'width': data.get('width'),
-                'type': data.get('type'),
-                'brush_type': data.get('brush_type', 'pen'), # <--- MỚI: Truyền loại cọ
-                'from_sid': request.sid
+                'brush': data.get('brush'),
             },
             room=room_id,
             include_self=False
         )
+
 
     @socketio.on('call:clear_board')
     def handle_clear_board(data):

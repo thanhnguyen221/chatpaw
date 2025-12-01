@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Cuộc gọi</title>
 
-    <!-- Socket.IO client -->
+    <!-- Socket.IO client (global 'io' cho index.js / call.js dùng) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 
     <!-- Font Awesome icons -->
@@ -43,7 +43,7 @@
             background: #3c4043;
             border-radius: 8px;
             overflow: hidden;
-            aspect-ratio: 16/9;
+            aspect-ratio: 16 / 9;
             flex: 1 1 400px;
             max-width: 90%;
             max-height: 90%;
@@ -126,6 +126,9 @@
             color: white;
             background: #3c4043;
             transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .btn:hover {
@@ -142,6 +145,11 @@
 
         .btn-off {
             background: #ea4335;
+        }
+
+        /* Nút đang bật (vd: share screen) */
+        .btn.active {
+            background: #1a73e8;
         }
     </style>
 </head>
@@ -160,21 +168,37 @@
         </div>
 
         <div id="controls">
+            <!-- Mic -->
             <button class="btn" id="btn-mic" onclick="toggleMic()">
                 <i class="fas fa-microphone"></i>
             </button>
+
+            <!-- Cam -->
             <button class="btn" id="btn-cam" onclick="toggleCam()">
                 <i class="fas fa-video"></i>
             </button>
+
+            <!-- Flip Camera (chỉ dùng mobile, JS sẽ tự show/hide) -->
+            <button class="btn" id="btn-flip" style="display: none;" onclick="flipCamera()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+
+            <!-- Chia sẻ màn hình -->
+            <button class="btn" id="btn-screen-share" title="Chia sẻ màn hình">
+                <i class="fas fa-display"></i>
+            </button>
+
+            <!-- Kết thúc cuộc gọi -->
             <button class="btn btn-danger" onclick="endCall()">
                 <i class="fas fa-phone-slash"></i>
             </button>
         </div>
     </div>
 
-    <!-- 🔴 FIX: Thêm chuông gọi khớp với group_call.js -->
+    <!-- Chuông gọi (call.js đang dùng) -->
     <audio id="ringtone-audio" src="/static/sounds/ringtone.mp3" preload="auto"></audio>
 
-    <script type="module" src="{{ url_for('static', filename='js/socket/group_call.js') }}"></script>
+    <!-- Giao tiếp WebRTC + chia sẻ màn hình -->
+    <script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}"></script>
 </body>
 </html>

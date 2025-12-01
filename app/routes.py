@@ -15,8 +15,13 @@ import json
 main = Blueprint('main', __name__)
 
 UPLOAD_FOLDER = 'app/static/uploads'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx'}
+ALLOWED_EXTENSIONS = {
+    'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx',
+    # --- THÊM CÁC ĐUÔI AUDIO CHO VOICE ---
+    'mp3', 'wav', 'ogg', 'webm', 'm4a'
+}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
 
 users_col = lambda: mongo.db['users']
 conversations_col = lambda: mongo.db['conversations']
@@ -25,6 +30,7 @@ friend_requests_col = lambda: mongo.db['friend_requests']
 groups_col = lambda: mongo.db['groups']
 group_members_col = lambda: mongo.db['group_members']
 posts_col = lambda: mongo.db['posts']
+notifications_col = lambda: mongo.db['notifications']
 
 online_users = {}
 
@@ -284,6 +290,11 @@ def get_conversation(conversation_id):
         else:
             timestamp_str = str(timestamp)
 
+        # 🔥 [FIX LỖI] Tính toán xem user đã mở quà chưa TRƯỚC KHI dùng
+        opened_by = msg.get('opened_by', [])
+        # Lưu ý: session['user_id'] là string, opened_by trong DB cũng nên lưu string
+        is_gift_open = session['user_id'] in opened_by
+
         message_data = {
             'message_id': str(msg['_id']),
             'conversation_id': conversation_id,
@@ -294,12 +305,15 @@ def get_conversation(conversation_id):
             'timestamp': timestamp_str,
             'status': msg.get('status', 'sent'),  
             'read_by': [str(uid) for uid in msg.get('read_by', [])],
+            'reply_context': resolve_reply_context(msg, 'private'),
             
-            # [MỚI] Thêm thông tin Reply
-            'reply_context': resolve_reply_context(msg, 'private')
+            # Giờ thì biến này đã có giá trị
+            'gift_style': msg.get('gift_style'),
+            'is_gift_open': is_gift_open,
+            # 🔥 [MỚI - THÊM DÒNG NÀY] Trả về danh sách cảm xúc
+            'reactions': msg.get('reactions', {})
         }
 
-        # Logic message_type cũ của bạn
         if 'message_type' in msg:
             message_data['message_type'] = msg['message_type']
         else:
@@ -402,29 +416,7 @@ def logout():
     session.clear()
     return redirect(url_for('main.login'))
 
-@main.route('/friend_requests')
-def get_friend_requests():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
 
-    user_id = ObjectId(session['user_id'])
-    requests = list(friend_requests_col().find({
-        'recipient_id': user_id,
-        'status': 'pending'
-    }))
-
-    results = []
-    for req in requests:
-        sender = users_col().find_one({'_id': req['sender_id']}, {'password': 0})
-        if sender:
-            results.append({
-                'request_id': str(req['_id']),
-                'sender_id': str(sender['_id']),
-                'username': sender.get('username'),
-                'email': sender.get('email')
-            })
-
-    return jsonify({'requests': results})
 
 def format_time_filter(dt):
     if isinstance(dt, str):
@@ -850,7 +842,11 @@ def get_group_messages():
         
         ts = msg.get('timestamp')
         ts_iso = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
-            
+        
+        # 🔥 [FIX LỖI] Tính toán xem user đã mở quà chưa
+        opened_by = msg.get('opened_by', [])
+        is_gift_open = session['user_id'] in opened_by
+
         message_data = {
             'group_id': str(msg.get('group_id', group_id)),
             'message_id': str(msg.get('_id')),
@@ -859,9 +855,13 @@ def get_group_messages():
             'content': msg.get('content', ''),
             'sender_avatar': sender_avatar,
             'timestamp': ts_iso,
+            'reply_context': resolve_reply_context(msg, 'group'),
             
-            # [MỚI] Thêm thông tin Reply cho Group
-            'reply_context': resolve_reply_context(msg, 'group')
+            # Giờ biến này đã được định nghĩa
+            'gift_style': msg.get('gift_style'),
+            'is_gift_open': is_gift_open,
+            # 🔥 [MỚI - THÊM DÒNG NÀY] Trả về danh sách cảm xúc
+            'reactions': msg.get('reactions', {})
         }
         
         if 'message_type' in msg:
@@ -1681,7 +1681,9 @@ def get_message(message_id):
                 'conversation_id': str(message.get('conversation_id') if conversation_type == 'private' else message.get('group_id')),
                 'conversation_type': conversation_type,
                 # [MỚI] Thêm dòng này
-                'reply_context': resolve_reply_context(message, conversation_type)
+                'reply_context': resolve_reply_context(message, conversation_type),
+                # 🔥 [QUAN TRỌNG] Trả về gift_style
+                'gift_style': message.get('gift_style')
 
             }
         })
@@ -1749,7 +1751,9 @@ def get_pinned_message(conversation_id):
                 'sender_avatar': sender_avatar,
                 'content': message['content'],
                 'message_type': message.get('message_type', 'text'),
-                'timestamp': message['timestamp'].isoformat() if hasattr(message['timestamp'], 'isoformat') else str(message['timestamp'])
+                'timestamp': message['timestamp'].isoformat() if hasattr(message['timestamp'], 'isoformat') else str(message['timestamp']),
+                # 🔥 [QUAN TRỌNG] Trả về gift_style cho tin nhắn ghim
+                'gift_style': message.get('gift_style')
             }
         })
         
@@ -2389,4 +2393,654 @@ def cleanup_friends():
 
     except Exception as e:
         print(f"Error cleaning up friends: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+    
+# =========================================================
+# 🔥 [MỚI] API ĐÁNH DẤU ĐÃ MỞ HỘP QUÀ
+# =========================================================
+@main.route('/mark_gift_opened', methods=['POST'])
+def mark_gift_opened():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    message_id = data.get('message_id')
+    conversation_type = data.get('conversation_type', 'private')
+    
+    if not message_id:
+        return jsonify({'error': 'Missing message_id'}), 400
+        
+    try:
+        user_id = ObjectId(session['user_id'])
+        msg_oid = ObjectId(message_id)
+        
+        # Chọn collection
+        col = messages_col() if conversation_type == 'private' else group_messages_col()
+        
+        # Thêm user_id vào mảng opened_by (nếu chưa có)
+        col.update_one(
+            {'_id': msg_oid},
+            {'$addToSet': {'opened_by': str(user_id)}}
+        )
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"Error marking gift opened: {e}")
+        return jsonify({'error': 'Internal error'}), 500
+    
+
+# =========================================================
+# 🔥 [BƯỚC 3] API LẤY DANH SÁCH NGƯỜI THẢ CẢM XÚC
+# =========================================================
+@main.route('/get_message_reactions/<message_id>')
+def get_message_reactions(message_id):
+    # Kiểm tra xác thực
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conversation_type = request.args.get('type', 'private')
+    
+    try:
+        msg_oid = ObjectId(message_id)
+        
+        # Chọn collection (Cần thay thế bằng cách gọi collection trong app của bạn)
+        # VD: col = mongo.db.messages 
+        if conversation_type == 'private':
+            # Giả định có hàm messages_col()
+            col = messages_col() 
+        else:
+            # Giả định có hàm group_messages_col()
+            col = group_messages_col()
+        
+        msg = col.find_one({'_id': msg_oid})
+        if not msg or 'reactions' not in msg:
+            return jsonify({'reactions': []})
+            
+        reactions_map = msg['reactions'] # {'uid_str': 'emoji', ...}
+        user_ids = [ObjectId(uid) for uid in reactions_map.keys()]
+        
+        # Lấy thông tin user
+        # Giả định có hàm users_col()
+        users = list(users_col().find(
+            {'_id': {'$in': user_ids}},
+            {'username': 1, 'avatar': 1}
+        ))
+        
+        results = []
+        for user in users:
+            uid_str = str(user['_id'])
+            
+            # Xử lý avatar (Đảm bảo đường dẫn đúng)
+            avatar = user.get('avatar')
+            if avatar and not avatar.startswith(('http', 'data:image')):
+                # Sử dụng url_for để tạo link static
+                avatar = url_for('static', filename=avatar)
+            elif not avatar:
+                avatar = url_for('static', filename='img/default-avatar.png')
+                
+            results.append({
+                'user_id': uid_str,
+                'username': user['username'],
+                'avatar': avatar,
+                'emoji': reactions_map.get(uid_str) # Lấy icon tương ứng
+            })
+            
+        return jsonify({'success': True, 'reactions': results})
+        
+    except Exception as e:
+        print(f"Error getting reaction details: {e}")
+        return jsonify({'error': 'Internal error'}), 500
+
+from bson import ObjectId
+from flask import (
+    request, session, jsonify, redirect, url_for, render_template
+)
+
+# Giả sử các hàm/biến này đã được định nghĩa ở nơi khác trong app:
+# users_col, friend_requests_col, notifications_col,
+# conversations_col, messages_col, socketio, get_vietnam_time
+# Nếu chưa có thì bạn cần import/khai báo chúng.
+
+
+@main.route('/send_friend_request', methods=['POST'])
+def send_friend_request():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        target_user_id = data.get('target_user_id')
+
+        if not target_user_id:
+            return jsonify({'error': 'Missing target user ID'}), 400
+
+        # TODO: Gửi yêu cầu kết bạn qua socket / lưu DB
+        return jsonify({
+            'success': True,
+            'message': 'Friend request sent successfully'
+        }), 200
+
+    except Exception as e:
+        print(f"Error sending friend request: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/check_friendship_status/<target_user_id>')
+def check_friendship_status(target_user_id):
+    """Kiểm tra trạng thái quan hệ bạn bè"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        current_user_id = session['user_id']
+        current_user = users_col().find_one({'_id': ObjectId(current_user_id)})
+
+        if not current_user:
+            return jsonify({'error': 'Current user not found'}), 404
+
+        is_friend = target_user_id in current_user.get('friends', [])
+
+        return jsonify({
+            'success': True,
+            'is_friend': is_friend,
+            'current_user_id': current_user_id,
+            'target_user_id': target_user_id
+        }), 200
+
+    except Exception as e:
+        print(f"Error checking friendship status: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/get_my_profile_url')
+def get_my_profile_url():
+    """Chuyển hướng đến profile của chính mình"""
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+
+    user = users_col().find_one({'_id': ObjectId(session['user_id'])})
+    if user and user.get('username'):
+        return redirect(url_for('main.user_profile', username=user['username']))
+
+    # Fallback: về trang chat
+    return redirect(url_for('main.chat'))
+
+
+# -------------------------------------------------------------------------
+@main.route('/unfriend', methods=['POST'])
+def unfriend():
+    """Hủy kết bạn với người dùng"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        friend_id = data.get('friend_id')
+
+        if not friend_id:
+            return jsonify({'error': 'Friend ID is required'}), 400
+
+        user_id = session['user_id']
+
+        # Kiểm tra xem có phải là bạn bè không
+        user = users_col().find_one({'_id': ObjectId(user_id)})
+        if not user or friend_id not in user.get('friends', []):
+            return jsonify({'error': 'Not friends with this user'}), 400
+
+        # Xóa khỏi danh sách bạn bè của cả hai bên
+        users_col().update_one(
+            {'_id': ObjectId(user_id)},
+            {'$pull': {'friends': friend_id}}
+        )
+
+        users_col().update_one(
+            {'_id': ObjectId(friend_id)},
+            {'$pull': {'friends': user_id}}
+        )
+
+        # TODO: Có thể thêm thông báo socket ở đây
+
+        return jsonify({
+            'success': True,
+            'message': 'Đã hủy kết bạn thành công'
+        }), 200
+
+    except Exception as e:
+        print(f"Error unfriending: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/friend_requests_page')
+def friend_requests_page():
+    """Trang hiển thị lời mời kết bạn"""
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+
+    user_id = ObjectId(session['user_id'])
+    user = users_col().find_one({'_id': user_id})
+
+    if not user:
+        return redirect(url_for('main.login'))
+
+    return render_template(
+        'friend_requests.html',
+        current_user=user,
+        username=session['username']
+    )
+
+
+# app/routes.py (thêm route mới)
+@main.route('/friend_requests')
+def get_friend_requests():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    user_id = ObjectId(session['user_id'])
+    requests = list(friend_requests_col().find({
+        'recipient_id': user_id,
+        'status': 'pending'
+    }))
+
+    results = []
+    for req in requests:
+        sender = users_col().find_one({'_id': req['sender_id']}, {'password': 0})
+        if sender:
+            avatar = sender.get('avatar')
+            if avatar and not avatar.startswith(('http', 'data:image')):
+                avatar = f"/static/{avatar}"
+
+            results.append({
+                'request_id': str(req['_id']),
+                'sender_id': str(sender['_id']),
+                'username': sender.get('username'),
+                'email': sender.get('email'),
+                'avatar': avatar or '/static/img/default-avatar.png'
+            })
+
+    return jsonify({'requests': results}), 200
+
+
+@main.route('/get_request_sender/<request_id>')
+def get_request_sender(request_id):
+    """Lấy thông tin người gửi lời mời kết bạn"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        request_oid = ObjectId(request_id)
+        friend_request = friend_requests_col().find_one({'_id': request_oid})
+
+        if not friend_request:
+            return jsonify({'error': 'Request not found'}), 404
+
+        # Kiểm tra quyền truy cập
+        if str(friend_request['recipient_id']) != session['user_id']:
+            return jsonify({'error': 'Access denied'}), 403
+
+        sender = users_col().find_one(
+            {'_id': friend_request['sender_id']},
+            {'password': 0}
+        )
+        if not sender:
+            return jsonify({'error': 'Sender not found'}), 404
+
+        avatar = sender.get('avatar')
+        if avatar and not avatar.startswith(('http', 'data:image')):
+            avatar = f"/static/{avatar}"
+
+        return jsonify({
+            'success': True,
+            'sender': {
+                '_id': str(sender['_id']),
+                'username': sender.get('username'),
+                'full_name': sender.get('full_name', ''),
+                'avatar': avatar or '/static/img/default-avatar.png',
+                'email': sender.get('email', '')
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error getting request sender: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/profile_by_id/<user_id>')
+def profile_by_id(user_id):
+    """Route mới: xem profile bằng user_id"""
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+
+    try:
+        target_user = users_col().find_one({'_id': ObjectId(user_id)}, {'password': 0})
+        if not target_user:
+            return "Người dùng không tồn tại", 404
+
+        return redirect(url_for('main.user_profile', username=target_user['username']))
+
+    except Exception as e:
+        print(f"Error redirecting to profile: {str(e)}")
+        return "Lỗi khi tải trang cá nhân", 500
+
+
+@main.route('/get_user_profile/<user_id>')
+def get_user_profile(user_id):
+    """API lấy thông tin profile bằng user_id"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        target_user = users_col().find_one({'_id': ObjectId(user_id)}, {'password': 0})
+        if not target_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        avatar = target_user.get('avatar')
+        if avatar and not avatar.startswith(('http', 'data:image')):
+            avatar = url_for('static', filename=avatar)
+
+        profile_data = {
+            '_id': str(target_user['_id']),
+            'username': target_user.get('username'),
+            'full_name': target_user.get('full_name', ''),
+            'avatar': avatar or url_for('static', filename='img/default-avatar.png'),
+            'email': target_user.get('email', '')
+        }
+
+        return jsonify({'success': True, 'profile': profile_data}), 200
+
+    except Exception as e:
+        print(f"Error getting user profile: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/friend_requests_count')
+def friend_requests_count():
+    """API trả về số lượng lời mời kết bạn chưa xử lý"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+        count = friend_requests_col().count_documents({
+            'recipient_id': user_id,
+            'status': 'pending'
+        })
+
+        return jsonify({'count': count}), 200
+
+    except Exception as e:
+        print(f"Error counting friend requests: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/notifications')
+def notifications_page():
+    """Trang hiển thị thông báo"""
+    if 'user_id' not in session:
+        return redirect(url_for('main.login'))
+
+    user_id = ObjectId(session['user_id'])
+    user = users_col().find_one({'_id': user_id})
+
+    if not user:
+        return redirect(url_for('main.login'))
+
+    return render_template(
+        'notifications_page.html',
+        current_user=user,
+        username=session['username']
+    )
+
+
+@main.route('/api/notifications')
+def get_notifications_api():
+    """API lấy danh sách thông báo"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        filter_type = request.args.get('filter', 'all')
+        sort_by = request.args.get('sort', 'newest')
+
+        query = {'recipient_id': user_id}
+        if filter_type != 'all':
+            query['type'] = filter_type
+
+        sort_order = -1 if sort_by == 'newest' else 1
+
+        total_items = notifications_col().count_documents(query)
+        total_pages = (total_items + per_page - 1) // per_page
+
+        skip = (page - 1) * per_page
+
+        notifications = list(
+            notifications_col().find(query)
+            .sort('created_at', sort_order)
+            .skip(skip)
+            .limit(per_page)
+        )
+
+        for n in notifications:
+            n['_id'] = str(n['_id'])
+            n['recipient_id'] = str(n['recipient_id'])
+            if 'created_at' in n:
+                n['created_at'] = n['created_at'].isoformat()
+
+        return jsonify({
+            'items': notifications,
+            'page': page,
+            'per_page': per_page,
+            'total_items': total_items,
+            'total_pages': total_pages
+        }), 200
+
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+
+@main.route('/api/notifications/count')
+def get_notification_count():
+    """API lấy số lượng thông báo chưa đọc"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+
+        unread_count = notifications_col().count_documents({
+            'recipient_id': user_id,
+            'read': False
+        })
+
+        return jsonify({
+            'success': True,
+            'count': unread_count
+        }), 200
+
+    except Exception as e:
+        print(f"Error getting notification count: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/api/messages/unread_count')
+def get_unread_message_count():
+    """API lấy số tin nhắn chưa đọc"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = session['user_id']
+
+        conversations = conversations_col().find({
+            'participants': str(user_id)
+        })
+
+        total_unread = 0
+
+        for conv in conversations:
+            unread_count = messages_col().count_documents({
+                'conversation_id': conv['_id'],
+                'sender_id': {'$ne': user_id},
+                'read_by': {'$nin': [user_id]}
+            })
+            total_unread += unread_count
+
+        return jsonify({
+            'success': True,
+            'count': total_unread
+        }), 200
+
+    except Exception as e:
+        print(f"Error getting unread message count: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/api/notifications/<notification_id>/read', methods=['POST'])
+def mark_notification_read(notification_id):
+    """Đánh dấu một thông báo là đã đọc"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+        notification_oid = ObjectId(notification_id)
+
+        notification = notifications_col().find_one({
+            '_id': notification_oid,
+            'recipient_id': user_id
+        })
+
+        if not notification:
+            return jsonify({'error': 'Notification not found'}), 404
+
+        notifications_col().update_one(
+            {'_id': notification_oid},
+            {'$set': {'read': True, 'read_at': get_vietnam_time()}}
+        )
+
+        socketio.emit('notification_read', {
+            'notificationId': notification_id,
+            'userId': str(user_id)
+        }, room=str(user_id))
+
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        print(f"Error marking notification as read: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/api/notifications/mark-all-read', methods=['POST'])
+def mark_all_notifications_read():
+    """Đánh dấu tất cả thông báo là đã đọc"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        user_id = ObjectId(session['user_id'])
+
+        result = notifications_col().update_many(
+            {
+                'recipient_id': user_id,
+                'read': False
+            },
+            {'$set': {'read': True, 'read_at': get_vietnam_time()}}
+        )
+
+        socketio.emit('notifications_read', {
+            'all': True,
+            'userId': str(user_id)
+        }, room=str(user_id))
+
+        return jsonify({
+            'success': True,
+            'message': f'Đã đánh dấu {result.modified_count} thông báo là đã đọc'
+        }), 200
+
+    except Exception as e:
+        print(f"Error marking all notifications as read: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@main.route('/api/friend_requests/<request_id>/<action>', methods=['POST'])
+def handle_friend_request_action(request_id, action):
+    """Xử lý lời mời kết bạn (chấp nhận/từ chối)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if action not in ['accept', 'decline']:
+        return jsonify({'error': 'Invalid action'}), 400
+
+    try:
+        user_id = ObjectId(session['user_id'])
+        request_oid = ObjectId(request_id)
+
+        friend_request = friend_requests_col().find_one({
+            '_id': request_oid,
+            'recipient_id': user_id,
+            'status': 'pending'
+        })
+
+        if not friend_request:
+            return jsonify({
+                'error': 'Friend request not found or already processed'
+            }), 404
+
+        if action == 'accept':
+            # Chấp nhận lời mời kết bạn
+            users_col().update_one(
+                {'_id': user_id},
+                {'$addToSet': {'friends': str(friend_request['sender_id'])}}
+            )
+
+            users_col().update_one(
+                {'_id': friend_request['sender_id']},
+                {'$addToSet': {'friends': str(user_id)}}
+            )
+
+            notification_data = {
+                'recipient_id': friend_request['sender_id'],
+                'sender_id': user_id,
+                'type': 'friend_accept',
+                'content': 'Đã chấp nhận lời mời kết bạn',
+                'data': {
+                    'friend_id': str(user_id)
+                },
+                'read': False,
+                'created_at': get_vietnam_time()
+            }
+
+            notifications_col().insert_one(notification_data)
+
+            socketio.emit(
+                'new_notification',
+                notification_data,
+                room=str(friend_request['sender_id'])
+            )
+
+        # Cập nhật trạng thái lời mời (accepted/declined)
+        friend_requests_col().update_one(
+            {'_id': request_oid},
+            {'$set': {'status': 'accepted' if action == 'accept' else 'declined'}}
+        )
+
+        # Xóa thông báo friend request cũ (nếu có)
+        notifications_col().delete_one({
+            'recipient_id': user_id,
+            'sender_id': friend_request['sender_id'],
+            'type': 'friend_request'
+        })
+
+        return jsonify({
+            'success': True,
+            'message': f'Đã {action} lời mời kết bạn'
+        }), 200
+
+    except Exception as e:
+        print(f"Error handling friend request: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

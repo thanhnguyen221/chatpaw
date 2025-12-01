@@ -55,7 +55,6 @@
     #menu-overlay.active { display: block; opacity: 1; }
 
     /* 2. Desktop Button (Hiện khi hover vào tin nhắn) */
-    /* Lưu ý: Class .message-actions sẽ được thêm bằng JS */
     .message-actions {
         position: absolute; top: 50%; transform: translateY(-50%);
         opacity: 0; visibility: hidden; transition: all 0.2s;
@@ -77,6 +76,82 @@
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .action-btn:hover { color: #0084ff; background: #f9f9f9; }
+
+    /* Trạng thái nút điều khiển call đang bật (vd: share screen) */
+    .btn-control.active {
+        background: #1a73e8;
+        color: #fff;
+    }
+    
+    /* 🔥 CẬP NHẬT CSS CHO ACTION MENU VÀ DRAWING TOOL */
+    .message-input {
+        position: relative; 
+        align-items: center;
+        padding: 10px 15px;
+        background: #fff;
+        border-top: 1px solid #eee;
+    }
+
+    .action-menu {
+        position: absolute; 
+        bottom: 100%; 
+        left: 10px;
+        display: flex;
+        gap: 8px; 
+        
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(10px); 
+        transition: all 0.2s ease-in-out;
+        
+        background: #fff;
+        padding: 8px 10px;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-menu.expanded {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0); 
+    }
+
+    #btn-toggle-actions {
+        margin-right: 10px; 
+        flex-shrink: 0;
+    }
+
+    /* CSS cho Canvas và Toolbar Vẽ */
+    .drawing-canvas-overlay {
+        position: absolute; 
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000; 
+        pointer-events: none; 
+        cursor: default;
+    }
+
+    .chat-drawing-toolbar {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1005;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 8px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    /* Class ẩn */
+    .hidden {
+        display: none !important;
+    }
+
   </style>
 </head>
 <body>
@@ -169,24 +244,38 @@
       </div>
     </aside>
 
-    <main class="chat-area">
+   <main class="chat-area">
       <header class="chat-header">
         <h2>Messages</h2>
         <div class="header-actions"></div>
       </header>
       
-      <div id="animation-screen" class="animation-screen">
-        <lottie-player
-          src="{{ url_for('static', filename='lottie/animation.json') }}"
-          background="transparent"
-          speed="1"
-          style="width: 300px; height: 250px;"
-          loop
-          autoplay>
-        </lottie-player>
+      <div id="welcome-screen" class="welcome-screen">
+        <div class="welcome-content">
+            <lottie-player
+              src="{{ url_for('static', filename='lottie/animation.json') }}"
+              background="transparent"
+              speed="1"
+              style="width: 250px; height: 250px;"
+              loop
+              autoplay>
+            </lottie-player>
+            
+            <h3>Chào mừng đến với PAW TALK</h3>
+            <p>Chọn một hội thoại để bắt đầu kết nối</p>
+        </div>
       </div>
 
       <div id="messages" class="messages"></div>
+
+      <canvas id="chat-drawing-canvas" class="drawing-canvas-overlay"></canvas> 
+      <div id="chat-drawing-toolbar" class="chat-drawing-toolbar hidden">
+          <input type="color" id="chat-draw-color" value="#4CAF50" title="Chọn màu">
+          <input type="range" id="chat-draw-width" min="2" max="20" value="4" title="Độ dày nét vẽ">
+          <button id="chat-btn-clear-draw" title="Xóa tất cả"><i class="fas fa-trash-alt"></i></button>
+          <button id="chat-btn-exit-draw" title="Thoát chế độ vẽ"><i class="fas fa-times"></i></button>
+          <button id="chat-btn-send-draw" title="Gửi chú thích"><i class="fi fi-br-paper-plane"></i></button>
+      </div>
 
       <div id="reply-preview" class="reply-preview hidden">
           <div class="reply-content-wrapper">
@@ -203,30 +292,38 @@
       <div id="typing-indicator" class="typing-indicator hidden">
         <div class="typing-inner">
           <span class="typing-text">Đang nhập...</span>
-          <div class="typing-dots">
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-          </div>
+          <div class="typing-dots"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>
         </div>
       </div>
 
+      <div class="message-input hidden">
+        
+        <button id="btn-toggle-actions" title="Thao tác khác" class="btn-icon">
+            <i class="fas fa-plus"></i> 
+        </button>
 
-      <div class="message-input">
-        <button id="attach-file" title="Đính kèm file"><i class="fi fi-rr-folder-open"></i></button>
-        <button id="attach-image" title="Gửi hình ảnh"><i class="fi fi-rr-picture"></i></button>
-        <button id="show-stickers" title="Gửi sticker"><i class="fi fi-rr-smile"></i></button>
-        <input id="message" type="text" placeholder="Nhập tin nhắn và nhấn Enter...">
+        <div id="action-buttons-menu" class="action-menu">
+            <button id="attach-file" title="Đính kèm file"><i class="fi fi-rr-folder-open"></i></button>
+            <button id="attach-image" title="Gửi hình ảnh"><i class="fi fi-rr-picture"></i></button>
+            <button id="show-stickers" title="Gửi sticker"><i class="fi fi-rr-smile"></i></button>
+            <button id="btn-gift" title="Gửi hộp quà"><i class="fi fi-rr-gift"></i></button>
+            <button id="record-voice" title="Ghi âm tin nhắn"><i class="fas fa-microphone"></i></button>
+            <button id="btn-drawing-tool" title="Vẽ chú thích màn hình"><i class="fas fa-palette"></i></button>
+        </div>
+        
+        <input id="message" type="text" placeholder="Nhập tin nhắn...">
         <button id="send"><i class="fi fi-br-paper-plane"></i></button>
+      </div>
+
+      <div id="recording-indicator" class="recording-indicator hidden">
+        <i class="fas fa-dot-circle"></i> <span>Đang ghi âm... nhấn lại icon micro để dừng & gửi</span>
       </div>
 
       <input type="file" id="file-upload" style="display:none" accept="*/*">
       <input type="file" id="image-upload" style="display:none" accept="image/*">
 
       <div id="sticker-panel" class="sticker-panel" style="display:none;">
-        <div class="sticker-header">
-          <button id="close-stickers" class="close-stickers">&times;</button>
-        </div>
+        <div class="sticker-header"><button id="close-stickers" class="close-stickers">&times;</button></div>
         <div class="sticker-grid">
           <div class="sticker" data-sticker="sticker1">😀</div>
           <div class="sticker" data-sticker="sticker2">😂</div>
@@ -290,7 +387,6 @@
           <div class="profile-actions">
             <button type="button" class="cancel-btn" id="cancel-profile">Hủy</button>
             <button type="submit" class="save-profile-btn">Lưu thay đổi</button>
-
           </div>
           <div class="profile-link">
             <a href="{{ url_for('main.user_profile', username=session.username) }}" class="sidebar-link">
@@ -350,8 +446,7 @@
 
   <div class="overlay" id="sidebar-overlay"></div>
 
-<div id="call-overlay" class="call-overlay" style="display: none;">
-    
+  <div id="call-overlay" class="call-overlay" style="display: none;">
     <div id="video-grid">
         <div class="video-box" id="local-box">
             <video id="local-video" autoplay playsinline muted></video>
@@ -407,6 +502,10 @@
             <i class="fas fa-video"></i>
         </button>
 
+        <button class="btn-control" id="btn-screen-share" title="Chia sẻ màn hình">
+            <i class="fas fa-display"></i>
+        </button>
+
         <button class="btn-control" id="btn-draw-toggle" onclick="toggleDrawingMode()" title="Vẽ">
             <i class="fas fa-palette"></i>
         </button>
@@ -424,6 +523,7 @@
         </button>
     </div>
   </div>
+
   <div id="incoming-call-popup" class="incoming-popup" style="display: none;">
     <div class="incoming-content">
         <div class="caller-avatar">
@@ -455,6 +555,41 @@
         <i class="fas fa-reply"></i> <span>Phản hồi tin nhắn</span>
     </div>
   </div>
+<div id="gift-panel" class="gift-panel hidden">
+    <div class="gift-header">
+        <span>Chọn kiểu hộp quà</span>
+        <span class="close-gift">&times;</span>
+    </div>
+    <div class="gift-options">
+        <div class="gift-option" data-style="gift-classic">
+            <div class="gift-preview classic">🎁</div>
+            <span>Cổ điển</span>
+        </div>
+        <div class="gift-option" data-style="gift-love">
+            <div class="gift-preview love">💝</div>
+            <span>Tình yêu</span>
+        </div>
+        <div class="gift-option" data-style="gift-mystery">
+            <div class="gift-preview mystery">📦</div>
+            <span>Bí ẩn</span>
+        </div>
+        <div class="gift-option" data-style="gift-fire">
+            <div class="gift-preview fire">🔥</div>
+            <span>Cháy bỏng</span>
+        </div>
+    </div>
+  </div>
+  <div id="reaction-details-modal" class="modal">
+    <div class="modal-content reaction-modal-content">
+      <div class="reaction-modal-header">
+        <h3>Chi tiết cảm xúc</h3>
+        <span class="close-reaction-modal">&times;</span>
+      </div>
+      
+      <div id="reaction-list-container" class="reaction-list">
+        </div>
+    </div>
+  </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
@@ -467,7 +602,9 @@
   <script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}"></script>
 
-  <script type="module" src="{{ url_for('static', filename='js/socket/group_call.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/screenShare.js') }}"></script>
+
   
   <script type="module" src="{{ url_for('static', filename='js/socket/user.js') }}"></script>
 

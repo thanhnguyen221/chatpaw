@@ -158,7 +158,8 @@ def register_chat_events(socketio, mongo):
             print(f"Error updating message read status: {str(e)}")
 
     # =========================
-    # 4. SEND_MESSAGE (PRIVATE + GROUP, CÓ REPLY)
+   # =========================
+    # 4. SEND_MESSAGE (PRIVATE + GROUP, CÓ REPLY + GIFT)
     # =========================
 
     @socketio.on('send_message')
@@ -175,9 +176,12 @@ def register_chat_events(socketio, mongo):
             content = data.get('content')
             message_type = data.get('message_type', 'text')
             conversation_type = data.get('conversation_type', 'private')  # 'private' hoặc 'group'
-
+            
             # [MỚI] ID tin nhắn được reply
             reply_to_id = data.get('reply_to_id')
+            
+            # [MỚI] Kiểu hộp quà (gift_classic, gift_love, gift_mystery, gift_fire)
+            gift_style = data.get('gift_style')
 
             if not all([conversation_id, content]):
                 print("Missing conversation_id or content")
@@ -246,7 +250,8 @@ def register_chat_events(socketio, mongo):
                 'read_by': read_by,
                 'status': initial_status,
                 'recipients': recipient_ids,
-                'reply_to': ObjectId(reply_to_id) if reply_to_id else None
+                'reply_to': ObjectId(reply_to_id) if reply_to_id else None,
+                'gift_style': gift_style  # [MỚI] Lưu trường này vào DB
             }
 
             inserted = messages_col.insert_one(message)
@@ -271,10 +276,18 @@ def register_chat_events(socketio, mongo):
                     print(f"Error getting reply context: {e}")
 
             # --- Cập nhật last_message ---
+            # Nếu là quà thì hiển thị text "Đã gửi một món quà" hoặc nội dung text tùy bạn
+            preview_content = content
+            if gift_style:
+                preview_content = "🎁 Đã gửi một hộp quà"
+            elif message_type != 'text':
+                preview_content = f'[{message_type}]'
+
             update_data = {
-                'last_message': content if message_type == 'text' else f'[{message_type}]',
+                'last_message': preview_content,
                 'last_message_time': now
             }
+            
             if conversation_type == 'private':
                 conversations_col.update_one(
                     {'_id': ObjectId(conversation_id)},
@@ -299,7 +312,8 @@ def register_chat_events(socketio, mongo):
                 'timestamp': now.strftime('%Y-%m-%dT%H:%M:%S+07:00'),
                 'status': initial_status,
                 'read_by': [str(sender_id)],
-                'reply_context': reply_context
+                'reply_context': reply_context,
+                'gift_style': gift_style # [MỚI] Gửi về client để render hiệu ứng
             }
 
             # Emit tới room (1v1 & group đều join cùng id này)
@@ -494,6 +508,13 @@ def register_chat_events(socketio, mongo):
             if not conversation_id or not user_id:
                 return
 
+            # Lấy username để client hiển thị "A đang nhập..."
+            user_doc = users_col.find_one(
+                {'_id': ObjectId(user_id)},
+                {'username': 1}
+            )
+            username = user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
+
             if conversation_type == 'group':
                 room = f"group_{conversation_id}"   # group.py join_group dùng room này
             else:
@@ -502,7 +523,8 @@ def register_chat_events(socketio, mongo):
             emit('typing', {
                 'conversation_id': conversation_id,
                 'conversation_type': conversation_type,
-                'user_id': user_id
+                'user_id': user_id,
+                'username': username
             }, room=room, include_self=False)
 
         except Exception as e:
@@ -535,3 +557,164 @@ def register_chat_events(socketio, mongo):
 
         except Exception as e:
             print(f"Error handling stop_typing: {str(e)}")
+
+    # =========================
+    # 9b. GROUP_TYPING / GROUP_STOP_TYPING (TƯƠNG THÍCH VỚI FRONTEND HIỆN TẠI)
+    # =========================
+
+    @socketio.on('group_typing')
+    def handle_group_typing(data):
+        """
+        Event riêng cho group chat nếu client emit 'group_typing'.
+        Dùng song song, KHÔNG thay thế 'typing'.
+        """
+        try:
+            group_id = data.get('group_id') or data.get('conversation_id')
+            user_id = session.get('user_id')
+
+            if not group_id or not user_id:
+                return
+
+            user_doc = users_col.find_one(
+                {'_id': ObjectId(user_id)},
+                {'username': 1}
+            )
+            username = user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
+
+            room = f"group_{group_id}"
+
+            emit('group_typing', {
+                'group_id': str(group_id),
+                'conversation_id': str(group_id),
+                'user_id': user_id,
+                'username': username
+            }, room=room, include_self=False)
+
+        except Exception as e:
+            print(f"Error handling group_typing: {str(e)}")
+
+    @socketio.on('group_stop_typing')
+    def handle_group_stop_typing(data):
+        """
+        Event riêng cho group chat nếu client emit 'group_stop_typing'.
+        Dùng song song, KHÔNG thay thế 'stop_typing'.
+        """
+        try:
+            group_id = data.get('group_id') or data.get('conversation_id')
+            user_id = session.get('user_id')
+
+            if not group_id or not user_id:
+                return
+
+            room = f"group_{group_id}"
+
+            emit('group_stop_typing', {
+                'group_id': str(group_id),
+                'conversation_id': str(group_id),
+                'user_id': user_id
+            }, room=room, include_self=False)
+
+        except Exception as e:
+            print(f"Error handling group_stop_typing: {str(e)}")
+
+# ==================================================================
+    # 10. MESSAGE REACTION (THẢ CẢM XÚC - CẬP NHẬT PREVIEW & SIDEBAR)
+    # ==================================================================
+    @socketio.on('react_message')
+    def handle_react_message(data):
+        try:
+            user_id = session.get('user_id')
+            if not user_id: return
+
+            message_id = data.get('message_id')
+            emoji = data.get('emoji') 
+            conversation_type = data.get('conversation_type', 'private')
+            conversation_id = data.get('conversation_id')
+
+            if not message_id: return
+
+            try:
+                msg_oid = ObjectId(message_id)
+                conv_oid = ObjectId(conversation_id) if conversation_id else None
+                user_oid = ObjectId(user_id)
+            except:
+                return # ID không hợp lệ
+
+            # 1. Chọn đúng bảng dữ liệu (Direct Access để tránh lỗi)
+            if conversation_type == 'private':
+                col = mongo.db.messages 
+            else:
+                col = mongo.db.group_messages
+
+            # 2. Tìm tin nhắn
+            msg = col.find_one({'_id': msg_oid})
+            if not msg: return
+
+            # 3. Xử lý Logic Thả/Gỡ
+            current_reactions = msg.get('reactions', {})
+            current_user_emoji = current_reactions.get(str(user_id))
+            action = 'added'
+            
+            if current_user_emoji == emoji:
+                # Bấm lại icon cũ -> Gỡ (Remove)
+                col.update_one({'_id': msg_oid}, {'$unset': {f'reactions.{user_id}': ""}})
+                action = 'removed'
+                emoji = None 
+            else:
+                # Icon mới hoặc thay đổi -> Cập nhật (Set)
+                col.update_one({'_id': msg_oid}, {'$set': {f'reactions.{user_id}': emoji}})
+                action = 'updated'
+
+            # 4. [QUAN TRỌNG] Cập nhật Preview hội thoại (Sidebar)
+            # Chỉ cập nhật khi Thêm hoặc Đổi (không cập nhật khi Xóa để tránh spam)
+            if action in ['added', 'updated'] and conv_oid:
+                try:
+                    # Lấy tên người thả
+                    sender_info = mongo.db.users.find_one({'_id': user_oid})
+                    sender_name = sender_info.get('username', 'Ai đó') if sender_info else 'Ai đó'
+                    
+                    # Nội dung lưu vào DB (Dùng chung cho cả 2 bên thấy)
+                    preview_text = f"{sender_name} đã thả cảm xúc {emoji}"
+
+                    now = get_vietnam_time()
+                    
+                    # Cập nhật bảng Conversations hoặc Groups
+                    if conversation_type == 'private':
+                        mongo.db.conversations.update_one(
+                            {'_id': conv_oid},
+                            {'$set': {
+                                'last_message': preview_text,
+                                'last_message_time': now
+                            }}
+                        )
+                    else:
+                        mongo.db.groups.update_one(
+                            {'_id': conv_oid},
+                            {'$set': {
+                                'last_message': preview_text,
+                                'last_message_time': now,
+                                'last_message_user': user_oid
+                            }}
+                        )
+                except Exception as ex:
+                    print(f"Error updating preview: {ex}")
+
+            # 5. Thông báo Socket cho mọi người
+            if conversation_type == 'group':
+                room = f"group_{conversation_id}"
+            else:
+                room = str(conversation_id)
+            
+            emit('message_reaction_updated', {
+                'message_id': message_id,
+                'user_id': str(user_id),
+                'conversation_id': conversation_id,
+                'conversation_type': conversation_type,
+                'emoji': emoji,
+                'action': action,
+                # Gửi kèm timestamp để sort lại list bên frontend nếu cần
+                'timestamp': get_vietnam_time().isoformat()
+            }, room=room)
+
+        except Exception as e:
+            print(f"Error reacting message: {e}")

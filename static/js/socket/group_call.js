@@ -1,3 +1,4 @@
+// static/js/socket/group_call.js
 import { socket } from "./index.js";
 
 const peers = {};
@@ -11,13 +12,21 @@ let isMicOn = true;
 let isCamOn = true;
 let isInCall = false;
 
-// --- BIẾN CHO TÍNH NĂNG VẼ (UPDATED) ---
+// --- BIẾN CHO TÍNH NĂNG VẼ ---
 let isDrawingMode = false;
 let isDrawing = false;
 let drawColor = '#ff0000';
 let drawWidth = 4;
 let currentBrushType = 'pen';   // Mặc định: Bút tròn
 let isReactionVisible = false;  // Trạng thái thanh cảm xúc
+// Lưu điểm cuối cùng (normalized) của từng user remote để nối nét
+const remoteStrokeState = {}; // { [from_sid]: { x, y } }
+
+
+// --- UI JOIN REALTIME BUTTON ---
+let currentConversationId = null;
+let currentConversationType = null;
+let joinRealtimeBtn = null;
 
 const rtcConfig = {
     iceServers: [
@@ -62,6 +71,7 @@ export async function startGroupCall(conversationId, conversationType = 'group')
     }
 
     if (isInCall && currentCallId === conversationId) {
+        // Đã ở trong call này rồi -> chỉ mở lại overlay
         showCallOverlay();
         return;
     }
@@ -69,6 +79,11 @@ export async function startGroupCall(conversationId, conversationType = 'group')
     currentCallId = conversationId;
     currentCallType = conversationType;
     isInCall = true;
+
+    // 🔥 Nếu đang đứng đúng conversation này → bật hiệu ứng LIVE cho nút
+    if (joinRealtimeBtn && currentConversationId === conversationId) {
+        joinRealtimeBtn.classList.add('realtime-live');
+    }
 
     showCallOverlay();
     
@@ -84,6 +99,60 @@ export async function startGroupCall(conversationId, conversationType = 'group')
         internalEndCall(true);
     }
 }
+
+// ================== UI: JOIN REALTIME BUTTON ==================
+
+function initRealtimeJoinButton() {
+    if (joinRealtimeBtn) return; // đã tạo rồi
+
+    const headerActions = document.querySelector('.header-actions');
+    if (!headerActions) return;
+
+    joinRealtimeBtn = document.createElement('button');
+    joinRealtimeBtn.id = 'join-realtime-btn';
+    joinRealtimeBtn.className = 'icon-button';
+    joinRealtimeBtn.style.display = 'none';
+    joinRealtimeBtn.innerHTML = `
+        <i class="fa-solid fa-bolt"></i>
+        <span class="label" style="margin-left:6px;font-size:0.9rem;">Realtime</span>
+    `;
+
+    joinRealtimeBtn.addEventListener('click', () => {
+        if (!currentConversationId) return;
+        // Logic:
+        // - nếu chưa call -> join mới
+        // - nếu đang call đúng room -> chỉ mở lại overlay
+        // - nếu đang call room khác -> end call cũ + join room mới
+        startGroupCall(currentConversationId, currentConversationType || 'group');
+    });
+
+    headerActions.appendChild(joinRealtimeBtn);
+}
+
+document.addEventListener('DOMContentLoaded', initRealtimeJoinButton);
+
+// Cho file khác (chat / group) báo context hiện tại
+window.setCurrentConversationForCall = function (conversationId, conversationType = 'group') {
+    currentConversationId = conversationId;
+    currentConversationType = conversationType;
+
+    if (!joinRealtimeBtn) initRealtimeJoinButton();
+    if (!joinRealtimeBtn) return;
+
+    // Chỉ hiện nút cho group (nếu muốn dùng luôn cho private thì bỏ if này)
+    if (conversationType === 'group') {
+        joinRealtimeBtn.style.display = 'inline-flex';
+    } else {
+        joinRealtimeBtn.style.display = 'none';
+    }
+
+    // Nếu đang ở đúng call này thì bật hiệu ứng LIVE
+    if (isInCall && currentCallId === conversationId) {
+        joinRealtimeBtn.classList.add('realtime-live');
+    } else {
+        joinRealtimeBtn.classList.remove('realtime-live');
+    }
+};
 
 async function getMedia(facingMode) {
     if (localStream) {
@@ -104,10 +173,19 @@ async function getMedia(facingMode) {
         // Lật gương nếu là cam trước
         if (facingMode === 'user') {
             videoEl.classList.remove('env-mode');
-            videoEl.style.transform = 'scaleX(-1)';
+            videoEl.style.transform = 'scaleX(-1)'; 
+            
+            // Đồng bộ lật CSS cho Canvas
+            const localCanvas = document.querySelector('#local-box canvas');
+            if (localCanvas) localCanvas.style.transform = 'scaleX(-1)';
+
         } else {
             videoEl.classList.add('env-mode');
             videoEl.style.transform = 'none';
+
+            // Đồng bộ lật CSS cho Canvas
+            const localCanvas = document.querySelector('#local-box canvas');
+            if (localCanvas) localCanvas.style.transform = 'none';
         }
     }
 
@@ -150,16 +228,30 @@ function internalEndCall(emitLeave = true) {
     
     // Xóa sạch canvas mình vẽ
     const localCanvas = document.querySelector('#local-box canvas');
-    if(localCanvas) {
+    if (localCanvas) {
         const ctx = localCanvas.getContext('2d');
         ctx.clearRect(0, 0, localCanvas.width, localCanvas.height);
+    }
+
+    // Reset trạng thái stroke remote
+    for (const k in remoteStrokeState) {
+        delete remoteStrokeState[k];
     }
 
     hideCallOverlay();
     currentCallId = null;
     currentCallType = null;
     isInCall = false;
+
+    // 🔥 Reset nút Realtime: tắt LIVE nhưng vẫn HIỆN ngay nếu đang đứng ở group
+    if (joinRealtimeBtn) {
+        joinRealtimeBtn.classList.remove('realtime-live');
+        if (currentConversationId && currentConversationType === 'group') {
+            joinRealtimeBtn.style.display = 'inline-flex';
+        }
+    }
 }
+
 
 export function endCall() {
     internalEndCall(true);
@@ -309,7 +401,7 @@ function createVideoDiv(sid) {
     return div;
 }
 
-// ================== 4. DRAWING LOGIC (NÂNG CẤP) ==================
+// ================== 4. DRAWING LOGIC (FIX LỖI LẬT GƯƠNG) ==================
 
 function setupLocalCanvas() {
     setTimeout(() => {
@@ -324,38 +416,56 @@ function setupLocalCanvas() {
 
 function initDrawingListeners(canvas, scope) {
     const ctx = canvas.getContext('2d');
-
+    
+    // TÍNH TOÁN TỌA ĐỘ GỐC (CHƯA LẬT)
     const getCoords = (e) => {
         const rect = canvas.getBoundingClientRect();
         let clientX = e.touches ? e.touches[0].clientX : e.clientX;
         let clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
+        // Tọa độ GỐC (normalized 0-1)
         let x = (clientX - rect.left) / rect.width;
         let y = (clientY - rect.top) / rect.height;
 
-        if (scope === 'local' && currentFacingMode === 'user') {
-            x = 1 - x; 
-        }
-        return { x, y };
+        return { x, y }; // Trả về tọa độ GỐC (chưa lật)
     };
 
     const startDraw = (e) => {
         if (!isDrawingMode) return;
         isDrawing = true;
-        const { x, y } = getCoords(e);
+        let { x: normX, y: normY } = getCoords(e); // Lấy tọa độ GỐC
+
+        // TÍNH TOÁN TỌA ĐỘ HIỂN THỊ CỤC BỘ (veX)
+        let veX = normX;
+        const isMirror = (scope === 'local' && currentFacingMode === 'user');
+        if (isMirror) {
+            veX = 1 - veX; // Lật X cho việc hiển thị cục bộ (gương soi)
+        }
         
-        // Vẽ local với loại cọ hiện tại
-        drawStroke(canvas, x, y, drawColor, drawWidth, 'start', currentBrushType, scope === 'local' && currentFacingMode === 'user');
-        emitDraw(x, y, 'start');
+        // Vẽ local bằng tọa độ đã lật (veX)
+        drawStroke(canvas, veX, normY, drawColor, drawWidth, 'start', currentBrushType); 
+        
+        // Gửi đi tọa độ GỐC (normX) - Đảm bảo người nhận vẽ đúng
+        emitDraw(normX, normY, 'start');
     };
 
     const moveDraw = (e) => {
         if (!isDrawingMode || !isDrawing) return;
         e.preventDefault(); 
-        const { x, y } = getCoords(e);
+        let { x: normX, y: normY } = getCoords(e); // Lấy tọa độ GỐC
+
+        // TÍNH TOÁN TỌA ĐỘ HIỂN THỊ CỤC BỘ (veX)
+        let veX = normX;
+        const isMirror = (scope === 'local' && currentFacingMode === 'user');
+        if (isMirror) {
+            veX = 1 - veX; // Lật X cho việc hiển thị cục bộ (gương soi)
+        }
+
+        // Vẽ local bằng tọa độ đã lật (veX)
+        drawStroke(canvas, veX, normY, drawColor, drawWidth, 'move', currentBrushType); 
         
-        drawStroke(canvas, x, y, drawColor, drawWidth, 'move', currentBrushType, scope === 'local' && currentFacingMode === 'user');
-        emitDraw(x, y, 'move');
+        // Gửi đi tọa độ GỐC (normX)
+        emitDraw(normX, normY, 'move');
     };
 
     const endDraw = () => {
@@ -373,16 +483,15 @@ function initDrawingListeners(canvas, scope) {
     canvas.addEventListener('touchend', endDraw);
 }
 
-// HÀM VẼ NÂNG CẤP (Hỗ trợ Pen, Marker, Neon)
-function drawStroke(canvas, normX, normY, color, width, type, brushType = 'pen', mirrorMode = false) {
+// HÀM VẼ NÂNG CẤP (XÓA BỎ LOGIC LẬT BÊN TRONG)
+function drawStroke(canvas, normX, normY, color, width, type, brushType = 'pen') {
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
 
+    // normX luôn là tọa độ cuối cùng cần vẽ
     let x = normX * w;
     let y = normY * h;
-
-    if (mirrorMode) x = (1 - normX) * w;
 
     // --- CẤU HÌNH CỌ ---
     ctx.lineWidth = width;
@@ -444,15 +553,22 @@ window.addEventListener('resize', () => {
 // ================== 5. RECEIVE EVENTS ==================
 
 socket.on('call:draw_stroke', (data) => {
+    // Nếu server broadcast cả người gửi thì tránh tự vẽ đè lên chính mình
+    if (data.from_sid === socket.id) return;
+
+    // Nếu server có gửi conversation_id thì check đúng phòng (an toàn thêm)
+    if (data.conversation_id && data.conversation_id !== currentCallId) return;
+
     const box = document.getElementById(`c-${data.from_sid}`);
-    if (box) {
-        const canvas = box.querySelector('canvas');
-        if (canvas) {
-            // Nhận loại cọ từ server
-            drawStroke(canvas, data.x, data.y, data.color, data.width, data.type, data.brush_type, false);
-        }
-    }
+    if (!box) return;
+
+    const canvas = box.querySelector('canvas');
+    if (!canvas) return;
+
+    // Vẽ remote bằng hàm dùng state để nối nét
+    drawRemoteStroke(canvas, data);
 });
+
 
 socket.on('call:clear_board', (data) => {
     const box = document.getElementById(`c-${data.from_sid}`);
@@ -496,6 +612,75 @@ socket.on('call:receive_reaction', (data) => {
         }
     }
 });
+// HÀM VẼ REMOTE – DÙNG STATE ĐỂ NỐI NÉT GIỮA CÁC EVENT
+function drawRemoteStroke(canvas, data) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const nx = data.x;
+    const ny = data.y;
+    const type = data.type || 'move';  // nếu thiếu thì coi như move để nối nét
+
+    const color = data.color || '#ff0000';
+    const width = data.width || 4;
+    const brushType = data.brush_type || 'pen';
+    const fromSid = data.from_sid;
+
+    const x = nx * w;
+    const y = ny * h;
+
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (brushType === 'marker') {
+        ctx.lineCap = 'square';
+    } else if (brushType === 'neon') {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+    }
+
+    if (type === 'start') {
+        // Lưu điểm bắt đầu
+        remoteStrokeState[fromSid] = { x: nx, y: ny };
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+
+    } else if (type === 'move') {
+        const last = remoteStrokeState[fromSid];
+
+        if (!last) {
+            // Nếu mất state (vd join giữa chừng) -> set lại
+            remoteStrokeState[fromSid] = { x: nx, y: ny };
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        } else {
+            const lastX = last.x * w;
+            const lastY = last.y * h;
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            if (brushType === 'neon') ctx.stroke();
+
+            // Update điểm cuối cùng
+            remoteStrokeState[fromSid] = { x: nx, y: ny };
+        }
+
+    } else if (type === 'end') {
+        delete remoteStrokeState[fromSid];
+        ctx.beginPath();
+    }
+}
+
 
 // ================== 6. CONTROLS (VẼ & REACTION) ==================
 
@@ -523,7 +708,7 @@ window.toggleDrawingMode = function() {
     }
 };
 
-// Toggle thanh Reaction (MỚI)
+// Toggle thanh Reaction
 window.toggleReactionBar = function() {
     isReactionVisible = !isReactionVisible;
     const bar = document.getElementById('reaction-bar');
@@ -642,3 +827,24 @@ socket.on('call:declined', (data) => {
         endCall();
     }
 });
+// Khi server báo phòng call đã kết thúc (vd: người cuối cùng rời phòng)
+socket.on('call:ended', (data) => {
+    console.log('[Call] call:ended', data);
+    if (!data) return;
+
+    // Nếu CHÍNH MÌNH đang trong cuộc call đó → dọn dẹp nhưng KHÔNG emit leave nữa
+    if (isInCall && currentCallId === data.conversation_id) {
+        internalEndCall(false);
+    } else {
+        // Không ở trong call, nhưng đang đứng đúng group đó → đảm bảo nút trở về trạng thái "có thể bắt đầu realtime"
+        if (
+            data.conversation_type === 'group' &&
+            joinRealtimeBtn &&
+            currentConversationId === data.conversation_id
+        ) {
+            joinRealtimeBtn.classList.remove('realtime-live');
+            joinRealtimeBtn.style.display = 'inline-flex';
+        }
+    }
+});
+

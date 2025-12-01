@@ -7,9 +7,90 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="profile-container" data-user-id="{{ profile_user._id }}">
+<!-- Side Navigation -->
+<button class="nav-toggle" id="nav-toggle">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="nav-overlay" id="nav-overlay"></div>
+
+<aside class="side-nav" id="side-nav">
+    <div class="nav-header">
+        <div class="nav-logo">PT</div>
+        <div class="nav-title">PAW TALK</div>
+    </div>
+    
+    <nav class="nav-menu">
+        <a href="/chat" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-home"></i>
+            </div>
+            <span class="nav-text">Trang chủ</span>
+        </a>
+        
+        <a href="/profile/{{ profile_user.username }}" class="nav-item active">
+            <div class="nav-icon">
+                <i class="fas fa-user"></i>
+            </div>
+            <span class="nav-text">Trang cá nhân</span>
+        </a>
+        
+        <a href="/friend_requests_page" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-user-friends"></i>
+            </div>
+            <span class="nav-text">Lời mời kết bạn</span>
+            <span class="nav-badge" id="friend-requests-nav-badge" style="display: none;">0</span>
+        </a>
+        
+        <div class="nav-divider"></div>
+        
+        <a href="/messages" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-comments"></i>
+            </div>
+            <span class="nav-text">Tin nhắn</span>
+            <span class="nav-badge show">5</span>
+        </a>
+        
+        <a href="/notifications" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <span class="nav-text">Thông báo</span>
+            <span class="nav-badge" id="notifications-nav-badge" style="display: none;">0</span>
+        </a>
+        
+        <div class="nav-divider"></div>
+        
+        <a href="/settings" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-cog"></i>
+            </div>
+            <span class="nav-text">Cài đặt</span>
+        </a>
+        
+        <a href="/logout" class="nav-item">
+            <div class="nav-icon">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <span class="nav-text">Đăng xuất</span>
+        </a>
+    </nav>
+</aside>
+    <!-- Sửa dòng này -->
+<div class="profile-container" data-user-id="{{ profile_user._id }}" data-current-user-id="{{ current_user_id }}">
+    {% if profile_user._id|string != current_user_id %}
+    <div class="back-to-my-profile-container">
+        <button class="back-to-my-profile-btn" id="back-to-my-profile-btn">
+            <i class="fas fa-arrow-left"></i>
+            <span>Trang của tôi</span>
+        </button>
+    </div>
+    {% endif %}
         <!-- Integrated Profile Header with Cover and Hero -->
         <section class="profile-header">
             <div class="header-background">
@@ -48,6 +129,7 @@
                                 <span class="stat-label">Bài viết</span>
                             </div>
                             <div class="stat">
+                                <!-- SỬA DÒNG NÀY: XÓA THẺ <aside> THỪA -->
                                 <span class="stat-number">{{ profile_user.friends|length if profile_user.friends else 0 }}</span>
                                 <span class="stat-label">Bạn bè</span>
                             </div>
@@ -59,29 +141,42 @@
                     </div>
                 </div>
             <!-- Trong phần profile-actions -->
-            <div class="profile-actions">
-                {% if profile_user._id|string == current_user_id %}
-                <button id="edit-profile-btn" class="btn btn-primary">
-                    <i class="fas fa-pen-to-square"></i>
-                    Chỉnh sửa
-                </button>
-                {% else %}
-                <!-- Hiển thị cho profile người khác -->
-                <div class="friend-actions">
-                    <button class="btn btn-primary" id="add-friend-btn">
-                        <i class="fi fi-rr-user-add"></i>
-                        Kết bạn
+                <div class="profile-actions">
+                    {% if profile_user._id|string == current_user_id %}
+                    <button id="edit-profile-btn" class="btn btn-primary">
+                        <i class="fas fa-pen-to-square"></i>
+                        Chỉnh sửa
                     </button>
-                    <button class="btn btn-outline" id="send-message-btn">
-                        <i class="fas fa-paper-plane"></i>
-                        Nhắn tin
-                    </button>
-                    <button class="btn btn-outline" id="more-actions-btn">
-                        <i class="fas fa-ellipsis-h"></i>
-                    </button>
+                    {% else %}
+                    <!-- Hiển thị cho profile người khác -->
+                    <div class="friend-actions">
+                        {% if is_friend %}
+                        <!-- Đã là bạn bè -->
+                        <button class="btn btn-outline" id="send-message-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Nhắn tin
+                        </button>
+                        <button class="btn btn-outline" id="unfriend-btn">
+                            <i class="fas fa-user-times"></i>
+                            Hủy kết bạn
+                        </button>
+                        {% else %}
+                        <!-- Chưa là bạn bè -->
+                        <button class="btn btn-primary" id="add-friend-btn">
+                            <i class="fa-solid fa-user-plus"></i>
+                            Kết bạn
+                        </button>
+                        <button class="btn btn-outline" id="send-message-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Nhắn tin
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-outline" id="more-actions-btn">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
-            </div>
             </div>
         </section>
 
@@ -275,8 +370,9 @@
                         </span>
                     </div>
                     
+                    <!-- CHỈ HIỂN THỊ CHO CHÍNH NGƯỜI DÙNG -->
+                    {% if profile_user._id|string == current_user_id %}
                     <div class="friends-grid" id="friends-grid">
-                        <!-- Loading state sẽ được thay thế bằng JS -->
                         <div class="loading-state">
                             <i class="fas fa-spinner fa-spin"></i>
                             <span>Đang tải bạn bè...</span>
@@ -286,6 +382,15 @@
                     <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllFriends()" style="display: none;" id="view-all-friends-btn">
                         <i class="fi fi-rr-search"></i> Xem tất cả bạn bè
                     </button>
+                    {% else %}
+                    <!-- HIỂN THỊ THÔNG BÁO KHI XEM PROFILE NGƯỜI KHÁC -->
+                    <div class="friends-restricted">
+                        <div class="restricted-message">
+                            <i class="fas fa-lock"></i>
+                            <p>Bạn bè đã được bảo mật</p>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Photos Card -->
@@ -590,7 +695,108 @@
                 counter.textContent = newIndex + 1;
             }
         }
+        function viewFriendRequests() {
+    window.location.href = '/friend_requests_page';
+}
+async function loadNotificationCount() {
+        try {
+            const response = await fetch('/api/notifications/count');
+            const data = await response.json();
+            
+            const badge = document.getElementById('notifications-nav-badge');
+            if (badge && data.count > 0) {
+                badge.textContent = data.count > 99 ? '99+' : data.count;
+                badge.style.display = 'inline';
+            }
+        } catch (error) {
+            console.error('Error loading notification count:', error);
+        }
+    }
     
+    // Load friend requests count
+    async function loadFriendRequestsCount() {
+        try {
+            const response = await fetch('/friend_requests_count');
+            const data = await response.json();
+            
+            const badge = document.getElementById('friend-requests-nav-badge');
+            if (badge && data.count > 0) {
+                badge.textContent = data.count > 99 ? '99+' : data.count;
+                badge.style.display = 'inline';
+            }
+        } catch (error) {
+            console.error('Error loading friend requests count:', error);
+        }
+    }
+    
+    // Load message count
+    async function loadMessageCount() {
+        try {
+            const response = await fetch('/api/messages/unread_count');
+            const data = await response.json();
+            
+            const badge = document.getElementById('messages-badge');
+            if (badge && data.count > 0) {
+                badge.textContent = data.count > 99 ? '99+' : data.count;
+                badge.style.display = 'inline';
+            }
+        } catch (error) {
+            console.error('Error loading message count:', error);
+        }
+    }
+    
+    // Load all counts when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadNotificationCount();
+        loadFriendRequestsCount();
+        loadMessageCount();
+        
+        // Set up real-time updates with Socket.IO
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            
+            // Listen for new notifications
+            socket.on('new_notification', (data) => {
+                loadNotificationCount();
+            });
+            
+            // Listen for new friend requests
+            socket.on('new_friend_request', (data) => {
+                loadFriendRequestsCount();
+            });
+            
+            // Listen for new messages
+            socket.on('new_message', (data) => {
+                loadMessageCount();
+            });
+            
+            // Mark notification as read when clicking on profile page
+            socket.on('notification_read', (data) => {
+                loadNotificationCount();
+            });
+        }
+    });
+
+        // Cập nhật badge số lượng lời mời
+        function updateFriendRequestsBadge(count) {
+            const badge = document.getElementById('friend-requests-badge');
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        // Gọi hàm này khi có lời mời mới
+        if (window.socket) {
+            window.socket.on('new_friend_request', (data) => {
+                // Cập nhật badge
+                updateFriendRequestsBadge(/* số lượng mới */);
+            });
+        }
         // Export functions to global scope
         window.carouselPrev = carouselPrev;
         window.carouselNext = carouselNext;

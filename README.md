@@ -85,7 +85,7 @@ Google Gemini AI powers two core features:
 
 **1. Clone the repository:**
 ```bash
-git clone https://github.com/thanhnguyen221/pawtalk.git
+git clone https://github.com/thanhnguyen221/chatpaw.git
 cd pawtalk
 ```
 

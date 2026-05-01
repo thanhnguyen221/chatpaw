@@ -1,0 +1,991 @@
+/**
+ * macOS Style File Preview CSS
+ * Giao diện xem trước file giống macOS Quick Look
+ * Hỗ trợ: PDF, Word, Excel, PowerPoint, TXT, Images, Videos
+ */
+
+/* ===== OVERLAY & MODAL ===== */
+.mac-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.mac-preview-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== PREVIEW CONTAINER ===== */
+.mac-preview-container {
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.1);
+  width: 95%;
+  max-width: 1200px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mac-preview-overlay.active .mac-preview-container {
+  transform: scale(1);
+}
+
+/* ===== HEADER (Title Bar) ===== */
+.mac-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #f5f5f7 0%, #e8e8ed 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 16px 16px 0 0;
+}
+
+/* Traffic Lights Buttons */
+.mac-preview-traffic-lights {
+  display: flex;
+  gap: 8px;
+}
+
+.mac-traffic-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.mac-traffic-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.mac-traffic-btn:hover::before {
+  opacity: 1;
+}
+
+.mac-traffic-close {
+  background: #ff5f56;
+  box-shadow: 0 0 0 0.5px #e0443e;
+}
+
+.mac-traffic-close::before {
+  content: '×';
+  font-size: 10px;
+  color: #4d0000;
+  font-weight: 600;
+}
+
+.mac-traffic-minimize {
+  background: #ffbd2e;
+  box-shadow: 0 0 0 0.5px #dea123;
+}
+
+.mac-traffic-minimize::before {
+  content: '−';
+  font-size: 10px;
+  color: #995700;
+  font-weight: 600;
+}
+
+.mac-traffic-expand {
+  background: #27c93f;
+  box-shadow: 0 0 0 0.5px #1aab29;
+}
+
+.mac-traffic-expand::before {
+  content: '+';
+  font-size: 10px;
+  color: #006500;
+  font-weight: 600;
+}
+
+/* Title */
+.mac-preview-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin: 0 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mac-preview-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mac-preview-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mac-preview-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mac-preview-btn.primary {
+  background: #007aff;
+  color: white;
+}
+
+.mac-preview-btn.primary:hover {
+  background: #0051d5;
+}
+
+/* ===== CONTENT AREA ===== */
+.mac-preview-content {
+  flex: 1;
+  overflow: auto;
+  background: #f5f5f7;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+}
+
+/* ===== PDF PREVIEW ===== */
+.mac-preview-pdf {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.mac-preview-pdf iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 650px;
+  border: none;
+}
+
+.mac-preview-pdf-object {
+  width: 100%;
+  height: 700px;
+  border: none;
+}
+
+/* ===== IMAGE PREVIEW ===== */
+.mac-preview-image {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== VIDEO PREVIEW ===== */
+.mac-preview-video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  background: #000;
+}
+
+.mac-preview-video video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+}
+
+/* ===== DOCUMENT PREVIEW (Word, Excel, PPT) ===== */
+.mac-preview-document {
+  width: 100%;
+  min-height: 600px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 40px;
+}
+
+.mac-preview-doc-icon {
+  width: 120px;
+  height: 120px;
+  margin: 40px auto;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.mac-preview-doc-icon.word {
+  background: linear-gradient(135deg, #2b579a 0%, #1e3f75 100%);
+  color: white;
+}
+
+.mac-preview-doc-icon.excel {
+  background: linear-gradient(135deg, #217346 0%, #1a5c38 100%);
+  color: white;
+}
+
+.mac-preview-doc-icon.powerpoint {
+  background: linear-gradient(135deg, #d24726 0%, #a7391d 100%);
+  color: white;
+}
+
+.mac-preview-doc-icon.pdf {
+  background: linear-gradient(135deg, #f40f02 0%, #c20a00 100%);
+  color: white;
+}
+
+.mac-preview-doc-icon.text {
+  background: linear-gradient(135deg, #666 0%, #444 100%);
+  color: white;
+}
+
+.mac-preview-doc-info {
+  text-align: center;
+  padding: 0 40px 40px;
+}
+
+.mac-preview-doc-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.mac-preview-doc-meta {
+  font-size: 13px;
+  color: #86868b;
+  margin-bottom: 20px;
+}
+
+.mac-preview-doc-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Text File Content */
+.mac-preview-text-content {
+  width: 100%;
+  height: 100%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1d1d1f;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ===== FOOTER (Toolbar) ===== */
+.mac-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #f5f5f7 0%, #e8e8ed 100%);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 16px 16px;
+}
+
+.mac-preview-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.mac-preview-tool-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.mac-preview-tool-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mac-preview-page-info {
+  font-size: 12px;
+  color: #86868b;
+}
+
+/* ===== IN-CHAT FILE ATTACHMENT (macOS Style) ===== */
+.mac-file-attachment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  max-width: 340px;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+
+.mac-file-attachment:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 122, 255, 0.25);
+  background: linear-gradient(135deg, #ffffff 0%, #f5f5f7 100%);
+}
+
+.mac-file-attachment:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.mac-file-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mac-file-icon.pdf {
+  background: linear-gradient(135deg, #f40f02 0%, #c20a00 100%);
+  color: white;
+}
+
+.mac-file-icon.word {
+  background: linear-gradient(135deg, #2b579a 0%, #1e3f75 100%);
+  color: white;
+}
+
+.mac-file-icon.excel {
+  background: linear-gradient(135deg, #217346 0%, #1a5c38 100%);
+  color: white;
+}
+
+.mac-file-icon.powerpoint {
+  background: linear-gradient(135deg, #d24726 0%, #a7391d 100%);
+  color: white;
+}
+
+.mac-file-icon.text {
+  background: linear-gradient(135deg, #666 0%, #444 100%);
+  color: white;
+}
+
+.mac-file-icon.image {
+  background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+  color: white;
+}
+
+.mac-file-icon.video {
+  background: linear-gradient(135deg, #5856d6 0%, #3634a3 100%);
+  color: white;
+}
+
+.mac-file-icon.audio {
+  background: linear-gradient(135deg, #ff2d55 0%, #d61f45 100%);
+  color: white;
+}
+
+.mac-file-icon.archive {
+  background: linear-gradient(135deg, #ff9500 0%, #d67d00 100%);
+  color: white;
+}
+
+.mac-file-icon.code {
+  background: linear-gradient(135deg, #5856d6 0%, #3634a3 100%);
+  color: white;
+}
+
+.mac-file-icon.default {
+  background: linear-gradient(135deg, #c7c7cc 0%, #8e8e93 100%);
+  color: white;
+}
+
+/* Archive Badge */
+.archive-badge {
+  background: linear-gradient(135deg, #ff9500 0%, #d67d00 100%);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.archive-badge i {
+  font-size: 9px;
+}
+
+.mac-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mac-file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mac-file-meta {
+  font-size: 12px;
+  color: #86868b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mac-file-preview-hint {
+  font-size: 11px;
+  color: #007aff;
+  opacity: 0.8;
+}
+
+/* File Action Buttons (in chat) */
+.mac-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.mac-file-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(0, 122, 255, 0.08);
+  color: #007aff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mac-file-action-btn:hover {
+  background: #007aff;
+  color: white;
+  transform: scale(1.12);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+.mac-file-action-btn:active {
+  transform: scale(0.95);
+}
+
+.mac-file-action-btn.mac-file-download-btn:hover {
+  background: #34c759;
+  box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+}
+
+.mac-file-action-btn.mac-file-open-btn:hover {
+  background: #5856d6;
+  box-shadow: 0 4px 12px rgba(88, 86, 214, 0.3);
+}
+
+/* Inline Preview (expand in chat) */
+.mac-file-inline-preview {
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  animation: mac-inline-expand 0.3s ease;
+}
+
+@keyframes mac-inline-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+}
+
+.mac-file-inline-content {
+  padding: 16px;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.mac-file-inline-content img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto;
+}
+
+.mac-file-inline-content iframe {
+  width: 100%;
+  height: 350px;
+  border: none;
+  border-radius: 8px;
+}
+
+.mac-file-inline-content video,
+.mac-file-inline-content audio {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.mac-file-inline-text {
+  background: #f5f5f7;
+  padding: 12px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow: auto;
+}
+
+/* Quick Look Indicator */
+.mac-file-quicklook {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.mac-file-attachment:hover .mac-file-quicklook {
+  opacity: 1;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes mac-preview-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mac-preview-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .mac-preview-container {
+    width: 95%;
+    max-height: 90vh;
+    border-radius: 12px;
+  }
+  
+  .mac-preview-header,
+  .mac-preview-footer {
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .mac-preview-footer {
+    border-radius: 0 0 12px 12px;
+  }
+  
+  .mac-file-attachment {
+    max-width: 280px;
+    padding: 10px 12px;
+  }
+  
+  .mac-file-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+
+/* ===== LOADING STATE ===== */
+.mac-preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  gap: 16px;
+}
+
+.mac-preview-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #007aff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mac-preview-loading-text {
+  font-size: 14px;
+  color: #86868b;
+}
+
+/* ===== ERROR STATE ===== */
+.mac-preview-error {
+  text-align: center;
+  padding: 60px;
+}
+
+.mac-preview-error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.mac-preview-error-text {
+  font-size: 16px;
+  color: #1d1d1f;
+  margin-bottom: 8px;
+}
+
+.mac-preview-error-hint {
+  font-size: 13px;
+  color: #86868b;
+}
+
+/* ===== ARCHIVE EXPLORER (VS Code Style) ===== */
+.mac-preview-archive-explorer {
+  display: flex;
+  height: 100%;
+  background: #1e1e1e;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.mac-preview-archive-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  background: white;
+  border-radius: 8px;
+  min-height: 400px;
+}
+
+.archive-sidebar {
+  width: 280px;
+  background: #252526;
+  border-right: 1px solid #3c3c3c;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.archive-header {
+  padding: 12px 16px;
+  background: #333333;
+  border-bottom: 1px solid #3c3c3c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cccccc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.archive-header i {
+  color: #dcb67a;
+  font-size: 16px;
+}
+
+.archive-tree {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cccccc;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tree-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tree-item.active {
+  background: #094771;
+  color: white;
+}
+
+.tree-item.expanded > .tree-icon {
+  transform: rotate(0deg);
+}
+
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #dcb67a;
+}
+
+.tree-item.file .tree-icon {
+  color: #75beff;
+}
+
+.tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-children {
+  display: none;
+}
+
+.tree-children.expanded {
+  display: block;
+}
+
+.archive-stats {
+  padding: 12px 16px;
+  background: #333333;
+  border-top: 1px solid #3c3c3c;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cccccc;
+}
+
+.stat-item i {
+  width: 16px;
+  text-align: center;
+  color: #858585;
+}
+
+.archive-content {
+  flex: 1;
+  background: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.archive-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #858585;
+  padding: 40px;
+}
+
+.archive-welcome i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #4ec9b0;
+}
+
+.archive-welcome p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.archive-hint {
+  font-size: 12px;
+  color: #6e6e6e;
+  margin-top: 8px !important;
+}
+
+.archive-file-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  font-size: 13px;
+  color: #cccccc;
+}
+
+.file-path {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: #858585;
+  font-size: 12px;
+}
+
+.archive-file-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  background: #1e1e1e;
+}
+
+.archive-file-content pre {
+  margin: 0;
+  padding: 16px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #d4d4d4;
+  background: #1e1e1e;
+  overflow: auto;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+.archive-file-binary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #858585;
+  padding: 40px;
+}
+
+.archive-file-binary i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #75beff;
+}
+
+.binary-hint {
+  font-size: 12px;
+  color: #6e6e6e;
+  margin-top: 8px;
+}
+
+/* Syntax highlighting classes */
+.language-javascript { color: #d4d4d4; }
+.language-typescript { color: #d4d4d4; }
+.language-python { color: #d4d4d4; }
+.language-html { color: #d4d4d4; }
+.language-css { color: #d4d4d4; }
+.language-json { color: #d4d4d4; }
+.language-markdown { color: #d4d4d4; }
+.language-text { color: #d4d4d4; }
+
+/* Code block syntax highlighting colors */
+.code-block .keyword { color: #569cd6; }
+.code-block .string { color: #ce9178; }
+.code-block .comment { color: #6a9955; }
+.code-block .number { color: #b5cea8; }
+.code-block .function { color: #dcdcaa; }
+.code-block .class { color: #4ec9b0; }
+

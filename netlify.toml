@@ -1,0 +1,26 @@
+[build]
+  command = "pip install -r requirements.txt"
+  publish = "static"
+
+[build.environment]
+  PYTHON_VERSION = "3.9"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  command = "python3 run.py"
+  targetPort = 5001
+  publish = "static"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css"

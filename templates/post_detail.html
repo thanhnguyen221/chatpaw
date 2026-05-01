@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PAW TALK - Bài viết</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_detail.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     {% if csrf_token %}
     <meta name="csrf-token" content="{{ csrf_token() }}">
     {% endif %}
@@ -15,13 +15,26 @@
     <div class="nav-overlay" id="nav-overlay"></div>
 
     <div class="post-detail-container">
-        <!-- Header -->
-        <header class="post-detail-header">
-            <a href="javascript:history.back()" class="back-btn">
-                <i class="fas fa-arrow-left"></i>
-                <span>Quay lại</span>
-            </a>
-            <h1>Bài viết</h1>
+        <!-- Modern Header -->
+        <header class="modern-detail-header">
+            <div class="detail-header-nav">
+                <button class="back-btn-modern" onclick="history.back()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Quay lại</span>
+                </button>
+                
+                <div class="detail-header-brand">
+                    <div class="brand-logo">
+                        <div class="paw-logo">
+                            <i class="fas fa-paw"></i>
+                        </div>
+                        <span class="brand-name">PAW TALK</span>
+                    </div>
+                    <div class="brand-text">
+                        <h1>Chi tiết bài viết</h1>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <!-- Main Content -->
@@ -30,9 +43,9 @@
             <div class="post-card-detail">
                 <!-- Post Owner Info -->
                 <div class="post-owner-info">
-                    <img src="{{ owner_avatar }}" alt="{{ post_owner.username }}" class="owner-avatar">
+                    <img src="{{ owner_avatar }}" alt="{{ post_owner.full_name or post_owner.username }}" class="owner-avatar">
                     <div class="owner-details">
-                        <h3>{{ post_owner.username }}</h3>
+                        <h3>{{ post_owner.full_name or post_owner.username }}</h3>
                         <span class="post-time">
                             <i class="far fa-clock"></i>
                             {{ post.created_at_formatted }}
@@ -91,9 +104,23 @@
                     </div>
                     <div class="stats-item" id="comment-stat">
                         <i class="fas fa-comment"></i>
-                        <span id="comment-count">{{ post.comments|length }}</span>
+                        <span id="comment-count">
+                            {% set total_comments = 0 %}
+                            {% for comment in post.comments %}
+                                {% set total_comments = total_comments + 1 %}
+                                {% if comment.replies %}
+                                    {% set total_comments = total_comments + comment.replies|length %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ total_comments }}
+                        </span>
+                    </div>
+                    <div class="stats-item" id="share-stat">
+                        <i class="fas fa-share"></i>
+                        <span id="share-count">{{ shares_count }}</span>
                     </div>
                 </div>
+                
 
                 <!-- Post Actions -->
                 <div class="post-actions">
@@ -113,46 +140,130 @@
             </div>
 
             <!-- Comments Section -->
-            <div class="comments-section">
-                <h3>Bình luận ({{ post.comments|length }})</h3>
-                
-                <!-- Comment Form -->
-                <div class="comment-form">
-                    <img src="{{ current_user_avatar }}" alt="Your avatar" class="user-avatar">
-                    <div class="comment-input-container">
-                        <input type="text" id="comment-input" placeholder="Viết bình luận...">
-                        <button id="submit-comment">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Comments List -->
-                <div class="comments-list" id="comments-list">
-                    {% if post.comments %}
-                        {% for comment in post.comments|reverse %}
-                        <div class="comment-item" data-comment-id="{{ comment.id }}">
-                            <img src="{{ comment.user_avatar }}" alt="{{ comment.username }}" class="comment-avatar">
-                            <div class="comment-content">
-                                <div class="comment-header">
-                                    <strong>{{ comment.username }}</strong>
-                                    <span class="comment-time">{{ comment.created_at|format_time }}</span>
-                                </div>
-                                <p class="comment-text">{{ comment.content }}</p>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="no-comments">
-                            <i class="fas fa-comment-slash"></i>
-                            <p>Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
-                        </div>
-                    {% endif %}
-                </div>
+            <!-- Comments Section -->
+<div class="comments-section">
+    <h3>Bình luận (<span id="total-comment-count">
+        {% set total_comments = 0 %}
+        {% for comment in post.comments %}
+            {% set total_comments = total_comments + 1 %}
+            {% if comment.replies %}
+                {% set total_comments = total_comments + comment.replies|length %}
+            {% endif %}
+        {% endfor %}
+        {{ total_comments }}
+    </span>)</h3>
+    
+    <!-- Comment Form -->
+    <div class="comment-form">
+        <img src="{{ current_user_avatar }}" alt="Your avatar" class="user-avatar">
+        <div class="comment-input-container">
+            <textarea id="comment-input" placeholder="Viết bình luận..." rows="1"></textarea>
+            <button id="submit-comment">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+        <!-- Reply Indicator -->
+        <div class="reply-indicator" id="reply-indicator" style="display: none;">
+            <div class="reply-indicator-content">
+                <span>Đang trả lời <strong id="reply-target-name"></strong></span>
+                <button class="cancel-reply-btn" id="cancel-reply">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- Comments List -->
+    <div class="comments-list" id="comments-list">
+        {% if post.comments %}
+            {% for comment in post.comments %}
+            <div class="comment-item" data-comment-id="{{ comment.id }}" data-post-id="{{ post._id }}">
+                <img src="{{ comment.user_avatar }}" alt="{{ comment.full_name or comment.username }}" class="comment-avatar">
+                <div class="comment-content">
+                    <div class="comment-header">
+                        <strong>{{ comment.full_name or comment.username }}</strong>
+                        <span class="comment-time">{{ comment.created_at|format_time }}</span>
+                    </div>
+                    <p class="comment-text">{{ comment.content }}</p>
+                    
+                    <div class="comment-actions">
+                        <button class="comment-action-btn like-comment-btn" 
+                                data-post-id="{{ post._id }}" 
+                                data-comment-id="{{ comment.id }}">
+                            <i class="fas fa-heart"></i>
+                            <span class="comment-like-count">{{ comment.likes|length if comment.likes else 0 }}</span>
+                        </button>
+                        <button class="comment-action-btn reply-comment-btn" 
+                                data-post-id="{{ post._id }}" 
+                                data-comment-id="{{ comment.id }}"
+                                data-username="{{ comment.username }}">
+                            <i class="fas fa-reply"></i> Trả lời
+                        </button>
+                        
+                        {% if comment.replies and comment.replies|length > 0 %}
+                        <button class="comment-action-btn view-replies-btn" 
+                                data-post-id="{{ post._id }}"
+                                data-comment-id="{{ comment.id }}">
+                            <i class="fas fa-comments"></i>
+                            <span class="reply-count">{{ comment.replies|length }}</span> trả lời
+                            <i class="fas fa-chevron-down toggle-icon"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Replies Container -->
+                    {% if comment.replies and comment.replies|length > 0 %}
+                    <div class="comment-replies-container" id="replies-{{ post._id }}-{{ comment.id }}" style="display: none;">
+                        <div class="comment-replies" id="replies-list-{{ post._id }}-{{ comment.id }}">
+                            {% for reply in comment.replies %}
+                            <div class="comment-reply" data-comment-id="{{ reply.id }}" data-post-id="{{ post._id }}"
+                                data-reply-to="{{ reply.reply_to if reply.reply_to else comment.id }}" 
+                                data-reply-username="{{ reply.reply_to_username if reply.reply_to_username else comment.username }}">
+                                <img src="{{ reply.user_avatar }}" alt="{{ reply.full_name or reply.username }}" class="comment-avatar-small">
+                                <div class="comment-content">
+                                    <div class="comment-header">
+                                        <strong>{{ reply.full_name or reply.username }}</strong>
+                                        <!-- Sửa dòng này để luôn hiển thị "Trả lời @..." -->
+                                        <span class="reply-to-text">→ Trả lời @{{ reply.reply_to_username if reply.reply_to_username else comment.username }}</span>
+                                        <span class="comment-time">{{ reply.created_at|format_time }}</span>
+                                    </div>
+                                    <p class="comment-text">{{ reply.content }}</p>
+                                    <div class="comment-actions">
+                                        <button class="comment-action-btn like-comment-btn" 
+                                                data-post-id="{{ post._id }}" 
+                                                data-comment-id="{{ reply.id }}"
+                                                data-reply-id="{{ reply.id }}">
+                                            <i class="fas fa-heart"></i>
+                                            <span class="comment-like-count">{{ reply.likes|length if reply.likes else 0 }}</span>
+                                        </button>
+                                        <!-- Sửa nút reply trong reply: data-reply-to phải là reply.id -->
+                                        <button class="comment-action-btn reply-comment-btn" 
+                                                data-post-id="{{ post._id }}" 
+                                                data-comment-id="{{ reply.id }}"
+                                                data-username="{{ reply.username }}"
+                                                data-reply-to="{{ reply.id }}">
+                                            <i class="fas fa-reply"></i> Trả lời
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-comments">
+                <i class="fas fa-comment-slash"></i>
+                <p>Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+</div>
+</div>
     <!-- Media Viewer Modal -->
     <div class="media-viewer-modal" id="media-viewer">
         <div class="media-viewer-content">
@@ -175,13 +286,73 @@
 
     <!-- JavaScript -->
     <script>
-        const postId = '{{ post._id }}';
+       window.postId = '{{ post._id }}';
         const userId = '{{ user_id }}';
         
         // Lấy CSRF token từ meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     </script>
     
-    <script src="{{ url_for('static', filename='js/post_detail.js') }}"></script>
+    <!-- Share to Profile Modal -->
+    <div class="share-modal" id="share-to-profile-modal" style="display: none;">
+        <div class="share-modal-content share-to-profile">
+            <div class="share-modal-header">
+                <h3><i class="fas fa-share"></i> Chia sẻ lên trang cá nhân</h3>
+                <button class="close-modal" id="close-share-to-profile-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="share-modal-body">
+                <div class="post-preview">
+                    <div class="share-preview-header">
+                        <img src="{{ user_avatar|default('/static/img/default-avatar.png') }}" alt="Avatar" class="share-avatar">
+                        <div class="share-user">
+                            <div class="share-username">{{ user_name|default('Bạn') }}</div>
+                            <div class="share-label">đang chia sẻ bài viết này</div>
+                        </div>
+                    </div>
+                    
+                    <div class="share-input-container">
+                        <textarea class="share-input" id="share-content" placeholder="Bạn muốn nói gì về bài viết này?" rows="4"></textarea>
+                        <div class="share-input-counter">
+                            <span id="char-count">0</span>/500
+                        </div>
+                    </div>
+
+                    <div class="privacy-options">
+                        <div class="privacy-label">
+                            <i class="fas fa-globe-asia"></i>
+                            Ai có thể xem bài viết này?
+                        </div>
+                        <div class="privacy-buttons">
+                            <button class="privacy-btn active" data-privacy="public" onclick="selectPrivacy('public')">
+                                <i class="fas fa-globe"></i>
+                                Công khai
+                            </button>
+                            <button class="privacy-btn" data-privacy="friends" onclick="selectPrivacy('friends')">
+                                <i class="fas fa-user-friends"></i>
+                                Bạn bè
+                            </button>
+                            <button class="privacy-btn" data-privacy="only_me" onclick="selectPrivacy('only_me')">
+                                <i class="fas fa-lock"></i>
+                                Chỉ mình tôi
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-submit-share" id="btn-submit-share" onclick="submitShareToProfile()">
+                        <i class="fas fa-paper-plane"></i> Chia sẻ ngay
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+<script type="module" src="{{ url_for('static', filename='js/shared/post_interactions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/socket/post_detail.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/shared/share_modal.js') }}"></script>
+
+<!-- Connection Manager -->
+<script src="{{ url_for('static', filename='js/connection-manager.js') }}"></script>
 </body>
 </html>

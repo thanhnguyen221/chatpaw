@@ -1,28 +1,119 @@
-/* ================= PAW TALK VIDEO CALL (PREMIUM GLASS UI) ================= */
+/* ================= PAW TALK VIDEO CALL (MAC STYLE - FACETIME INSPIRED) ================= */
 
 :root {
     --bg-overlay: #0f1012;
     --primary-color: #3eb489;
     --primary-hover: #2ca076;
-    --danger-color: #ff4757;
+    --danger-color: #ff453a;
     --text-main: #ffffff;
     --text-sub: #d1d5db;
-    --glass-bg: rgba(20, 20, 25, 0.75);
-    --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    --shadow-lg: 0 15px 40px -10px rgba(0, 0, 0, 0.6);
+    --glass-bg: rgba(30, 30, 30, 0.65);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 15px 40px -10px rgba(0, 0, 0, 0.5);
+    --mac-blur: blur(25px);
+    --accent-green: #34c759;
+    --accent-red: #ff453a;
+    --accent-orange: #ff9500;
+    --accent-blue: #0a84ff;
 }
 
-/* --- 1. CALL OVERLAY (Nền chính) --- */
+/* --- 1. CALL OVERLAY (MAC FACETIME STYLE) --- */
 .call-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
-    background-color: var(--bg-overlay);
+    background: linear-gradient(180deg, #1a1c2e 0%, #0d0e15 100%);
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* MAC HEADER - Glassmorphism floating header */
+.call-header {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--glass-bg);
+    backdrop-filter: var(--mac-blur);
+    -webkit-backdrop-filter: var(--mac-blur);
+    border-radius: 20px;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 100;
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.call-header .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.call-header .info {
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.call-header .name {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+}
+
+.call-header .status {
+    font-size: 13px;
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 400;
+}
+
+.call-header .status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    animation: pulseDot 2s infinite;
+}
+
+.call-header .call-timer {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+@keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* Audio Visualizer - Mac style bars */
+.audio-visualizer {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 20px;
+    margin-left: 8px;
+}
+
+.audio-bar {
+    width: 3px;
+    background: var(--accent-green);
+    border-radius: 2px;
+    transition: height 0.1s ease;
+    opacity: 0.8;
 }
 
 /* Container chính */
@@ -32,48 +123,50 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* Gradient nền tinh tế tạo chiều sâu */
-    background: radial-gradient(circle at 50% 50%, #1a1c23 0%, #0b0c0e 100%);
 }
 
-/* Lưới Video thông minh */
+/* Lưới Video */
 #video-grid {
     flex: 1;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 24px;
-    padding: 24px;
+    gap: 20px;
+    padding: 90px 24px 120px 24px;
     overflow-y: auto;
-    
-    /* Scrollbar ẩn cho đẹp */
-    scrollbar-width: none; 
+    scrollbar-width: none;
     -ms-overflow-style: none;
 }
 #video-grid::-webkit-scrollbar { display: none; }
 
-/* Khung video từng người */
+/* Khung video từng người - Mac style rounded */
 .video-box {
     position: relative;
-    width: 500px;
+    width: 480px;
     max-width: 100%;
     aspect-ratio: 16/9;
     background: #000;
-    border-radius: 24px; /* Bo góc mềm mại hơn */
+    border-radius: 28px;
     overflow: hidden;
-    box-shadow: var(--shadow-lg);
-    border: var(--glass-border);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     transform-origin: center;
 }
 
-/* Tự động phóng to khi chỉ có 1 người */
+/* 1v1 call - Full size */
 .video-box:only-child {
-    width: 92%;
-    max-height: 82vh;
-    border: 1px solid rgba(62, 180, 137, 0.2);
-    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    width: 85%;
+    max-height: 75vh;
+    border-radius: 32px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+}
+
+/* Group call - Grid layout */
+.video-box:nth-child(1):nth-last-child(2),
+.video-box:nth-child(2):nth-last-child(1) {
+    width: 45%;
 }
 
 .video-box video {
@@ -129,102 +222,225 @@
 .user-label:hover { transform: scale(1.02); }
 .user-label img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #fff; }
 
-/* --- 2. THANH ĐIỀU KHIỂN (CONTROLS - FLOATING BAR) --- */
-/* Thiết kế dạng thanh nổi (Floating Island) thay vì full width */
+/* --- 2. THANH ĐIỀU KHIỂN (MAC FLOATING ISLAND) --- */
 #call-controls {
     position: absolute;
-    bottom: 30px;
+    bottom: 32px;
     left: 50%;
     transform: translateX(-50%);
     height: auto;
-    padding: 12px 20px;
-    background: rgba(20, 20, 25, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 100px; /* Hình viên thuốc */
+    padding: 14px 24px;
+    background: rgba(30, 30, 30, 0.65);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-radius: 100px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
-    border: var(--glass-border);
-    box-shadow: var(--glass-shadow);
+    gap: 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
     z-index: 100;
     width: auto;
     min-width: fit-content;
-    transition: bottom 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-control {
-    width: 54px; height: 54px;
+    width: 52px; height: 52px;
     border-radius: 50%;
     border: none;
-    font-size: 1.35rem;
+    font-size: 20px;
     cursor: pointer;
-    color: var(--text-sub);
-    background-color: rgba(255, 255, 255, 0.05);
+    color: white;
+    background: rgba(120, 120, 128, 0.24);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); /* Hiệu ứng nảy */
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
 }
 
 .btn-control:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-5px) scale(1.05);
-    color: #fff;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    background: rgba(120, 120, 128, 0.4);
+    transform: scale(1.08);
 }
 
-/* Active State (Vẽ/Reaction đang bật) */
+.btn-control:active {
+    transform: scale(0.95);
+}
+
+/* Active State */
 .btn-control.btn-active {
-    background-color: var(--primary-color);
+    background: var(--accent-green);
     color: #fff;
-    box-shadow: 0 0 25px rgba(62, 180, 137, 0.5);
 }
 
 /* Off State (Mic/Cam tắt) */
 .btn-control.btn-off {
-    background-color: rgba(255, 71, 87, 0.15);
-    color: var(--danger-color);
-    border: 1px solid rgba(255, 71, 87, 0.3);
+    background: var(--accent-red);
+    color: white;
 }
 .btn-control.btn-off:hover {
-    background-color: var(--danger-color);
-    color: #fff;
-    box-shadow: 0 0 20px rgba(255, 71, 87, 0.4);
+    background: #ff5e55;
 }
 
-/* Hangup Button - Nổi bật */
+/* Hangup Button */
 .btn-control.btn-danger {
-    background-color: var(--danger-color);
-    width: 80px; 
-    border-radius: 40px;
-    color: white;
-    margin-left: 15px;
+    background: var(--accent-red);
+    width: 60px;
+    margin-left: 8px;
 }
 .btn-control.btn-danger:hover {
-    background-color: #e84118;
-    transform: translateY(-5px) scale(1.05);
-    box-shadow: 0 10px 25px rgba(255, 71, 87, 0.5);
+    background: #ff5e55;
+    transform: scale(1.05);
 }
 
-/* --- 3. TOOLBAR VẼ (Floating Palette - Nổi trên controls) --- */
+/* Minimize Button */
+.btn-control.btn-minimize {
+    background: rgba(120, 120, 128, 0.24);
+    font-size: 18px;
+}
+.btn-control.btn-minimize:hover {
+    background: rgba(120, 120, 128, 0.4);
+}
+
+/* --- 3. MINIMIZED / PICTURE-IN-PICTURE MODE --- */
+.call-overlay.call-minimized {
+    position: fixed !important;
+    top: auto !important;
+    left: auto !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    width: 360px !important;
+    height: 220px !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important;
+    overflow: hidden !important;
+    background: #000 !important;
+    animation: minimizeAnimation 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes minimizeAnimation {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.call-overlay.call-minimized .call-header {
+    top: 12px;
+    padding: 8px 16px;
+    gap: 10px;
+}
+
+.call-overlay.call-minimized .call-header .avatar {
+    width: 32px;
+    height: 32px;
+}
+
+.call-overlay.call-minimized .call-header .name {
+    font-size: 14px;
+}
+
+.call-overlay.call-minimized .call-header .status,
+.call-overlay.call-minimized .call-header .audio-visualizer {
+    display: none;
+}
+
+.call-overlay.call-minimized #video-grid {
+    padding: 50px 8px 60px 8px;
+    gap: 8px;
+}
+
+.call-overlay.call-minimized .video-box {
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.call-overlay.call-minimized .video-box:only-child {
+    width: 100%;
+    max-height: 160px;
+}
+
+.call-overlay.call-minimized .user-label {
+    padding: 6px 12px;
+    font-size: 12px;
+    bottom: 10px;
+    left: 10px;
+}
+
+.call-overlay.call-minimized #call-controls {
+    bottom: 12px;
+    padding: 8px 16px;
+    gap: 10px;
+}
+
+.call-overlay.call-minimized .btn-control {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+}
+
+.call-overlay.call-minimized .btn-control.btn-danger {
+    width: 48px;
+}
+
+.call-overlay.call-minimized .drawing-toolbar,
+.call-overlay.call-minimized .reaction-bar {
+    display: none !important;
+}
+
+/* Expand Button (khi minimized) */
+.btn-expand {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+    border-radius: 50%;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    z-index: 101;
+    transition: all 0.2s;
+}
+
+.btn-expand:hover {
+    background: rgba(0,0,0,0.7);
+    transform: scale(1.1);
+}
+
+.call-overlay.call-minimized .btn-expand {
+    display: flex;
+}
+
+/* --- 4. TOOLBAR VẼ --- */
 .drawing-toolbar {
     position: absolute;
-    bottom: 115px; /* Cao hơn controls một chút */
+    bottom: 110px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(25, 25, 30, 0.95);
+    background: rgba(30, 30, 35, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: 14px 30px;
+    padding: 14px 28px;
     border-radius: 24px;
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
     border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
     animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 90;
 }
@@ -373,6 +589,7 @@
     margin: 10px 0 5px; font-size: 1.5rem; font-weight: 700;
     background: linear-gradient(135deg, #fff 0%, #ccc 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 .incoming-content p { color: var(--text-sub); margin-bottom: 25px; font-size: 1rem; }

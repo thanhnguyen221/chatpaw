@@ -72,16 +72,16 @@ body {
     display: flex;
     flex-direction: column;
     transition: margin-left 0.3s ease;
-    margin-left: 70px; /* Khoảng cách mặc định khi menu thu gọn */
+    margin-left: 80px; /* Khoảng cách cho sidebar 80px */
 }
 
 /* ===== SIDE NAVIGATION STYLES ===== */
-.side-nav {
+.modern-nav {
     position: fixed;
     top: 0;
     left: 0;
     height: 100vh;
-    width: 70px;
+    width: 80px;
     background: var(--card-bg);
     box-shadow: var(--shadow);
     z-index: 1000;
@@ -91,19 +91,19 @@ body {
 }
 
 /* TỰ ĐỘNG MỞ RỘNG KHI HOVER */
-.side-nav:hover {
-    width: 250px;
+.modern-nav:hover {
+    width: 240px;
 }
 
 /* KHI MENU MỞ RỘNG, ĐẨY NỘI DUNG CHÍNH QUA */
-.side-nav:hover ~ .friend-requests-container,
-.side-nav.active ~ .friend-requests-container {
-    margin-left: 250px;
+.modern-nav:hover ~ .friend-requests-container,
+.modern-nav.active ~ .friend-requests-container {
+    margin-left: 240px;
 }
 
 /* Giữ nguyên cho mobile */
-.side-nav.active {
-    width: 250px;
+.modern-nav.active {
+    width: 240px;
 }
 
 .nav-menu {
@@ -152,8 +152,8 @@ body {
 }
 
 /* HIỆN TEXT KHI HOVER */
-.side-nav:hover .nav-text,
-.side-nav.active .nav-text {
+.modern-nav:hover .nav-text,
+.modern-nav.active .nav-text {
     opacity: 1;
 }
 
@@ -213,8 +213,8 @@ body {
 }
 
 /* HIỆN TITLE KHI HOVER */
-.side-nav:hover .nav-title,
-.side-nav.active .nav-title {
+.modern-nav:hover .nav-title,
+.modern-nav.active .nav-title {
     opacity: 1;
 }
 
@@ -386,6 +386,29 @@ body {
     color: var(--primary);
 }
 
+/* Page Tabs & Tab Badge */
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background: var(--error);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 50%;
+    margin-left: 4px;
+}
+
+/* Friends count badge - nền trắng chữ đen */
+#friends-count-badge {
+    background: white !important;
+    color: black !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
 /* Main Content - TỰ ĐỘNG ĐIỀU CHỈNH */
 .requests-main {
     flex: 1;
@@ -471,8 +494,8 @@ body {
     max-width: 300px;
 }
 
-/* Requests List - TỰ ĐỘNG ĐIỀU CHỈNH LAYOUT */
 .requests-list {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     justify-items: center;
@@ -490,7 +513,7 @@ body {
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    transition: var(--transition);
+    transition: transform 0.3s ease, opacity 0.3s ease;
     border: 1px solid var(--border);
     padding: 16px;
     display: flex;
@@ -502,9 +525,10 @@ body {
     min-height: 200px;
     max-width: 250px;
     width: 100%;
+    will-change: transform, opacity;
 }
 
-.request-item:hover {
+.request-item:hover:not(.animating-out) {
     box-shadow: var(--shadow);
     border-color: var(--border-strong);
     transform: translateY(-2px);
@@ -551,6 +575,7 @@ body {
     line-height: 1.2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -914,8 +939,8 @@ body {
         margin-left: 0 !important;
     }
     
-    .side-nav:hover ~ .friend-requests-container,
-    .side-nav.active ~ .friend-requests-container {
+    .modern-nav:hover ~ .friend-requests-container,
+    .modern-nav.active ~ .friend-requests-container {
         margin-left: 0 !important;
     }
     
@@ -1000,11 +1025,11 @@ body {
     }
     
     /* Side nav adjustments for mobile */
-    .side-nav {
+    .modern-nav {
         transform: translateX(-100%);
     }
     
-    .side-nav.active {
+    .modern-nav.active {
         transform: translateX(0);
         width: 250px;
     }
@@ -1109,7 +1134,7 @@ body {
         background: rgba(31, 41, 55, 0.95);
     }
     
-    .side-nav {
+    .modern-nav {
         background: var(--card-bg);
         border-right-color: var(--border);
     }
@@ -1185,4 +1210,96 @@ body {
 
 .request-actions {
     margin-top: 10px !important; /* giảm khoảng cách */
+}
+
+/* ============================================
+   HIỆU ỨNG CO LẠI KHI SIDEBAR MỞ RA
+   ============================================ */
+
+/* Khi sidebar mở rộng, các request cards co lại */
+.modern-nav:hover ~ .friend-requests-container .request-item,
+.modern-nav.active ~ .friend-requests-container .request-item {
+    transform: scale(0.97) translateX(10px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Reset về bình thường khi hover vào card */
+.modern-nav:hover ~ .friend-requests-container .request-item:hover,
+.modern-nav.active ~ .friend-requests-container .request-item:hover {
+    transform: scale(1) translateX(0);
+}
+
+/* Header co lại */
+.modern-nav:hover ~ .friend-requests-container .requests-header,
+.modern-nav.active ~ .friend-requests-container .requests-header {
+    transform: scale(0.96) translateX(12px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Danh sách co lại */
+.modern-nav:hover ~ .friend-requests-container .requests-list,
+.modern-nav.active ~ .friend-requests-container .requests-list {
+    transform: scale(0.98) translateX(8px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Search container co lại */
+.modern-nav:hover ~ .friend-requests-container .search-container,
+.modern-nav.active ~ .friend-requests-container .search-container {
+    transform: scale(0.95) translateX(15px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Main content co lại */
+.modern-nav:hover ~ .friend-requests-container .requests-main,
+.modern-nav.active ~ .friend-requests-container .requests-main {
+    transform: scale(0.99) translateX(5px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Vô hiệu hóa trên mobile */
+@media (max-width: 768px) {
+    .modern-nav:hover ~ .friend-requests-container .request-item,
+    .modern-nav.active ~ .friend-requests-container .request-item,
+    .modern-nav:hover ~ .friend-requests-container .requests-header,
+    .modern-nav.active ~ .friend-requests-container .requests-header,
+    .modern-nav:hover ~ .friend-requests-container .requests-list,
+    .modern-nav.active ~ .friend-requests-container .requests-list,
+    .modern-nav:hover ~ .friend-requests-container .search-container,
+    .modern-nav.active ~ .friend-requests-container .search-container,
+    .modern-nav:hover ~ .friend-requests-container .requests-main,
+    .modern-nav.active ~ .friend-requests-container .requests-main {
+        transform: none;
+    }
+}
+
+/* Modern Badge - Primary Green Theme */
+.modern-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(62, 180, 137, 0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.modern-badge.has-notifications {
+    display: flex;
+}
+
+.modern-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 8px rgba(62, 180, 137, 0.35);
 }

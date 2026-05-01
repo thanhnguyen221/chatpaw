@@ -1,6 +1,6 @@
 // Modal và các thành phần
 const profileModal = document.getElementById('profile-modal');
-const profileToggle = document.querySelector('.user-avatar');
+// const profileToggle = document.querySelector('.user-avatar'); // Đã comment - không dùng modal nữa
 const closeProfileModal = document.getElementById('close-profile-modal');
 const cancelProfile = document.getElementById('cancel-profile');
 const avatarPreview = document.getElementById('avatar-preview');
@@ -8,13 +8,13 @@ const profileForm = document.getElementById('profile-form');
 const uploadAvatarBtn = document.getElementById('upload-avatar-btn');
 const uploadAvatarInput = document.getElementById('avatar-upload');
 
-// 🟣 Mở modal khi click avatar ở sidebar
-if (profileToggle && profileModal) {
-  profileToggle.addEventListener('click', () => {
-    profileModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  });
-}
+// 🟣 Mở modal khi click avatar ở sidebar - Đã vô hiệu hóa
+// if (profileToggle && profileModal) {
+//   profileToggle.addEventListener('click', () => {
+//     profileModal.style.display = 'flex';
+//     document.body.style.overflow = 'hidden';
+//   });
+// }
 
 // 🟣 Đóng modal
 function closeModal() {
@@ -126,14 +126,14 @@ async function loadUserProfile() {
   }
 }
 
-// Gọi hàm này khi mở modal
-if (profileToggle && profileModal) {
-  profileToggle.addEventListener('click', () => {
-    profileModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    loadUserProfile(); // Tải dữ liệu người dùng
-  });
-}
+// Gọi hàm này khi mở modal - Đã vô hiệu hóa
+// if (profileToggle && profileModal) {
+//   profileToggle.addEventListener('click', () => {
+//     profileModal.style.display = 'flex';
+//     document.body.style.overflow = 'hidden';
+//     loadUserProfile(); // Tải dữ liệu người dùng
+//   });
+// }
 // Thêm sự kiện cho nút thay đổi avatar
 const changeAvatarBtn = document.getElementById('change-avatar-btn');
 if (changeAvatarBtn && uploadAvatarInput) {

@@ -2,8 +2,12 @@ from flask import session, url_for
 from bson import ObjectId
 from datetime import datetime
 from flask_socketio import emit, join_room, leave_room
+from flask import request # Đảm bảo đã có request
+from deep_translator import GoogleTranslator
+from langdetect import detect
 
 from app.utils.time_utils import get_vietnam_time, format_timestamp_for_client
+from app.message_encryption import encrypt_message, decrypt_message
 
 
 def register_chat_events(socketio, mongo):
@@ -12,6 +16,10 @@ def register_chat_events(socketio, mongo):
     groups_col = mongo.db.groups
     group_members_col = mongo.db.group_members
     users_col = mongo.db.users
+
+    # Track which users are currently in which conversation (actively viewing)
+    # Format: {user_id: conversation_id}
+    user_current_conversations = {}
 
     # =========================
     # 1. QUẢN LÝ TRẠNG THÁI ONLINE
@@ -130,15 +138,23 @@ def register_chat_events(socketio, mongo):
 
     @socketio.on('message_read')
     def handle_message_read(data):
-        """Xử lý khi tin nhắn đã được đọc"""
+        """Xử lý khi tin nhắn đã được đọc - cả 1v1 và group"""
         try:
             message_id = data.get('message_id')
             user_id = session.get('user_id')
+            conversation_type = data.get('conversation_type', 'private')
 
             if not message_id or not user_id:
                 return
 
-            result = messages_col.update_one(
+            # Chọn collection phù hợp
+            if conversation_type == 'group':
+                col = mongo.db.group_messages
+            else:
+                col = messages_col
+
+            # Cập nhật read_by và status
+            result = col.update_one(
                 {'_id': ObjectId(message_id)},
                 {
                     '$set': {'status': 'read'},
@@ -147,12 +163,53 @@ def register_chat_events(socketio, mongo):
             )
 
             if result.modified_count > 0:
-                message = messages_col.find_one({'_id': ObjectId(message_id)})
+                message = col.find_one({'_id': ObjectId(message_id)})
                 if message:
+                    sender_id = str(message['sender_id'])
+                    
+                    # Lấy thông tin người đọc
+                    reader = users_col.find_one(
+                        {'_id': ObjectId(user_id)},
+                        {'avatar': 1, 'full_name': 1, 'username': 1}
+                    )
+                    reader_info = {
+                        'user_id': str(user_id),
+                        'avatar': reader.get('avatar') if reader else None,
+                        'name': reader.get('full_name') or reader.get('username', 'Unknown') if reader else 'Unknown'
+                    }
+                    
+                    # Get all readers for group
+                    read_by_list = message.get('read_by', [])
+                    readers_info = []
+                    if conversation_type == 'group':
+                        for rid in read_by_list:
+                            r = users_col.find_one(
+                                {'_id': rid},
+                                {'avatar': 1, 'full_name': 1, 'username': 1}
+                            )
+                            if r:
+                                readers_info.append({
+                                    'user_id': str(rid),
+                                    'avatar': r.get('avatar'),
+                                    'name': r.get('full_name') or r.get('username', 'Unknown')
+                                })
+                    
+                    # Emit cho sender
                     emit('message_status_updated', {
                         'message_id': message_id,
-                        'status': 'read'
-                    }, room=str(message['sender_id']))
+                        'status': 'read',
+                        'conversation_type': conversation_type,
+                        'read_by': readers_info if conversation_type == 'group' else [reader_info]
+                    }, room=sender_id)
+                    
+                    # Nếu là group, emit cho tất cả members để cập nhật seen avatars
+                    if conversation_type == 'group':
+                        conversation_id = str(message.get('conversation_id'))
+                        emit('group_message_read', {
+                            'message_id': message_id,
+                            'reader': reader_info,
+                            'read_by': readers_info
+                        }, room=conversation_id)
 
         except Exception as e:
             print(f"Error updating message read status: {str(e)}")
@@ -231,8 +288,8 @@ def register_chat_events(socketio, mongo):
                 recipient_ids = [member['user_id'] for member in members]
 
             # --- Thông tin sender ---
-            sender = users_col.find_one({'_id': sender_oid}, {'username': 1, 'avatar': 1})
-            sender_name = sender.get('username', 'Unknown') if sender else 'Unknown'
+            sender = users_col.find_one({'_id': sender_oid}, {'username': 1, 'full_name': 1, 'avatar': 1})
+            sender_name = sender.get('full_name') or sender.get('username', 'Unknown') if sender else 'Unknown'
 
             avatar = sender.get('avatar') if sender else None
             if avatar and not avatar.startswith(('http', 'data:image')):
@@ -246,18 +303,22 @@ def register_chat_events(socketio, mongo):
             initial_status = 'sent'
             read_by = [sender_oid]
 
+            # Encrypt message content before saving
+            encrypted_content = encrypt_message(content) if message_type == 'text' else content
+
             message = {
                 'conversation_id': conv_oid,
                 'conversation_type': conversation_type,
                 'sender_id': sender_oid,
-                'content': content,
+                'content': encrypted_content,
                 'message_type': message_type,
                 'timestamp': timestamp_str,
                 'read_by': read_by,
                 'status': initial_status,
                 'recipients': recipient_ids,
                 'reply_to': ObjectId(reply_to_id) if reply_to_id else None,
-                'gift_style': gift_style  # [MỚI] Lưu trường này vào DB
+                'gift_style': gift_style,  # [MỚI] Lưu trường này vào DB
+                'encrypted': message_type == 'text'  # Đánh dấu tin nhắn đã mã hóa
             }
 
             inserted = messages_col.insert_one(message)
@@ -269,14 +330,19 @@ def register_chat_events(socketio, mongo):
                 try:
                     original_msg = messages_col.find_one({'_id': ObjectId(reply_to_id)})
                     if original_msg:
-                        orig_sender = users_col.find_one({'_id': original_msg['sender_id']})
-                        orig_name = orig_sender['username'] if orig_sender else "Unknown"
+                        orig_sender = users_col.find_one({'_id': original_msg['sender_id']}, {'username': 1, 'full_name': 1})
+                        orig_name = orig_sender.get('full_name') or orig_sender.get('username', 'Unknown') if orig_sender else 'Unknown'
+
+                        # Decrypt original message content if encrypted
+                        orig_content = original_msg.get('content', '')
+                        if original_msg.get('encrypted') or original_msg.get('message_type') == 'text':
+                            orig_content = decrypt_message(orig_content)
 
                         reply_context = {
                             'message_id': str(original_msg['_id']),
                             'sender_id': str(original_msg['sender_id']),
                             'sender_name': orig_name,
-                            'content': original_msg['content']
+                            'content': orig_content
                         }
                 except Exception as e:
                     print(f"Error getting reply context: {e}")
@@ -413,14 +479,31 @@ def register_chat_events(socketio, mongo):
             except Exception as e:
                 print(f"Error emitting conversation_summary_updated: {e}")
 
-            # --- Auto gửi yêu cầu delivered cho user đang online ---
+            # --- Auto gửi yêu cầu delivered/read cho user đang online ---
             online_users = get_online_users()
             for participant in participants:
-                if participant in online_users:
-                    emit('message_delivered_request', {
-                        'message_id': str(message_id),
-                        'conversation_id': str(conversation_id)
-                    }, room=str(participant))
+                participant_str = str(participant)
+                if participant_str in online_users:
+                    # Check if user is actively viewing this conversation
+                    is_viewing = user_current_conversations.get(participant_str) == str(conversation_id)
+                    
+                    if is_viewing:
+                        # User is online AND viewing the conversation -> mark as read immediately
+                        emit('message_read_request', {
+                            'message_id': str(message_id),
+                            'conversation_id': str(conversation_id)
+                        }, room=participant_str)
+                        print(f"[Message Status] Sent read request to {participant_str} (viewing conversation)")
+                    else:
+                        # User is online but NOT viewing -> mark as delivered
+                        emit('message_delivered_request', {
+                            'message_id': str(message_id),
+                            'conversation_id': str(conversation_id)
+                        }, room=participant_str)
+                        print(f"[Message Status] Sent delivered request to {participant_str} (online but not viewing)")
+                else:
+                    # User is offline -> status stays as 'sent'
+                    print(f"[Message Status] User {participant_str} is offline, status remains 'sent'")
 
         except Exception as e:
             print(f"Error sending message: {str(e)}")
@@ -433,16 +516,55 @@ def register_chat_events(socketio, mongo):
     @socketio.on('join_conversation')
     def handle_join_conversation(data):
         conversation_id = data.get('conversation_id')
+        user_id = session.get('user_id')
         if conversation_id:
             join_room(str(conversation_id))
-            print(f"User joined conversation: {conversation_id}")
+            # Track that user is now viewing this conversation
+            if user_id:
+                user_current_conversations[str(user_id)] = str(conversation_id)
+                print(f"[Join] User {user_id} joined conversation {conversation_id}")
+                
+                # 🔥 [NEW] Mark all unread messages as read immediately when joining
+                try:
+                    from bson.objectid import ObjectId
+                    result = messages_col.update_many(
+                        {
+                            'conversation_id': ObjectId(conversation_id),
+                            'sender_id': {'$ne': ObjectId(user_id)},
+                            'status': {'$ne': 'read'}
+                        },
+                        {
+                            '$set': {'status': 'read', 'read_at': get_vietnam_time()}
+                        }
+                    )
+                    if result.modified_count > 0:
+                        print(f"[Join] Marked {result.modified_count} messages as read for user {user_id}")
+                        
+                        # Notify senders that their messages were read
+                        updated_messages = messages_col.find({
+                            'conversation_id': ObjectId(conversation_id),
+                            'sender_id': {'$ne': ObjectId(user_id)},
+                            'status': 'read'
+                        })
+                        
+                        for msg in updated_messages:
+                            emit('message_status_updated', {
+                                'message_id': str(msg['_id']),
+                                'status': 'read'
+                            }, room=str(msg['sender_id']))
+                except Exception as e:
+                    print(f"[Join] Error marking messages as read: {e}")
 
     @socketio.on('leave_conversation')
     def handle_leave_conversation(data):
         conversation_id = data.get('conversation_id')
+        user_id = session.get('user_id')
         if conversation_id:
             leave_room(str(conversation_id))
-            print(f"User left conversation: {conversation_id}")
+            # Remove user from tracking if they were viewing this conversation
+            if user_id and user_current_conversations.get(str(user_id)) == str(conversation_id):
+                del user_current_conversations[str(user_id)]
+                print(f"[Leave] User {user_id} left conversation {conversation_id}")
 
     # =========================
     # 6. USER ONLINE / OFFLINE (DỰ PHÒNG)
@@ -483,11 +605,11 @@ def register_chat_events(socketio, mongo):
                 for friend_id in friends:
                     friend = users_col.find_one(
                         {'_id': ObjectId(friend_id)},
-                        {'online': 1, 'username': 1}
+                        {'online': 1, 'username': 1, 'full_name': 1}
                     )
                     if friend:
                         online_status[str(friend_id)] = {
-                            'username': friend.get('username', 'Unknown'),
+                            'username': friend.get('full_name') or friend.get('username', 'Unknown'),
                             'online': friend.get('online', False)
                         }
 
@@ -606,9 +728,9 @@ def register_chat_events(socketio, mongo):
             # Lấy username để client hiển thị "A đang nhập..."
             user_doc = users_col.find_one(
                 {'_id': ObjectId(user_id)},
-                {'username': 1}
+                {'username': 1, 'full_name': 1}
             )
-            username = user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
+            username = user_doc.get('full_name') or user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
 
             if conversation_type == 'group':
                 room = f"group_{conversation_id}"   # group.py join_group dùng room này
@@ -652,65 +774,6 @@ def register_chat_events(socketio, mongo):
 
         except Exception as e:
             print(f"Error handling stop_typing: {str(e)}")
-
-    # =========================
-    # 9b. GROUP_TYPING / GROUP_STOP_TYPING (TƯƠNG THÍCH VỚI FRONTEND HIỆN TẠI)
-    # =========================
-
-    @socketio.on('group_typing')
-    def handle_group_typing(data):
-        """
-        Event riêng cho group chat nếu client emit 'group_typing'.
-        Dùng song song, KHÔNG thay thế 'typing'.
-        """
-        try:
-            group_id = data.get('group_id') or data.get('conversation_id')
-            user_id = session.get('user_id')
-
-            if not group_id or not user_id:
-                return
-
-            user_doc = users_col.find_one(
-                {'_id': ObjectId(user_id)},
-                {'username': 1}
-            )
-            username = user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
-
-            room = f"group_{group_id}"
-
-            emit('group_typing', {
-                'group_id': str(group_id),
-                'conversation_id': str(group_id),
-                'user_id': user_id,
-                'username': username
-            }, room=room, include_self=False)
-
-        except Exception as e:
-            print(f"Error handling group_typing: {str(e)}")
-
-    @socketio.on('group_stop_typing')
-    def handle_group_stop_typing(data):
-        """
-        Event riêng cho group chat nếu client emit 'group_stop_typing'.
-        Dùng song song, KHÔNG thay thế 'stop_typing'.
-        """
-        try:
-            group_id = data.get('group_id') or data.get('conversation_id')
-            user_id = session.get('user_id')
-
-            if not group_id or not user_id:
-                return
-
-            room = f"group_{group_id}"
-
-            emit('group_stop_typing', {
-                'group_id': str(group_id),
-                'conversation_id': str(group_id),
-                'user_id': user_id
-            }, room=room, include_self=False)
-
-        except Exception as e:
-            print(f"Error handling group_stop_typing: {str(e)}")
 
 # ==================================================================
     # 10. MESSAGE REACTION (THẢ CẢM XÚC - CẬP NHẬT PREVIEW & SIDEBAR)
@@ -765,8 +828,8 @@ def register_chat_events(socketio, mongo):
             if action in ['added', 'updated'] and conv_oid:
                 try:
                     # Lấy tên người thả
-                    sender_info = mongo.db.users.find_one({'_id': user_oid})
-                    sender_name = sender_info.get('username', 'Ai đó') if sender_info else 'Ai đó'
+                    sender_info = mongo.db.users.find_one({'_id': user_oid}, {'username': 1, 'full_name': 1})
+                    sender_name = sender_info.get('full_name') or sender_info.get('username', 'Ai đó') if sender_info else 'Ai đó'
                     
                     # Nội dung lưu vào DB (Dùng chung cho cả 2 bên thấy)
                     preview_text = f"{sender_name} đã thả cảm xúc {emoji}"
@@ -813,3 +876,54 @@ def register_chat_events(socketio, mongo):
 
         except Exception as e:
             print(f"Error reacting message: {e}")
+    
+
+    # ============================================================
+    # XỬ LÝ DỊCH THUẬT (Dùng chung cho cả 1v1 và Group)
+    # ============================================================
+    @socketio.on('translate_message')
+    def handle_translate_message(data):
+        message_id = data.get('message_id')
+        content = data.get('content', '').strip()
+        
+        if not content:
+            return
+
+        try:
+            # 1. Phát hiện ngôn ngữ (Detect)
+            try:
+                # detect trả về mã ngôn ngữ: 'vi', 'en', 'fr',...
+                detected_lang = detect(content)
+            except:
+                detected_lang = 'unknown'
+
+            # 2. Logic thông minh: Đảo chiều ngôn ngữ
+            # Nếu phát hiện là Tiếng Việt -> Dịch sang Anh
+            if detected_lang == 'vi':
+                target = 'en'
+                label_target = 'English'
+            # Ngược lại (Tiếng Anh hoặc ngôn ngữ lạ) -> Dịch sang Việt
+            else:
+                target = 'vi'
+                label_target = 'Tiếng Việt'
+
+            # 3. Dịch bằng Google Translate (Free)
+            translator = GoogleTranslator(source='auto', target=target)
+            translated_text = translator.translate(content)
+
+            # 4. Gửi kết quả về CHỈ cho người yêu cầu (request.sid)
+            emit('message_translated', {
+                'message_id': message_id,
+                'original': content,
+                'translated': translated_text,
+                'lang_label': label_target,
+                'success': True
+            }, room=request.sid)
+            
+        except Exception as e:
+            print(f"Translate error: {e}")
+            emit('message_translated', {
+                'message_id': message_id,
+                'success': False,
+                'error': 'Không thể dịch tin nhắn này'
+            }, room=request.sid)

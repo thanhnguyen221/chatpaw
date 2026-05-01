@@ -30,10 +30,26 @@ let joinRealtimeBtn = null;
 
 const rtcConfig = {
     iceServers: [
+        // STUN servers
         { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // TURN servers miễn phí (nhiều server để backup)
         { urls: 'turn:openrelay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
-        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelay', credential: 'openrelay' }
-    ]
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:openrelay.metered.ca:5349', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:relay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:relay.metered.ca:443', username: 'openrelay', credential: 'openrelay' },
+        // Backup TURN
+        { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' },
+        { urls: 'turn:turn1.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn2.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn3.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn4.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 // ================== 1. LOGIC KHỞI TẠO ==================
@@ -376,10 +392,10 @@ function addVideoBox(sid, info = {}) {
     let div = document.getElementById(`c-${sid}`);
     if (!div) div = createVideoDiv(sid);
     const avatar = info.avatar || '/static/img/default-avatar.png';
-    const username = info.username || 'User';
+    const displayName = info.full_name || info.username || 'User';
     const label = div.querySelector('.user-label');
     if (label) {
-        label.innerHTML = `<img src="${avatar}"> ${username}`;
+        label.innerHTML = `<img src="${avatar}"> ${displayName}`;
     }
 }
 
@@ -790,7 +806,8 @@ socket.on('call:incoming_notification', (data) => {
     if (!popup) return;
     const ringtone = document.getElementById('ringtone-audio');
 
-    document.getElementById('incoming-name').textContent = data.room_name || data.caller?.username || 'Call';
+    const callerName = data.caller?.full_name || data.caller?.username || 'Call';
+    document.getElementById('incoming-name').textContent = data.room_name || callerName;
     document.getElementById('incoming-avatar').src = data.caller?.avatar || '/static/img/default-avatar.png';
 
     popup.style.display = 'block';
@@ -822,7 +839,7 @@ socket.on('call:incoming_notification', (data) => {
 
 socket.on('call:declined', (data) => {
     if (currentCallId === data.conversation_id && isInCall) {
-        const name = data.decliner?.username || 'Người kia';
+        const name = data.decliner?.full_name || data.decliner?.username || 'Người kia';
         alert(`${name} đã từ chối cuộc gọi`);
         endCall();
     }

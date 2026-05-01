@@ -1,5 +1,9 @@
 // static/js/chat_input.js
 import { socket } from "./socket/index.js";
+import { macPreview } from "./mac-file-preview.js";
+
+// Make macPreview available globally for inline event handlers
+window.macPreview = macPreview;
 
 let currentConversationId = null;
 let currentConversationType = null; // 'private' hoặc 'group'
@@ -27,11 +31,13 @@ function emitTyping() {
   if (currentConversationType === 'group') {
     socket.emit('group_typing', {
       group_id: currentConversationId,
-      conversation_id: currentConversationId
+      conversation_id: currentConversationId,
+      conversation_type: 'group'
     });
   } else {
     socket.emit('typing', {
-      conversation_id: currentConversationId
+      conversation_id: currentConversationId,
+      conversation_type: 'private'
     });
   }
 }
@@ -42,22 +48,25 @@ function emitStopTyping() {
   if (currentConversationType === 'group') {
     socket.emit('group_stop_typing', {
       group_id: currentConversationId,
-      conversation_id: currentConversationId
+      conversation_id: currentConversationId,
+      conversation_type: 'group'
     });
   } else {
     socket.emit('stop_typing', {
-      conversation_id: currentConversationId
+      conversation_id: currentConversationId,
+      conversation_type: 'private'
     });
   }
 }
 
-function showTypingIndicator(username) {
+function showTypingIndicator(username, fullName) {
   const indicator = document.getElementById('typing-indicator');
   if (!indicator) return;
 
   const textEl = indicator.querySelector('.typing-text');
+  const displayName = fullName || username;
   if (textEl) {
-    textEl.innerText = username ? `${username} đang nhập...` : 'Đang nhập...';
+    textEl.innerText = displayName ? `${displayName} đang nhập...` : 'Đang nhập...';
   }
 
   indicator.classList.remove('hidden');
@@ -71,7 +80,7 @@ function hideTypingIndicator() {
 
 // ====== CÁC HÀM XỬ LÝ REPLY ======
 
-export function enableReplyMode(messageId, content, username) {
+export function enableReplyMode(messageId, content, username, fullName) {
   replyingToId = messageId;
   const preview = document.getElementById('reply-preview');
 
@@ -80,7 +89,8 @@ export function enableReplyMode(messageId, content, username) {
     const replyTextEl = document.getElementById('reply-text-content');
     const replyIdInput = document.getElementById('reply-message-id');
 
-    if (replyUserEl) replyUserEl.innerText = `Đang trả lời ${username}`;
+    const displayName = fullName || username;
+    if (replyUserEl) replyUserEl.innerText = `Đang trả lời ${displayName}`;
     if (replyTextEl) replyTextEl.innerText = content;
     if (replyIdInput) replyIdInput.value = messageId;
 
@@ -122,6 +132,7 @@ export function setCurrentConversation(conversationId, conversationType) {
 
 export function initFileSharing() {
   console.log('[FileSharing] Initializing file sharing...');
+  setupMentionLogic();
 
   // --- [MỚI] 1. XỬ LÝ NÚT HỘP QUÀ & PANEL ---
   const giftBtn = document.getElementById('btn-gift');
@@ -192,8 +203,21 @@ export function initFileSharing() {
   const sendBtn = document.getElementById('send');
   const messageInput = document.getElementById('message');
 
+  console.log('[ChatInput] initFileSharing - sendBtn:', sendBtn, 'messageInput:', messageInput);
+
+  if (!sendBtn) {
+    console.error('[ChatInput] ERROR: Cannot find #send button!');
+  }
+  if (!messageInput) {
+    console.error('[ChatInput] ERROR: Cannot find #message input!');
+  }
+
   const handleSendText = () => {
-    if (!messageInput) return;
+    console.log('[ChatInput] handleSendText called - currentConversationId:', currentConversationId, 'type:', currentConversationType);
+    if (!messageInput) {
+      console.error('[ChatInput] ERROR: messageInput is null!');
+      return;
+    }
     const content = messageInput.value.trim();
     
     // Cho phép gửi nếu có nội dung HOẶC đang chọn hộp quà (nếu bạn muốn cho phép gửi hộp quà rỗng)
@@ -214,6 +238,7 @@ export function initFileSharing() {
         gift_style: selectedGiftStyle 
       };
 
+      console.log('[ChatInput] Sending message:', msgData);
       socket.emit(eventName, msgData);
 
       // Gửi stop_typing khi gửi tin nhắn xong
@@ -230,6 +255,8 @@ export function initFileSharing() {
       selectedGiftStyle = null;
       if (giftBtn) giftBtn.classList.remove('active');
       giftOptions.forEach(o => o.classList.remove('selected'));
+    } else {
+      console.log('[ChatInput] Cannot send - content:', content, 'currentConversationId:', currentConversationId);
     }
   };
 
@@ -261,6 +288,110 @@ export function initFileSharing() {
       }, TYPING_DELAY);
     });
   }
+  // --- XỬ LÝ TAG TÊN (@MENTION) ---
+
+
+// --- TRONG FILE static/js/chat_input.js ---
+
+function setupMentionLogic() {
+    const input = document.getElementById('message');
+    if (!input) return;
+
+    // Tìm khung cha để neo bảng gợi ý
+    const inputContainer = input.closest('.chat-input-area') || input.parentNode;
+    if (inputContainer) inputContainer.style.position = 'relative';
+
+    // Tạo bảng gợi ý
+    let suggestionBox = document.getElementById('mention-suggestions');
+    if (!suggestionBox) {
+        suggestionBox = document.createElement('div');
+        suggestionBox.id = 'mention-suggestions';
+        if (inputContainer) inputContainer.appendChild(suggestionBox);
+        else document.body.appendChild(suggestionBox);
+    }
+
+    input.addEventListener('keyup', (e) => {
+        if (!window.currentGroupMembers) return; // Biến này lấy từ group.js
+
+        const val = input.value;
+        const cursorPos = input.selectionStart;
+        
+        // Lấy từ đang gõ tại con trỏ
+        const textBeforeCursor = val.substring(0, cursorPos);
+        const words = textBeforeCursor.split(/\s+/);
+        const currentWord = words[words.length - 1];
+
+        // Nếu đang gõ @...
+        if (currentWord.startsWith('@')) {
+            const query = currentWord.substring(1).toLowerCase();
+            
+            // 1. Lọc user trùng khớp
+            let matches = window.currentGroupMembers.filter(user => 
+                user.username.toLowerCase().includes(query)
+            );
+
+            // 2. Thêm lựa chọn @all vào đầu nếu khớp
+            if ('all'.includes(query)) {
+                matches.unshift({
+                    username: 'all',
+                    isAll: true, // Đánh dấu là nút đặc biệt
+                    avatar: 'https://cdn-icons-png.flaticon.com/512/992/992700.png' 
+                });
+            }
+
+            if (matches.length > 0) {
+                showSuggestions(matches, input, currentWord, suggestionBox);
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+        } else {
+            suggestionBox.style.display = 'none';
+        }
+    });
+
+    // Ẩn khi click ra ngoài
+    document.addEventListener('click', (e) => {
+        if (suggestionBox && e.target !== suggestionBox && !suggestionBox.contains(e.target)) {
+            suggestionBox.style.display = 'none';
+        }
+    });
+}
+
+function showSuggestions(users, input, currentWord, box) {
+    box.innerHTML = '';
+    box.style.display = 'block';
+
+    users.forEach(user => {
+        const item = document.createElement('div');
+        item.className = user.isAll ? 'suggestion-item item-all' : 'suggestion-item';
+        
+        const displayName = user.isAll ? 'Nhắc tất cả mọi người (@all)' : user.username;
+        const avatarSrc = user.avatar || '/static/img/default-avatar.png';
+
+        item.innerHTML = `
+            <img src="${avatarSrc}">
+            <span>${displayName}</span>
+        `;
+
+        item.onclick = () => {
+            const val = input.value;
+            const cursorPos = input.selectionStart;
+            const textBefore = val.substring(0, cursorPos - currentWord.length);
+            const textAfter = val.substring(cursorPos);
+            
+            // Chèn tên: nếu là @all thì chèn "all", nếu user thì chèn username
+            const insertName = user.isAll ? 'all' : user.username;
+            
+            input.value = textBefore + '@' + insertName + ' ' + textAfter;
+            box.style.display = 'none';
+            input.focus();
+        };
+        box.appendChild(item);
+    });
+}
+
+// GỌI HÀM NÀY KHI KHỞI TẠO
+setupMentionLogic();
 
   // ====== GHI ÂM VOICE MESSAGE ======
   const recordBtn = document.getElementById('record-voice');
@@ -367,6 +498,22 @@ if (shareLocationBtn) {
 
 
 
+  // Sticker mapping: code -> emoji (fallback)
+  const stickerMap = {
+    'sticker1': '😀',
+    'sticker2': '😂',
+    'sticker3': '😍',
+    'sticker4': '🤔',
+    'sticker5': '👍',
+    'sticker6': '❤️',
+    'sticker7': '🎉',
+    'sticker8': '😎',
+    'sticker9': '🥰',
+    'sticker10': '😭',
+    'sticker11': '🔥',
+    'sticker12': '💯'
+  };
+
   // ====== STICKER PANEL ======
   const showStickersBtn = document.getElementById('show-stickers');
   if (showStickersBtn) {
@@ -386,9 +533,10 @@ if (shareLocationBtn) {
 
   document.querySelectorAll('.sticker').forEach((sticker) => {
     sticker.addEventListener('click', () => {
-      const stickerCode = sticker.getAttribute('data-sticker');
-      if (stickerCode) {
-        sendSticker(stickerCode);
+      // Get emoji from data-emoji attribute or fallback to mapping
+      const emoji = sticker.getAttribute('data-emoji') || stickerMap[sticker.getAttribute('data-sticker')];
+      if (emoji) {
+        sendSticker(emoji);
         const stickerPanel = document.getElementById('sticker-panel');
         if (stickerPanel) stickerPanel.style.display = 'none';
       }
@@ -407,6 +555,101 @@ if (shareLocationBtn) {
     });
   }
 
+  // --- [THÊM VÀO CUỐI HÀM initFileSharing TRONG chat_input.js] ---
+
+  // 1. XỬ LÝ LOGIC TẠO POLL (BÌNH CHỌN)
+  const btnPoll = document.getElementById('btn-create-poll'); // Nút mở modal
+  const pollModal = document.getElementById('poll-modal');    // Modal
+  const btnAddOption = document.getElementById('btn-add-poll-option'); // Nút thêm dòng
+  const btnSubmitPoll = document.getElementById('btn-submit-poll');    // Nút tạo
+  const pollOptionsList = document.getElementById('poll-options-list');
+  const closePollBtn = document.querySelector('.close-poll-modal');
+
+  if (btnPoll && pollModal) {
+    // Mở modal
+    btnPoll.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pollModal.style.display = 'flex';
+      // Reset form mỗi khi mở
+      document.getElementById('poll-question').value = '';
+      pollOptionsList.innerHTML = `
+          <input type="text" class="poll-option-input" placeholder="Lựa chọn 1">
+          <input type="text" class="poll-option-input" placeholder="Lựa chọn 2">
+      `;
+      document.getElementById('poll-question').focus();
+    });
+
+    // Đóng modal
+    if (closePollBtn) {
+      closePollBtn.addEventListener('click', () => {
+        pollModal.style.display = 'none';
+      });
+    }
+
+    // Thêm dòng lựa chọn mới
+    if (btnAddOption) {
+      btnAddOption.addEventListener('click', () => {
+        if (pollOptionsList.children.length >= 10) {
+          alert("Tối đa 10 lựa chọn thôi!");
+          return;
+        }
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'poll-option-input';
+        input.placeholder = `Lựa chọn ${pollOptionsList.children.length + 1}`;
+        pollOptionsList.appendChild(input);
+        input.focus();
+      });
+    }
+
+    // Gửi bình chọn (Submit)
+    if (btnSubmitPoll) {
+      btnSubmitPoll.addEventListener('click', () => {
+        const question = document.getElementById('poll-question').value.trim();
+        // Lấy các ô input, bỏ dòng trống
+        const options = Array.from(document.querySelectorAll('.poll-option-input'))
+                             .map(inp => inp.value.trim())
+                             .filter(val => val !== "");
+
+        // Validate
+        if (!question) {
+          alert("Vui lòng nhập câu hỏi!");
+          return;
+        }
+        if (options.length < 2) {
+          alert("Cần ít nhất 2 lựa chọn!");
+          return;
+        }
+        
+        // Lấy groupId (được lưu từ group.js vào window)
+        const groupId = window.currentGroupId; 
+        if (!groupId) {
+            alert("Chỉ tạo được bình chọn trong nhóm!");
+            return;
+        }
+
+        // Tạo cấu trúc dữ liệu Poll chuẩn
+        const pollPayload = {
+            question: question,
+            options: options.map((txt, idx) => ({ 
+                id: idx, 
+                text: txt, 
+                voters: [] // Danh sách người đã vote
+            }))
+        };
+
+        // Gửi qua socket (Dùng chung event send_group_message)
+        socket.emit('send_group_message', {
+            group_id: groupId,
+            content: JSON.stringify(pollPayload), // Chuyển object thành chuỗi
+            message_type: 'poll' // Đánh dấu là loại tin nhắn 'poll'
+        });
+
+        // Đóng modal
+        pollModal.style.display = 'none';
+      });
+    }
+  }
   // ====== UPLOAD IMAGE ======
   const imageUpload = document.getElementById('image-upload');
   if (imageUpload) {
@@ -451,10 +694,11 @@ async function uploadFile(file) {
 
       const messageData = {
         content: JSON.stringify({
-          type: 'file',
+          type: result.is_archive ? 'archive' : 'file',
           name: file.name,
           size: file.size,
-          url: result.file_url
+          url: result.file_url,
+          archive_data: result.is_archive ? result.archive_data : null
         }),
         message_type: 'file',
         reply_to_id: replyingToId
@@ -491,17 +735,38 @@ async function uploadImage(file) {
     return;
   }
 
+  console.log('[DEBUG] Uploading image:', file.name, 'Size:', file.size);
+
   const formData = new FormData();
   formData.append('image', file);
   formData.append('conversation_id', currentConversationId);
   formData.append('conversation_type', currentConversationType);
 
   try {
+    console.log('[DEBUG] Sending image upload request to /upload_image');
+    
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for ngrok
+    
     const response = await fetch('/upload_image', {
       method: 'POST',
-      body: formData
+      body: formData,
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    console.log('[DEBUG] Image upload response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DEBUG] Upload error response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
     const result = await response.json();
+    console.log('[DEBUG] Image upload result:', result);
 
     if (result.success) {
       const eventName =
@@ -528,13 +793,21 @@ async function uploadImage(file) {
       socket.emit(eventName, messageData);
       cancelReply();
     } else {
+      console.error('[DEBUG] Image upload failed:', result.error);
       alert('Upload hình ảnh thất bại: ' + (result.error || 'Unknown error'));
     }
   } catch (err) {
-    console.error('Upload image error:', err);
-    alert('Có lỗi khi upload hình ảnh');
+    console.error('[DEBUG] Upload image error:', err);
+    if (err.name === 'AbortError') {
+      alert('Upload timeout - file quá lớn hoặc kết nối chậm');
+    } else if (err.message.includes('Failed to fetch')) {
+      alert('Không thể kết nối đến server. Kiểm tra ngrok hoặc mạng.');
+    } else {
+      alert('Có lỗi khi upload hình ảnh: ' + err.message);
+    }
   }
 }
+
 // ====== SHARE LOCATION (GỬI VỊ TRÍ) ======
 async function handleShareLocation() {
   if (!currentConversationId) {
@@ -544,6 +817,13 @@ async function handleShareLocation() {
 
   if (!navigator.geolocation) {
     alert('Trình duyệt không hỗ trợ chia sẻ vị trí.');
+    return;
+  }
+  
+  // Kiểm tra HTTPS
+  const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+  if (!isHttps) {
+    alert('⚠️ Chia sẻ vị trí yêu cầu HTTPS.\n\nVui lòng:\n• Truy cập qua https:// hoặc localhost\n• Hoặc nhập vị trí thủ công');
     return;
   }
 
@@ -778,36 +1058,62 @@ export function displayMessage(message) {
   // ===== 3. BUILD NỘI DUNG CHÍNH =====
   let mainContentHTML = '';
 
-  if (detectedType === 'file') {
+  if (detectedType === 'file' || detectedType === 'archive') {
     const fileInfo = payload || {};
+    const fileUrl = fileInfo.url || '#';
+    const fileName = fileInfo.name || 'File';
+    const fileSize = fileInfo.size || 0;
+    const isArchive = detectedType === 'archive' || fileName.match(/\.(zip|rar|7z|tar|gz)$/i);
+    const archiveData = fileInfo.archive_data || null;
+    
+    // Use macOS-style file attachment with inline preview
     mainContentHTML = `
-      <div class="file-message">
-        <div class="file-info">
-          <div class="file-icon"><i class="fi fi-rr-file"></i></div>
-          <div class="file-details">
-            <div class="file-name">${escapeHtml(fileInfo.name || 'File')}</div>
-            <div class="file-size">${formatFileSize(fileInfo.size || 0)}</div>
+      <div class="mac-file-attachment" 
+           data-file-url="${escapeHtml(fileUrl)}" 
+           data-file-name="${escapeHtml(fileName)}" 
+           data-file-size="${fileSize}"
+           data-is-archive="${isArchive}"
+           data-archive-data='${archiveData ? escapeHtml(JSON.stringify(archiveData)) : ''}'>
+        <div class="mac-file-icon ${macPreview.getFileIconClass(fileName)}">
+          <i class="fas ${macPreview.getFileIcon(fileName)}"></i>
+        </div>
+        <div class="mac-file-info">
+          <div class="mac-file-name">${escapeHtml(fileName)}</div>
+          <div class="mac-file-meta">
+            ${formatFileSize(fileSize)}${isArchive ? ' <span class="archive-badge"><i class="fas fa-folder-tree"></i> Project</span>' : ''}
           </div>
         </div>
-        <a href="${fileInfo.url || '#'}" class="file-download" download>Tải xuống</a>
+        <div class="mac-file-actions">
+          <button class="mac-file-action-btn mac-file-preview-btn" title="Xem trước (Space)">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="mac-file-action-btn mac-file-open-btn" title="Mở file">
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+          <button class="mac-file-action-btn mac-file-download-btn" title="Tải xuống">
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+      </div>
+      <div class="mac-file-inline-preview" id="preview-${messageId}" style="display: none;">
+        <div class="mac-file-inline-content"></div>
       </div>
     `;
   } else if (detectedType === 'image') {
     const imageInfo = payload || {};
     const imageName = imageInfo.name || 'Hình ảnh';
-    const thumbUrl = imageInfo.thumbnail || imageInfo.url || '';
     const fullUrl = imageInfo.url || '';
     mainContentHTML = `
       <div class="image-message">
-        <div class="image-info">
-          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageName)}
-        </div>
-        ${
-          thumbUrl
-            ? `<img src="${thumbUrl}" class="uploaded-image" alt="${escapeHtml(imageName)}">`
+        ${fullUrl
+            ? `<img src="${fullUrl}" class="uploaded-image" alt="${escapeHtml(imageName)}" onclick="window.openImageModal && window.openImageModal('${fullUrl}')">`
             : ''
         }
-        ${fullUrl ? `<a href="${fullUrl}" target="_blank">Xem ảnh gốc</a>` : ''}
+        ${fullUrl ? `
+          <div class="image-actions">
+            <a href="${fullUrl}" target="_blank" class="view-original">Xem ảnh gốc</a>
+          </div>
+        ` : ''}
       </div>
     `;
   } else if (detectedType === 'audio') {
@@ -817,7 +1123,8 @@ export function displayMessage(message) {
     mainContentHTML = `
       <div class="audio-message">
         <div class="audio-info">
-          <i class="fas fa-microphone"></i> ${escapeHtml(audioName)}
+          <i class="fas fa-microphone"></i>
+          <span>${escapeHtml(audioName)}</span>
         </div>
         ${
           audioUrl
@@ -1000,12 +1307,80 @@ export function displayMessage(message) {
   }
 
   messagesContainer.appendChild(messageElement);
+  
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 
 
 // ====== UTILS ======
+
+function loadInlinePreview(container, fileUrl, fileName) {
+    const contentEl = container.querySelector('.mac-file-inline-content');
+    if (!contentEl) return;
+    
+    const ext = fileName.split('.').pop().toLowerCase();
+    
+    // Show loading
+    contentEl.innerHTML = '<div class="mac-preview-loading"><div class="mac-preview-spinner"></div></div>';
+    
+    switch (true) {
+        // PDF
+        case ext === 'pdf':
+            const pdfUrl = fileUrl.startsWith('http') ? fileUrl : window.location.origin + fileUrl;
+            contentEl.innerHTML = `<iframe src="${pdfUrl}#toolbar=1" style="width: 100%; height: 400px; border: none;"></iframe>`;
+            break;
+            
+        // Images
+        case ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext):
+            contentEl.innerHTML = `<img src="${fileUrl}" style="max-width: 100%; max-height: 300px; border-radius: 8px; display: block; margin: 0 auto;">`;
+            break;
+            
+        // Videos
+        case ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext):
+            contentEl.innerHTML = `
+                <video controls style="width: 100%; max-height: 300px; border-radius: 8px;">
+                    <source src="${fileUrl}" type="video/${ext === 'mov' ? 'quicktime' : ext}">
+                </video>`;
+            break;
+            
+        // Audio
+        case ['mp3', 'wav', 'ogg', 'm4a'].includes(ext):
+            contentEl.innerHTML = `
+                <audio controls style="width: 100%;">
+                    <source src="${fileUrl}" type="audio/${ext === 'mp3' ? 'mpeg' : ext}">
+                </audio>`;
+            break;
+            
+        // Text files
+        case ['txt', 'md', 'js', 'py', 'html', 'css', 'json', 'xml'].includes(ext):
+            fetch(fileUrl)
+                .then(r => r.text())
+                .then(text => {
+                    const limitedText = text.length > 3000 ? text.substring(0, 3000) + '\n\n[...]' : text;
+                    contentEl.innerHTML = `<pre class="mac-file-inline-text">${escapeHtml(limitedText)}</pre>`;
+                })
+                .catch(() => {
+                    contentEl.innerHTML = '<div class="mac-preview-error">Không thể đọc file</div>';
+                });
+            break;
+            
+        // Office documents
+        case ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext):
+            const viewerUrl = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(fileUrl)}`;
+            contentEl.innerHTML = `<iframe src="${viewerUrl}" style="width: 100%; height: 400px; border: none;"></iframe>`;
+            break;
+            
+        // Default
+        default:
+            contentEl.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-file" style="font-size: 48px; color: #86868b; margin-bottom: 12px;"></i>
+                    <div style="color: #1d1d1f; font-weight: 500;">${fileName}</div>
+                    <div style="color: #86868b; font-size: 13px; margin-top: 8px;">Không hỗ trợ xem trước trực tiếp</div>
+                </div>`;
+    }
+}
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 Bytes';
@@ -1015,16 +1390,27 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function getStickerHTML(stickerCode) {
-  const stickerMap = {
-    sticker1: '😀',
-    sticker2: '😂',
-    sticker3: '😍',
-    sticker4: '🤔',
-    sticker5: '👍',
-    sticker6: '❤️'
+function getStickerHTML(stickerContent) {
+  // Mapping emoji to animation classes (like Zalo)
+  const animationMap = {
+    '😀': 'bounce',
+    '😂': 'shake',
+    '😍': 'heartbeat',
+    '🤔': 'wobble',
+    '👍': 'tada',
+    '❤️': 'pulse',
+    '🎉': 'party',
+    '😎': 'swing',
+    '🥰': 'pulse',
+    '😭': 'shake',
+    '🔥': 'flame',
+    '💯': 'bounce'
   };
-  return `<span class="sticker">${stickerMap[stickerCode] || stickerCode}</span>`;
+
+  const animationClass = animationMap[stickerContent] || 'bounce';
+  
+  // Return animated emoji HTML
+  return `<span class="sticker-emoji ${animationClass}">${stickerContent}</span>`;
 }
 
 function escapeHtml(unsafe) {
@@ -1038,8 +1424,20 @@ function escapeHtml(unsafe) {
 }
 
 function getUserId() {
-  const userAvatar = document.querySelector('.user-avatar');
-  return userAvatar ? userAvatar.dataset.userId : null;
+  // Ưu tiên lấy từ window.session (đúng với chat.html)
+  if (window.session && window.session.user_id) {
+    return window.session.user_id;
+  }
+  
+  // Fallback: tìm element có data-user-id
+  const userAvatar = document.querySelector('.user-avatar[data-user-id]');
+  if (userAvatar) {
+    return userAvatar.dataset.userId;
+  }
+  
+  // Fallback cuối cùng: tìm user-avatar bất kỳ
+  const avatarEl = document.querySelector('.user-avatar');
+  return avatarEl ? avatarEl.dataset.userId : null;
 }
 
 // Parse JSON trong content, hỗ trợ cả string & object
@@ -1111,11 +1509,13 @@ if (type === 'location') {
 function formatTime(timestamp) {
   if (!timestamp) return '';
   try {
-    console.log('[DEBUG] formatTime timestamp:', timestamp);
-    // Backend đã gửi giờ VN, frontend dùng moment() bình thường
-    const m = moment(timestamp);
+    console.log('[DEBUG] formatTime timestamp:', timestamp, 'type:', typeof timestamp);
+    // Backend đã gửi giờ VN, moment đang có default timezone Asia/Ho_Chi_Minh
+    // Cần parse as local time để không bị áp timezone lại
+    const m = moment(timestamp, moment.ISO_8601, true);
     const now = moment();
     console.log('[DEBUG] moment parsed (local):', m.format(), 'now:', now.format());
+    console.log('[DEBUG] parsed hour:', m.hour(), 'now hour:', now.hour());
     console.log('[DEBUG] diff minutes:', now.diff(m, 'minutes'));
 
     if (!m.isValid()) return 'Vừa xong';
@@ -1123,8 +1523,9 @@ function formatTime(timestamp) {
     const diffMinutes = now.diff(m, 'minutes');
     const diffHours = now.diff(m, 'hours');
 
-    if (diffMinutes < 1) return 'Vừa xong';
-    if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+    // Luôn hiển thị giờ cho tin nhắn trong nhóm
+    if (diffMinutes < 1) return m.format('HH:mm');
+    if (diffMinutes < 60) return m.format('HH:mm');
     if (diffHours < 24) return m.format('HH:mm');
 
     if (now.clone().subtract(1, 'day').isSame(m, 'day')) {
@@ -1137,6 +1538,9 @@ function formatTime(timestamp) {
     return 'Vừa xong';
   }
 }
+
+// Export để các file khác có thể dùng
+window.formatTime = formatTime;
 
 // ====== SOCKET LISTENERS CHO TYPING INDICATOR ======
 
@@ -1239,47 +1643,237 @@ export function setupActionMenuToggle() {
 /**
  * 2. Logic Kích hoạt/Thoát Chế độ Vẽ Chú thích
  */
+let drawingContext = null;
+let isDrawing = false;
+let currentColor = '#000000';
+let currentLineWidth = 3;
+
 function toggleDrawingMode(activate = true) {
     const chatArea = document.querySelector('.chat-area');
     const inputArea = document.querySelector('.message-input');
     const canvas = document.getElementById('chat-drawing-canvas');
     const toolbar = document.getElementById('chat-drawing-toolbar');
 
+    if (!canvas || !toolbar) {
+        console.error('[Drawing] Canvas hoặc toolbar không tồn tại');
+        alert('Lỗi: Không tìm thấy canvas vẽ');
+        return;
+    }
+
     if (activate) {
         // Ẩn Input và các thành phần liên quan
         inputArea.classList.add('hidden');
-        document.getElementById('recording-indicator').classList.add('hidden');
+        const recIndicator = document.getElementById('recording-indicator');
+        if (recIndicator) recIndicator.classList.add('hidden');
         
         // Hiển thị Canvas và Toolbar
         toolbar.classList.remove('hidden');
+        canvas.classList.remove('hidden');
         chatArea.classList.add('drawing-mode-active'); 
         
-        // Đặt kích thước Canvas bằng với khu vực Chat Area
+        // Đặt kích thước Canvas
+        const messagesContainer = document.getElementById('messages');
         canvas.width = chatArea.clientWidth;
-        // Chiều cao cần trừ đi kích thước của header và input bar (hoặc đặt cố định nếu chat-area là full height)
-        canvas.height = chatArea.clientHeight; 
+        canvas.height = messagesContainer ? messagesContainer.clientHeight : chatArea.clientHeight - 100;
 
-        // Khởi tạo Engine Vẽ (Cần code chi tiết ở đây)
-        // window.initDrawingEngine(canvas); 
+        // Khởi tạo context vẽ
+        drawingContext = canvas.getContext('2d');
+        drawingContext.lineCap = 'round';
+        drawingContext.lineJoin = 'round';
+        drawingContext.strokeStyle = currentColor;
+        drawingContext.lineWidth = currentLineWidth;
 
-        console.log("Chế độ Vẽ Chú thích đã được kích hoạt.");
+        // Khởi tạo sự kiện vẽ
+        initDrawingEvents(canvas);
+
+        console.log("[Drawing] Chế độ vẽ đã kích hoạt");
         
-        // Đóng menu hành động nếu nó đang mở
+        // Đóng menu hành động
         const menu = document.getElementById('action-buttons-menu');
-        menu.classList.remove('expanded');
-        document.getElementById('btn-toggle-actions').querySelector('i').className = 'fas fa-plus';
+        if (menu) menu.classList.remove('expanded');
+        const toggleBtn = document.getElementById('btn-toggle-actions');
+        if (toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
+            if (icon) icon.className = 'fas fa-plus';
+        }
         
     } else {
         // Thoát chế độ vẽ
         inputArea.classList.remove('hidden');
         toolbar.classList.add('hidden');
+        canvas.classList.add('hidden');
         chatArea.classList.remove('drawing-mode-active');
         
-        // Xóa các nét vẽ trên canvas (nếu cần)
-        // const ctx = canvas.getContext('2d');
-        // ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        // Xóa canvas
+        if (drawingContext) {
+            drawingContext.clearRect(0, 0, canvas.width, canvas.height);
+        }
         
-        console.log("Chế độ Vẽ Chú thích đã thoát.");
+        // Hủy sự kiện vẽ
+        removeDrawingEvents(canvas);
+        
+        console.log("[Drawing] Chế độ vẽ đã thoát");
+    }
+}
+
+// Khởi tạo sự kiện vẽ
+function initDrawingEvents(canvas) {
+    // Mouse events
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    
+    // Touch events cho mobile
+    canvas.addEventListener('touchstart', handleTouch);
+    canvas.addEventListener('touchmove', handleTouchMove);
+    canvas.addEventListener('touchend', stopDrawing);
+}
+
+function removeDrawingEvents(canvas) {
+    canvas.removeEventListener('mousedown', startDrawing);
+    canvas.removeEventListener('mousemove', draw);
+    canvas.removeEventListener('mouseup', stopDrawing);
+    canvas.removeEventListener('mouseout', stopDrawing);
+    canvas.removeEventListener('touchstart', handleTouch);
+    canvas.removeEventListener('touchmove', handleTouchMove);
+    canvas.removeEventListener('touchend', stopDrawing);
+}
+
+function startDrawing(e) {
+    isDrawing = true;
+    const canvas = document.getElementById('chat-drawing-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    drawingContext.beginPath();
+    drawingContext.moveTo(x, y);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    
+    const canvas = document.getElementById('chat-drawing-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    drawingContext.lineTo(x, y);
+    drawingContext.stroke();
+}
+
+function stopDrawing() {
+    if (isDrawing) {
+        isDrawing = false;
+        drawingContext.beginPath();
+    }
+}
+
+function handleTouch(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const mouseEvent = new MouseEvent('mousedown', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+    });
+    startDrawing(mouseEvent);
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const mouseEvent = new MouseEvent('mousemove', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+    });
+    draw(mouseEvent);
+}
+
+// Thay đổi màu vẽ
+function setDrawingColor(color) {
+    currentColor = color;
+    if (drawingContext) {
+        drawingContext.strokeStyle = color;
+    }
+}
+
+// Thay đổi độ dày nét vẽ
+function setLineWidth(width) {
+    currentLineWidth = width;
+    if (drawingContext) {
+        drawingContext.lineWidth = width;
+    }
+}
+
+// Xóa canvas
+function clearCanvas() {
+    const canvas = document.getElementById('chat-drawing-canvas');
+    if (canvas && drawingContext) {
+        drawingContext.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+// Gửi ảnh vẽ
+async function sendDrawing() {
+    const canvas = document.getElementById('chat-drawing-canvas');
+    if (!canvas) return;
+    
+    if (!currentConversationId) {
+        alert('Vui lòng chọn một cuộc trò chuyện trước');
+        return;
+    }
+    
+    try {
+        // Chuyển canvas thành blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const file = new File([blob], `drawing-${Date.now()}.png`, { type: 'image/png' });
+        
+        // Upload như ảnh bình thường
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('conversation_id', currentConversationId);
+        formData.append('conversation_type', currentConversationType);
+        
+        const response = await fetch('/upload_image', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const eventName = currentConversationType === 'group' ? 'send_group_message' : 'send_message';
+            
+            const messageData = {
+                content: JSON.stringify({
+                    type: 'image',
+                    name: file.name,
+                    url: result.image_url,
+                    thumbnail: result.thumbnail_url
+                }),
+                message_type: 'image',
+                reply_to_id: replyingToId
+            };
+            
+            if (currentConversationType === 'group') {
+                messageData.group_id = currentConversationId;
+            } else {
+                messageData.conversation_id = currentConversationId;
+                messageData.conversation_type = currentConversationType;
+            }
+            
+            socket.emit(eventName, messageData);
+            cancelReply();
+            
+            // Thoát chế độ vẽ
+            toggleDrawingMode(false);
+        } else {
+            alert('Upload ảnh vẽ thất bại: ' + (result.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('Send drawing error:', err);
+        alert('Có lỗi khi gửi ảnh vẽ');
     }
 }
 
@@ -1290,7 +1884,10 @@ function toggleDrawingMode(activate = true) {
 export function setupDrawingListeners() {
     const btnDrawToggle = document.getElementById('btn-drawing-tool');
     const btnExitDraw = document.getElementById('chat-btn-exit-draw');
-    // const btnSendDraw = document.getElementById('chat-btn-send-draw'); 
+    const btnSendDraw = document.getElementById('chat-btn-send-draw');
+    const btnClearDraw = document.getElementById('chat-btn-clear-draw');
+    const colorPicker = document.getElementById('chat-draw-color');
+    const widthSlider = document.getElementById('chat-draw-width');
 
     if (btnDrawToggle) {
         btnDrawToggle.addEventListener('click', () => {
@@ -1304,7 +1901,33 @@ export function setupDrawingListeners() {
         });
     }
     
-    // Logic cho nút Gửi (chat-btn-send-draw) sẽ được code sau
+    // Nút gửi ảnh vẽ
+    if (btnSendDraw) {
+        btnSendDraw.addEventListener('click', () => {
+            sendDrawing();
+        });
+    }
+    
+    // Nút xóa canvas
+    if (btnClearDraw) {
+        btnClearDraw.addEventListener('click', () => {
+            clearCanvas();
+        });
+    }
+    
+    // Chọn màu
+    if (colorPicker) {
+        colorPicker.addEventListener('change', (e) => {
+            setDrawingColor(e.target.value);
+        });
+    }
+    
+    // Chọn độ dày nét vẽ
+    if (widthSlider) {
+        widthSlider.addEventListener('input', (e) => {
+            setLineWidth(parseInt(e.target.value));
+        });
+    }
 }
 
 
@@ -1314,5 +1937,115 @@ document.addEventListener('DOMContentLoaded', () => {
     setupActionMenuToggle(); 
     
     // Khởi tạo logic Drawing Mode
-    setupDrawingListeners(); 
+    setupDrawingListeners();
+    
+    // Event delegation for file attachment clicks
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.addEventListener('click', (e) => {
+            // Handle preview button click - open Mac-style preview
+            const previewBtn = e.target.closest('.mac-file-preview-btn');
+            if (previewBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const fileAttachment = previewBtn.closest('.mac-file-attachment');
+                if (!fileAttachment) return;
+                
+                const fileUrl = fileAttachment.getAttribute('data-file-url');
+                const fileName = fileAttachment.getAttribute('data-file-name');
+                const fileSize = parseInt(fileAttachment.getAttribute('data-file-size')) || 0;
+                const isArchive = fileAttachment.getAttribute('data-is-archive') === 'true';
+                const archiveDataStr = fileAttachment.getAttribute('data-archive-data');
+                let archiveData = null;
+                if (archiveDataStr && isArchive) {
+                    try {
+                        archiveData = JSON.parse(archiveDataStr);
+                    } catch (e) {
+                        console.error('Failed to parse archive data:', e);
+                    }
+                }
+                
+                // Open Mac-style preview
+                if (window.macPreview) {
+                    window.macPreview.currentFile = { 
+                        url: fileUrl, 
+                        name: fileName, 
+                        size: fileSize,
+                        archiveData: archiveData,
+                        isArchive: isArchive
+                    };
+                    window.macPreview.open(fileUrl, fileName, fileSize);
+                }
+                return;
+            }
+            
+            // Handle open button click - open in new tab
+            const openBtn = e.target.closest('.mac-file-open-btn');
+            if (openBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const fileAttachment = openBtn.closest('.mac-file-attachment');
+                if (!fileAttachment) return;
+                
+                const fileUrl = fileAttachment.getAttribute('data-file-url');
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            
+            // Handle download button click
+            const downloadBtn = e.target.closest('.mac-file-download-btn');
+            if (downloadBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const fileAttachment = downloadBtn.closest('.mac-file-attachment');
+                if (!fileAttachment) return;
+                
+                const fileUrl = fileAttachment.getAttribute('data-file-url');
+                const fileName = fileAttachment.getAttribute('data-file-name');
+                
+                // Trigger download
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = fileName;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
+            
+            // Handle clicking on the attachment itself - open Mac-style preview
+            const fileAttachment = e.target.closest('.mac-file-attachment');
+            if (fileAttachment && !e.target.closest('.mac-file-actions')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const fileUrl = fileAttachment.getAttribute('data-file-url');
+                const fileName = fileAttachment.getAttribute('data-file-name');
+                const fileSize = parseInt(fileAttachment.getAttribute('data-file-size')) || 0;
+                
+                // Open Mac-style preview
+                if (window.macPreview) {
+                    const isArchive = fileAttachment.getAttribute('data-is-archive') === 'true';
+                    const archiveDataStr = fileAttachment.getAttribute('data-archive-data');
+                    let archiveData = null;
+                    if (archiveDataStr && isArchive) {
+                        try {
+                            archiveData = JSON.parse(archiveDataStr);
+                        } catch (e) {
+                            console.error('Failed to parse archive data:', e);
+                        }
+                    }
+                    window.macPreview.currentFile = { 
+                        url: fileUrl, 
+                        name: fileName, 
+                        size: fileSize,
+                        archiveData: archiveData,
+                        isArchive: isArchive
+                    };
+                    window.macPreview.open(fileUrl, fileName, fileSize);
+                }
+            }
+        });
+    }
 });

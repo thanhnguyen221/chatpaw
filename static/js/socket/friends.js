@@ -154,9 +154,9 @@ function renderUserResult(user) {
 
   div.innerHTML = `
     <div class="user-info">
-      <img src="${avatarSrc}" alt="${user.username}" class="avatar">
+      <img src="${avatarSrc}" alt="${user.full_name || user.username}" class="avatar">
       <div>
-        <div class="username">${user.username}</div>
+        <div class="username">${user.full_name || user.username}</div>
         <div class="email">${user.email}</div>
       </div>
     </div>
@@ -203,9 +203,9 @@ export function fetchFriends() {
         const onlineHtml = friend.online ? '<span class="online-dot"></span>' : '';
 
         contactEl.innerHTML = `
-          <img src="${avatarSrc}" alt="${friend.username}" class="contact-avatar">
+          <img src="${avatarSrc}" alt="${friend.full_name || friend.username}" class="contact-avatar">
           <div class="contact-info">
-            <div class="contact-name">${friend.username}</div>
+            <div class="contact-name">${friend.full_name || friend.username}</div>
           </div>
           <div class="contact-status">${onlineHtml}</div>
         `;
@@ -332,7 +332,7 @@ export function setupFriendRequestsPage() {
                   
                   reqEl.innerHTML = `
                       <div class="req-info">
-                          <strong>${req.username}</strong>
+                          <strong>${req.full_name || req.username}</strong>
                       </div>
                       <div class="req-actions">
                           <button class="btn-accept" data-id="${req.request_id}" data-sender="${req.sender_id}">
@@ -388,10 +388,10 @@ function createRequestElement(request) {
   
   div.innerHTML = `
       ${isOnline ? '<div class="online-indicator"></div>' : ''}
-      <img src="${avatarSrc}" alt="${request.username}" class="request-avatar"
+      <img src="${avatarSrc}" alt="${request.full_name || request.username}" class="request-avatar"
            onerror="this.src='/static/img/default-avatar.png'">
       <div class="request-info">
-          <div class="request-name">${escapeHtml(request.username)}</div>
+          <div class="request-name">${escapeHtml(request.full_name || request.username)}</div>
           <div class="request-meta">${request.email || 'Người dùng PAW TALK'}</div>
           ${mutualFriends > 0 ? `<div class="mutual-friends">${mutualFriends} bạn chung</div>` : ''}
       </div>
@@ -463,11 +463,11 @@ export function fetchFriendRequests() {
         
         reqEl.innerHTML = `
           <div class="req-avatar-container" onclick="viewSenderProfile('${req.sender_id}')" style="cursor: pointer;">
-            <img src="${avatarSrc}" alt="${req.username}" class="req-avatar"
+            <img src="${avatarSrc}" alt="${req.full_name || req.username}" class="req-avatar"
                  onerror="this.src='/static/img/default-avatar.png'">
           </div>
           <div class="req-info" onclick="viewSenderProfile('${req.sender_id}')" style="cursor: pointer; flex: 1;">
-            <strong>${req.username}</strong>
+            <strong>${req.full_name || req.username}</strong>
             <div class="req-email">${req.email || ''}</div>
           </div>
           <div class="req-actions">

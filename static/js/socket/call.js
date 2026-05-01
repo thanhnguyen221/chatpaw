@@ -6,6 +6,7 @@ const peers = {};                 // Lưu nhiều RTCPeerConnection theo sid
 let localStream = null;
 let currentCallId = null;         // id cuộc trò chuyện (group_id hoặc conversation_id 1-1)
 let currentCallType = null;       // 'private' | 'group'
+let currentCallMode = 'video';    // 'video' | 'audio' - chế độ cuộc gọi hiện tại
 let currentFacingMode = "user";   // 'user' (cam trước) | 'environment' (cam sau)
 let isMicOn = true;
 let isCamOn = true;
@@ -30,13 +31,29 @@ let drawingInitialized = false;
 let drawingCanvas = null;
 let drawingCtx = null;
 
-// Cấu hình TURN/STUN (Để chạy qua Ngrok/4G)
+// Cấu hình TURN/STUN (Để chạy qua tunnel/4G/NAT)
 const rtcConfig = {
     iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelay", credential: "openrelay" },
-        { urls: "turn:openrelay.metered.ca:443", username: "openrelay", credential: "openrelay" }
-    ]
+        // STUN servers
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // TURN servers miễn phí (nhiều server để backup)
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:openrelay.metered.ca:5349', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:relay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:relay.metered.ca:443', username: 'openrelay', credential: 'openrelay' },
+        // Backup TURN
+        { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' },
+        { urls: 'turn:turn1.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn2.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn3.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
+        { urls: 'turn:turn4.xirsys.com:3478?transport=udp', username: 'openrelay', credential: 'openrelay' }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 // ==================================================
@@ -322,7 +339,7 @@ function emitDrawSegment(x0, y0, x1, y1) {
 export async function startGroupCall(conversationId, conversationType = "group", options = {}) {
     console.log("[Call] Starting call for:", conversationId, "type:", conversationType, "options:", options);
 
-    const { isInitiator = true, ignoreDecline = false, call_id = null } = options;
+    const { isInitiator = true, ignoreDecline = false, call_id = null, callMode = 'video' } = options;
 
     // 🔹 Nếu trước đó mình đã bấm "Từ chối" cuộc gọi này và chưa kết thúc,
     // thì không cho join lại (tránh bug decline xong vẫn join được).
@@ -337,6 +354,7 @@ export async function startGroupCall(conversationId, conversationType = "group",
     handledIncomingConversations.delete(conversationId);
 
     isCurrentUserCallInitiator = !!isInitiator;
+    currentCallMode = callMode; // 'video' | 'audio'
 
     // Nếu đang ở trong 1 cuộc gọi khác
     if (isInCall && currentCallId && currentCallId !== conversationId) {
@@ -359,14 +377,19 @@ export async function startGroupCall(conversationId, conversationType = "group",
     const overlay = document.getElementById("call-overlay");
     if (overlay) overlay.style.display = "flex";
 
-    // Mobile: hiện nút flip
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    // Cập nhật UI cho call audio - ẩn video elements
+    updateCallUIForMode(callMode);
+
+    // Mobile: hiện nút flip (chỉ cho video call)
+    if (callMode === 'video' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
         const btnFlip = document.getElementById("btn-flip");
         if (btnFlip) btnFlip.style.display = "inline-block";
     }
 
-    // Khởi tạo canvas vẽ (nếu chưa có)
-    initDrawingCanvas();
+    // Khởi tạo canvas vẽ (nếu chưa có và là video call)
+    if (callMode === 'video') {
+        initDrawingCanvas();
+    }
 
     // 🔹 Cập nhật nút gọi nhóm ở header (nếu là call nhóm)
     if (conversationType === "group" && typeof window.updateCallButtonState === "function") {
@@ -374,7 +397,20 @@ export async function startGroupCall(conversationId, conversationType = "group",
     }
 
     try {
-        await getMedia("user");
+        if (callMode === 'video') {
+            await getMedia("user");
+        } else {
+            await getAudioOnlyMedia();
+        }
+
+        // 🔥 MAC STYLE: Bắt đầu timer và audio visualizer sau khi có media
+        startCallTimer();
+        initAudioVisualizer();
+
+        // 🔥 Cập nhật header với thông tin cuộc gọi
+        const callName = conversationType === 'group' ? 'Nhóm call' : 'Cuộc gọi';
+        updateCallHeader(callName, null, 'Đang kết nối...');
+
         socket.emit("call:join", { conversation_id: conversationId, call_id: currentDbCallId });
     } catch (e) {
         console.error("[Call] Lỗi lấy Media:", e);
@@ -425,6 +461,97 @@ function replaceTrackInPeers() {
     replaceVideoTrackInPeers(newVideoTrack);
 }
 
+// Hàm lấy chỉ Audio (cho call thoại)
+async function getAudioOnlyMedia() {
+    // Nếu đang có stream cũ thì dừng các track
+    if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+        localStream = null;
+    }
+
+    console.log("[Call] Getting audio only media");
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+    });
+
+    // Preview - ẩn video, chỉ hiện avatar
+    const videoEl = document.getElementById("local-video");
+    if (videoEl) {
+        videoEl.style.display = "none";
+    }
+
+    // Đồng bộ trạng thái Mic
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) audioTrack.enabled = isMicOn;
+
+    // Cập nhật track cho peers
+    if (Object.keys(peers).length > 0) {
+        replaceTrackInPeers();
+    }
+}
+
+// Cập nhật UI theo chế độ call
+function updateCallUIForMode(callMode) {
+    const localVideo = document.getElementById("local-video");
+    const localBox = document.getElementById("local-box");
+    const btnCam = document.getElementById("btn-cam");
+    const btnFlip = document.getElementById("btn-flip");
+    const btnDraw = document.getElementById("btn-draw-toggle");
+    const btnScreen = document.getElementById("btn-screen-share");
+    const drawingToolbar = document.getElementById("drawing-toolbar");
+
+    if (callMode === 'audio') {
+        // Audio call - ẩn video elements
+        if (localVideo) localVideo.style.display = "none";
+        if (btnCam) btnCam.style.display = "none";
+        if (btnFlip) btnFlip.style.display = "none";
+        if (btnDraw) btnDraw.style.display = "none";
+        if (btnScreen) btnScreen.style.display = "none";
+        if (drawingToolbar) drawingToolbar.style.display = "none";
+
+        // Hiện avatar thay vì video
+        if (localBox) {
+            let avatarEl = localBox.querySelector(".audio-call-avatar");
+            if (!avatarEl) {
+                avatarEl = document.createElement("div");
+                avatarEl.className = "audio-call-avatar";
+                avatarEl.innerHTML = `
+                    <div style="
+                        width: 120px; height: 120px; border-radius: 50%;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 48px; color: white;
+                    ">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div style="text-align: center; margin-top: 10px; color: white; font-size: 16px;">
+                        Cuộc gọi thoại
+                    </div>
+                `;
+                localBox.appendChild(avatarEl);
+            }
+            avatarEl.style.display = "flex";
+        }
+    } else {
+        // Video call - hiện video elements
+        if (localVideo) localVideo.style.display = "block";
+        if (btnCam) btnCam.style.display = "inline-flex";
+        if (btnFlip && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            btnFlip.style.display = "inline-flex";
+        }
+        if (btnDraw) btnDraw.style.display = "inline-flex";
+        if (btnScreen) btnScreen.style.display = "inline-flex";
+
+        // Ẩn avatar audio call nếu có
+        if (localBox) {
+            const avatarEl = localBox.querySelector(".audio-call-avatar");
+            if (avatarEl) avatarEl.style.display = "none";
+        }
+    }
+}
+
 // Hàm kết thúc gọi (Dọn dẹp)
 export function endCall() {
     console.log("[Call] Ending call...");
@@ -440,10 +567,12 @@ export function endCall() {
 
     const convId = currentCallId;
     const convType = currentCallType;   // LƯU LẠI để biết có phải call nhóm không
+    const callMode = currentCallMode;   // Lưu lại mode để reset UI
 
     // Reset state trước, tránh race
     currentCallId = null;
     currentCallType = null;
+    currentCallMode = 'video';
     isInCall = false;
     isCurrentUserCallInitiator = false;
 
@@ -496,13 +625,41 @@ export function endCall() {
         drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
     }
 
+    // Reset UI về mặc định (hiện lại các nút video call)
+    const localVideo = document.getElementById("local-video");
+    const localBox = document.getElementById("local-box");
+    const btnCam = document.getElementById("btn-cam");
+    const btnFlip = document.getElementById("btn-flip");
+    const btnDrawToggle = document.getElementById("btn-draw-toggle");
+    const btnScreen = document.getElementById("btn-screen-share");
+
+    if (localVideo) localVideo.style.display = "block";
+    if (btnCam) btnCam.style.display = "inline-flex";
+    if (btnFlip) btnFlip.style.display = "none"; // Ẩn flip mặc định
+    if (btnDrawToggle) btnDrawToggle.style.display = "inline-flex";
+    if (btnScreen) btnScreen.style.display = "inline-flex";
+
+    // Xóa avatar audio call nếu có
+    if (localBox) {
+        const avatarEl = localBox.querySelector(".audio-call-avatar");
+        if (avatarEl) avatarEl.remove();
+    }
+
     // 🔹 Nếu vừa kết thúc call nhóm → reset lại nút gọi nhóm
     if (convType === "group" && typeof window.updateCallButtonState === "function") {
         window.updateCallButtonState(false);
     }
 
-    // Ẩn Overlay
+    // 🔥 MAC STYLE: Dừng timer và audio visualizer
+    stopCallTimer();
+    stopAudioVisualizer();
+
+    // Reset minimize state
+    isMinimized = false;
     const overlay = document.getElementById("call-overlay");
+    if (overlay) overlay.classList.remove('call-minimized');
+
+    // Ẩn Overlay
     if (overlay) overlay.style.display = "none";
 }
 
@@ -522,7 +679,18 @@ socket.on("call:user_joined", (data) => {
     if (!isInCall || !currentCallId) return;
     console.log("[Call] User joined:", data.user_info);
     createPeer(data.signal_initiator_sid, false); // false = mình là người nhận
-    if (data.user_info) addVideoBox(data.signal_initiator_sid, data.user_info);
+    if (data.user_info) {
+        addVideoBox(data.signal_initiator_sid, data.user_info);
+
+        // 🔥 MAC STYLE: Cập nhật header với tên người tham gia
+        if (currentCallType === 'private') {
+            updateCallHeader(
+                data.user_info.username || 'Người dùng',
+                data.user_info.avatar,
+                'Đang gọi...'
+            );
+        }
+    }
 });
 
 // C. Tín hiệu OFFER
@@ -825,6 +993,14 @@ window.endCall = endCall;
 // Expose startGroupCall để file khác (group.js / private chat) gọi
 window.startGroupCall = startGroupCall;
 
+// 🔥 [NEW] Set initiator flag when user makes a call (without immediately joining)
+window.setCallInitiator = function(convId, callMode = 'video') {
+    isCurrentUserCallInitiator = true;
+    currentCallId = convId;
+    currentCallMode = callMode;
+    console.log(`[Call] Set as initiator for ${convId}, mode: ${callMode}`);
+};
+
 function clearAllDrawingCanvas() {
     // Xoá canvas local
     if (drawingCanvas && drawingCtx) {
@@ -922,48 +1098,80 @@ socket.on("call:clear_board", (data = {}) => {
     clearAllDrawingCanvas();
 });
 
+// Nhận lời mời gọi (INCOMING CALL)
 socket.on("call:incoming_notification", (data) => {
-    if (!data || !data.conversation_id) return;
+    console.log("[Call] Received call:incoming_notification:", data);
+    if (!data || !data.conversation_id) {
+        console.log("[Call] Missing data, returning");
+        return;
+    }
 
     // Nếu mình đang ở trong cuộc gọi này rồi → bỏ qua (tránh spam khi có người join thêm)
     if (isInCall && currentCallId === data.conversation_id) {
+        console.log("[Call] Already in this call, returning");
         return;
     }
 
     // Nếu đã xử lý popup cho cuộc gọi này (accept/decline) → bỏ qua
     if (handledIncomingConversations.has(data.conversation_id)) {
+        console.log("[Call] Already handled this conversation, returning");
         return;
     }
 
     // Nếu đã bấm từ chối cuộc gọi này → bỏ qua luôn
     if (declinedConversations.has(data.conversation_id)) {
+        console.log("[Call] Already declined this conversation, returning");
         return;
     }
 
     const popup = document.getElementById("incoming-call-popup");
     const avatar = document.getElementById("incoming-avatar");
     const name = document.getElementById("incoming-name");
-    const desc = popup ? popup.querySelector("p") : null;
+    const desc = document.getElementById("incoming-desc");
+    const callTypeBadge = document.getElementById("incoming-call-type");
     const btnAccept = document.getElementById("btn-accept-call");
     const btnDecline = document.getElementById("btn-decline-call");
     const ringtone = document.getElementById("ringtone-audio");
+
+    console.log("[Call] DOM elements:", {popup, avatar, name, btnAccept, btnDecline});
+
+    // Xác định loại call: audio hay video
+    const callMode = data.call_mode || 'video';
+    const callTypeText = callMode === 'audio' ? 'Cuộc gọi thoại' : 'Cuộc gọi video';
+    const callIcon = callMode === 'audio' ? 'fa-phone' : 'fa-video';
 
     if (popup && avatar && name && btnAccept && btnDecline) {
         avatar.src = data.caller?.avatar || "/static/img/default-avatar.png";
         currentDbCallId = data.call_id;
 
+        const isGroup = data.conversation_type === 'group';
+        const title = isGroup
+            ? (data.room_name || 'Cuộc gọi đến')
+            : (data.caller?.username || 'Cuộc gọi đến');
+        const message = isGroup
+            ? `${data.caller?.username || 'Ai đó'} đang gọi...`
+            : 'đang gọi cho bạn...';
+
         if (data.conversation_type === "group") {
-            name.textContent = data.room_name || "Cuộc gọi nhóm";
-            if (desc) {
-                const callerName = data.caller?.username || "Một thành viên";
-                desc.textContent = `${callerName} đang bắt đầu cuộc gọi nhóm...`;
-            }
+            name.textContent = title;
+            if (desc) desc.textContent = message;
         } else {
+            // 1v1 - hiển thị đúng ngữ cảnh
             name.textContent = data.caller?.username || "Người dùng";
-            if (desc) desc.textContent = "đang gọi video cho bạn...";
+            if (desc) desc.textContent = `đang gọi ${callMode === 'audio' ? 'thoại' : 'video'} cho bạn...`;
+        }
+        
+        // Hiển thị badge loại call
+        if (callTypeBadge) {
+            callTypeBadge.innerHTML = `<i class="fas ${callIcon}"></i> ${callTypeText}`;
+            callTypeBadge.style.display = 'inline-flex';
         }
 
         popup.style.display = "block";
+        // [FIX] Đảm bảo incoming popup luôn trên outgoing popup
+        popup.style.zIndex = "20000";
+        
+        console.log("[Call] Popup displayed");
 
         if (ringtone) {
             ringtone.currentTime = 0;
@@ -978,11 +1186,21 @@ socket.on("call:incoming_notification", (data) => {
             handledIncomingConversations.add(data.conversation_id);
             declinedConversations.delete(data.conversation_id);
 
+            // [1v1] Báo cho server là đã accept để caller tự động join
+            socket.emit("call:accept", {
+                conversation_id: data.conversation_id,
+                conversation_type: data.conversation_type,
+                call_id: currentDbCallId,
+                call_mode: callMode
+            });
+
             // Truyền luôn conversation_type để lưu lại, và đánh dấu mình KHÔNG phải initiator
+            // Truyền callMode để vào đúng chế độ call
             startGroupCall(data.conversation_id, data.conversation_type, {
                 isInitiator: false,
                 ignoreDecline: true,
-                call_id: currentDbCallId
+                call_id: currentDbCallId,
+                callMode: callMode  // Truyền chế độ gọi
             });
         };
 
@@ -1000,6 +1218,13 @@ socket.on("call:incoming_notification", (data) => {
             });
         };
     }
+});
+
+// Backward compatibility - also listen to old event name
+socket.on("call:incoming", (data) => {
+    console.log("[Call] Received call:incoming (legacy):", data);
+    // Forward to new handler
+    socket.emit("call:incoming_notification", data);
 });
 
 // Nhận Reaction bong bóng
@@ -1046,10 +1271,61 @@ socket.on("call:declined", (data) => {
 
     const name = data?.decliner?.username || "Người dùng";
 
+    // Đóng popup "đang gọi..." nếu có
+    const outgoingPopup = document.getElementById('outgoing-call-popup');
+    if (outgoingPopup) {
+        outgoingPopup.remove();
+    }
+
     // Tạm thời dùng alert cho dễ debug
     alert(`❌ ${name} đã từ chối cuộc gọi.`);
+});
 
-    // Nếu là 1-1, bạn có thể thêm logic đóng popup "đang gọi..." tại đây.
+// 🔥 BÙNG NỔ: Người gọi hủy lời mời - đóng popup incoming
+socket.on("call:cancelled", (data) => {
+    console.log("[Call] call:cancelled:", data);
+    
+    // Nếu đang hiển thị popup incoming cho cuộc gọi này thì đóng lại
+    if (data?.conversation_id && currentCallId === data.conversation_id) {
+        const popup = document.getElementById("incoming-call-popup");
+        const ringtone = document.getElementById("ringtone-audio");
+        
+        if (popup) {
+            popup.style.display = "none";
+        }
+        if (ringtone) {
+            ringtone.pause();
+        }
+        
+        // Đánh dấu đã xử lý
+        handledIncomingConversations.add(data.conversation_id);
+        console.log("[Call] Incoming call cancelled by caller, popup closed");
+    }
+});
+
+// [1v1] Người nhận đã accept - caller tự động join
+socket.on("call:accepted", (data) => {
+    console.log("[Call] call:accepted:", data);
+
+    // Chỉ người KHỞI TẠO (caller) mới xử lý - tự động join
+    if (!isCurrentUserCallInitiator) {
+        return;
+    }
+
+    // Đóng popup "đang gọi..."
+    const outgoingPopup = document.getElementById('outgoing-call-popup');
+    if (outgoingPopup) {
+        outgoingPopup.remove();
+    }
+
+    // Tự động vào cuộc gọi
+    const callMode = data.call_mode || 'video';
+    startGroupCall(data.conversation_id, data.conversation_type, {
+        isInitiator: true,
+        ignoreDecline: true,
+        call_id: data.call_id,
+        callMode: callMode
+    });
 });
 
 socket.on("call:ended", (data) => {
@@ -1071,3 +1347,278 @@ socket.on("call:ended", (data) => {
         window.updateCallButtonState(false);
     }
 });
+// ============================================================
+// HÀM HIỂN THỊ GIAO DIỆN "ĐANG GỌI..." (OUTGOING CALL)
+// ============================================================
+window.showOutgoingCallUI = function(name, avatar) {
+    console.log("[UI] Showing outgoing call UI for:", name);
+
+    // 1. Xóa popup cũ nếu còn sót lại
+    const old = document.getElementById('outgoing-call-popup');
+    if (old) old.remove();
+
+    // 2. Tạo HTML Popup (Style cứng luôn để đảm bảo hiện đẹp)
+    const div = document.createElement('div');
+    div.id = 'outgoing-call-popup';
+    div.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.85); z-index: 10000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        backdrop-filter: blur(5px);
+    `;
+
+    // Avatar mặc định nếu thiếu
+    const avatarSrc = avatar || '/static/img/default-avatar.png';
+
+    div.innerHTML = `
+        <div style="text-align: center; animation: fadeIn 0.5s ease;">
+            <div style="position: relative; margin-bottom: 25px;">
+                <img src="${avatarSrc}" style="
+                    width: 120px; height: 120px; border-radius: 50%; 
+                    border: 4px solid rgba(255,255,255,0.2); object-fit: cover;
+                    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+                ">
+                <div class="ripple-effect"></div>
+            </div>
+            
+            <h2 style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">${name}</h2>
+            <p style="font-size: 16px; color: #ccc; margin-bottom: 50px;">Đang gọi...</p>
+            
+            <div style="display: flex; justify-content: center; gap: 40px;">
+                <button style="background: rgba(255,255,255,0.1); border:none; width:50px; height:50px; border-radius:50%; color:white; cursor:pointer;">
+                    <i class="fas fa-microphone-slash"></i>
+                </button>
+
+                <button id="btn-cancel-outgoing" style="
+                    background: #ff3b30; border: none; width: 70px; height: 70px;
+                    border-radius: 50%; color: white; font-size: 28px; cursor: pointer;
+                    display: flex; align-items: center; justify-content: center;
+                    box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4);
+                    transition: transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+
+                <button style="background: rgba(255,255,255,0.1); border:none; width:50px; height:50px; border-radius:50%; color:white; cursor:pointer;">
+                    <i class="fas fa-video-slash"></i>
+                </button>
+            </div>
+        </div>
+        
+        <style>
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+            .ripple-effect {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
+                animation: ripple 1.5s infinite; opacity: 0;
+            }
+            @keyframes ripple { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
+        </style>
+    `;
+
+    document.body.appendChild(div);
+
+    // 3. (Tùy chọn) Phát nhạc chờ "Tút tút"
+    // const ringtone = new Audio('/static/sounds/calling_tone.mp3');
+    // ringtone.loop = true;
+    // ringtone.play().catch(() => {}); 
+
+    // 4. Xử lý sự kiện nút Hủy - GỬI CANCEL ĐẾN SERVER
+    document.getElementById('btn-cancel-outgoing').addEventListener('click', () => {
+        // Xóa giao diện
+        div.remove();
+        
+        // 🔥 BÙNG NỔ: Gửi socket báo hủy cuộc gọi để người nhận mất popup
+        if (socket && currentCallId) {
+            socket.emit('call:cancel', {
+                conversation_id: currentCallId,
+                conversation_type: currentCallType,
+                call_id: currentDbCallId
+            });
+            console.log("[UI] Outgoing call cancelled and notified server");
+        } else {
+            console.log("[UI] Outgoing call cancelled by user (no active call)");
+        }
+        
+        // Reset trạng thái
+        isCurrentUserCallInitiator = false;
+        currentCallId = null;
+        currentDbCallId = null;
+    });
+};
+
+// 🔥 [NEW] Safety wrapper cho showOutgoingCallUI
+window.safeShowOutgoingCallUI = function(name, avatar, callMode = 'video') {
+    try {
+        console.log("[safeShowOutgoingCallUI] Showing UI for:", name, "mode:", callMode);
+        if (typeof window.showOutgoingCallUI === 'function') {
+            window.showOutgoingCallUI(name, avatar, callMode);
+        } else {
+            console.error("[safeShowOutgoingCallUI] showOutgoingCallUI không tồn tại!");
+        }
+    } catch (e) {
+        console.error("[safeShowOutgoingCallUI] Lỗi:", e);
+    }
+};
+// ==================== MAC-STYLE CALL FEATURES ====================
+
+// Minimize/Expand call window
+let isMinimized = false;
+let callTimerInterval = null;
+let callStartTime = null;
+
+window.toggleMinimize = function() {
+    const overlay = document.getElementById('call-overlay');
+    const btnMinimize = document.getElementById('btn-minimize');
+    const btnExpand = document.getElementById('btn-expand');
+    
+    if (!overlay) return;
+    
+    isMinimized = !isMinimized;
+    
+    if (isMinimized) {
+        overlay.classList.add('call-minimized');
+        if (btnMinimize) {
+            btnMinimize.innerHTML = '<i class="fas fa-expand"></i>';
+            btnMinimize.title = 'Phóng to';
+        }
+        // Ẩn toolbar vẽ và reaction khi minimize
+        const toolbar = document.getElementById('drawing-toolbar');
+        const reactionBar = document.getElementById('reaction-bar');
+        if (toolbar) toolbar.style.display = 'none';
+        if (reactionBar) reactionBar.style.display = 'none';
+    } else {
+        overlay.classList.remove('call-minimized');
+        if (btnMinimize) {
+            btnMinimize.innerHTML = '<i class="fas fa-compress"></i>';
+            btnMinimize.title = 'Thu gọn';
+        }
+    }
+    console.log('[Call] Minimize toggled:', isMinimized);
+};
+
+// Cập nhật thông tin header (tên, avatar)
+window.updateCallHeader = function(name, avatar, status = 'Đang gọi...') {
+    const callName = document.getElementById('call-name');
+    const callAvatar = document.getElementById('call-avatar');
+    const callStatus = document.querySelector('.call-header .status');
+
+    if (callName) callName.textContent = name || 'Cuộc gọi';
+    if (callAvatar && avatar) callAvatar.src = avatar;
+
+    // Cập nhật status nếu có
+    if (callStatus && status) {
+        const statusText = callStatus.querySelector('.call-timer');
+        if (statusText) statusText.textContent = status;
+    }
+};
+
+// Bắt đầu đếm thời gian cuộc gọi
+function startCallTimer() {
+    callStartTime = Date.now();
+    const timerEl = document.getElementById('call-duration');
+
+    if (callTimerInterval) clearInterval(callTimerInterval);
+
+    callTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const seconds = (elapsed % 60).toString().padStart(2, '0');
+        if (timerEl) timerEl.textContent = `${minutes}:${seconds}`;
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+    }
+    callStartTime = null;
+    const timerEl = document.getElementById('call-duration');
+    if (timerEl) timerEl.textContent = '00:00';
+}
+
+// Audio Visualizer - Mac style audio frequency bars
+let audioContext = null;
+let analyser = null;
+let dataArray = null;
+let visualizerInterval = null;
+
+function initAudioVisualizer() {
+    const localVideo = document.getElementById('local-video');
+    if (!localVideo || !localVideo.srcObject) return;
+    
+    try {
+        // Đóng audio context cũ nếu có
+        if (audioContext) {
+            audioContext.close();
+        }
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 32;
+        
+        const source = audioContext.createMediaStreamSource(localVideo.srcObject);
+        source.connect(analyser);
+        
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        
+        const bars = document.querySelectorAll('.audio-bar');
+        
+        visualizerInterval = setInterval(() => {
+            if (!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            
+            bars.forEach((bar, index) => {
+                const dataIndex = Math.floor(index * (bufferLength / bars.length));
+                const value = dataArray[dataIndex] || 0;
+                // Thêm random nhẹ để có hiệu ứng động ngay cả khi không có âm thanh
+                const randomOffset = Math.random() * 3;
+                const height = Math.max(4, ((value + randomOffset) / 255) * 18);
+                bar.style.height = `${height}px`;
+            });
+        }, 80);
+    } catch (err) {
+        console.log('[AudioVisualizer] Init error:', err);
+    }
+}
+
+function stopAudioVisualizer() {
+    if (visualizerInterval) {
+        clearInterval(visualizerInterval);
+        visualizerInterval = null;
+    }
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    // Reset bars về mặc định
+    const bars = document.querySelectorAll('.audio-bar');
+    const defaultHeights = [4, 8, 6, 12, 6, 8, 4];
+    bars.forEach((bar, index) => {
+        bar.style.height = `${defaultHeights[index]}px`;
+    });
+}
+
+// Auto-end 1v1 call when other person leaves
+socket.on('call:user_left', (data) => {
+    console.log('[Call] User left:', data);
+    
+    // If 1v1 call and not group call, end the call
+    if (currentCallType === 'private' && data.user_id !== currentUserId) {
+        console.log('[Call] Other person left 1v1 call, ending...');
+        showNotification('Người kia đã rời cuộc gọi');
+        setTimeout(() => {
+            endCall();
+        }, 1500);
+    }
+});
+
+// Make functions available globally
+window.stopAudioVisualizer = stopAudioVisualizer;
+window.initAudioVisualizer = initAudioVisualizer;
+window.startCallTimer = startCallTimer;
+window.stopCallTimer = stopCallTimer;
+window.updateCallHeader = updateCallHeader;

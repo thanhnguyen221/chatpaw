@@ -35,7 +35,7 @@ def register_friend_events(socketio, mongo, online_users, sid_to_user):
             return
 
         # Đã là bạn bè?
-        sender_doc = users.find_one({'_id': ObjectId(sender_id)}, {'friends': 1, 'username': 1})
+        sender_doc = users.find_one({'_id': ObjectId(sender_id)}, {'friends': 1, 'username': 1, 'full_name': 1})
         if not sender_doc:
             emit('friend_error', {'message': 'Tài khoản gửi không hợp lệ.'}, to=request.sid)
             return
@@ -44,6 +44,9 @@ def register_friend_events(socketio, mongo, online_users, sid_to_user):
         if str(recipient_id) in [str(fid) for fid in sender_friends]:
             emit('friend_error', {'message': 'Hai bạn đã là bạn bè.'}, to=request.sid)
             return
+        
+        # Lấy tên hiển thị (full_name ưu tiên)
+        sender_display_name = sender_doc.get('full_name') or sender_doc.get('username', 'Unknown')
 
         # Đã có pending request ngược chiều?
         existing = friend_requests.find_one({
@@ -73,7 +76,7 @@ def register_friend_events(socketio, mongo, online_users, sid_to_user):
         if recipient_id in online_users:
             emit('new_friend_request', {
                 'sender_id': str(sender_id),
-                'sender_name': session.get('username'),
+                'sender_name': sender_display_name,
                 'request_id': request_id
             }, to=online_users[recipient_id])
 
@@ -147,13 +150,20 @@ def register_friend_events(socketio, mongo, online_users, sid_to_user):
             return
 
         # Chỉ người nhận hợp lệ và trạng thái pending mới được từ chối
-        if str(fr.get('recipient_id')) != str(ObjectId(recipient_id)) or fr.get('status') != 'pending':
+        # So sánh trực tiếp string để tránh lỗi ObjectId conversion
+        fr_recipient_id = str(fr.get('recipient_id'))
+        current_user_id = str(recipient_id)
+        
+        if fr_recipient_id != current_user_id or fr.get('status') != 'pending':
+            print(f"[Decline Friend Request] Permission denied: fr_recipient={fr_recipient_id}, current_user={current_user_id}, status={fr.get('status')}")
             emit('friend_error', {'message': 'Không có quyền từ chối yêu cầu này.'}, to=request.sid)
             return
 
-        friend_requests.update_one(
+        result = friend_requests.update_one(
             {'_id': fr['_id']},
             {'$set': {'status': 'declined', 'updated_at': datetime.utcnow()}}
         )
+        
+        print(f"[Decline Friend Request] Updated request {request_id}, matched={result.matched_count}, modified={result.modified_count}")
 
         emit('friend_request_declined', {'request_id': request_id}, to=request.sid)

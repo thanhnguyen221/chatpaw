@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="search-container">
+    <div class="search-header">
+        <h1><i class="fas fa-search"></i> Kết quả tìm kiếm</h1>
+        <div class="search-query">
+            <span class="hashtag">#{{ query }}</span>
+        </div>
+    </div>
+
+    <div class="search-results">
+        {% if posts %}
+            <div class="results-count">Tìm thấy {{ posts|length }} bài viết</div>
+            
+            {% for post in posts %}
+            <div class="post-card search-post">
+                <div class="post-header">
+                    <img src="{{ post.author_avatar }}" alt="Avatar" class="post-avatar">
+                    <div class="post-meta">
+                        <div class="post-author">{{ post.author_name }}</div>
+                        <div class="post-time">{{ post.created_at | format_time }}</div>
+                    </div>
+                </div>
+                
+                <div class="post-content">
+                    {{ post.content }}
+                </div>
+                
+                {% if post.media_urls %}
+                <div class="post-media">
+                    {% for media in post.media_urls %}
+                        {% if media.type == 'image' %}
+                        <img src="{{ media.url }}" alt="Post image">
+                        {% elif media.type == 'video' %}
+                        <video src="{{ media.url }}" controls></video>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <div class="post-actions">
+                    <a href="/post/{{ post._id }}" class="btn btn-primary">Xem bài viết</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-results">
+                <i class="fas fa-inbox"></i>
+                <p>Không tìm thấy bài viết nào với hashtag #{{ query }}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.search-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.search-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.search-header h1 {
+    color: var(--primary, #3eb489);
+    margin-bottom: 10px;
+}
+
+.search-query .hashtag {
+    font-size: 1.5rem;
+    color: var(--primary, #3eb489);
+    font-weight: 600;
+}
+
+.results-count {
+    margin-bottom: 20px;
+    color: #666;
+}
+
+.search-post {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+}
+
+.no-results i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    display: block;
+}
+
+.post-media img,
+.post-media video {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+</style>
+{% endblock %}

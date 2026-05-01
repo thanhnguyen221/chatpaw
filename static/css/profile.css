@@ -43,7 +43,7 @@ body {
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
-    margin-left: 30px;
+    margin-left: 80px; /* Chừa chỗ cho sidebar 80px */
     position: relative;
     overflow-x: hidden;
 }
@@ -261,27 +261,203 @@ body {
 }
 
 .post-input-container {
+    position: relative;
     margin-bottom: 16px;
 }
 
+/* Custom Privacy Dropdown */
+.privacy-selector-profile {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 100;
+}
+
+.custom-privacy-dropdown {
+    position: relative;
+}
+
+.privacy-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.privacy-dropdown-trigger:hover {
+    border-color: #10b981;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.privacy-dropdown-trigger.active {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+#selected-privacy-icon {
+    color: #10b981;
+    font-size: 14px;
+}
+
+.dropdown-arrow {
+    font-size: 11px;
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+    margin-left: 4px;
+}
+
+.privacy-dropdown-trigger.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.privacy-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    min-width: 240px;
+    box-shadow: 
+        0 10px 40px rgba(0,0,0,0.15),
+        0 4px 12px rgba(0,0,0,0.08);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+}
+
+.privacy-dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.privacy-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.privacy-option:hover {
+    background: #f0fdf4;
+}
+
+.privacy-option.selected {
+    background: #dcfce7;
+}
+
+.privacy-option-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #10b981;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.privacy-option:hover .privacy-option-icon {
+    background: #d1fae5;
+}
+
+.privacy-option-info {
+    flex: 1;
+}
+
+.privacy-option-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 2px;
+}
+
+.privacy-option-desc {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* Post Input - Fixed height, no resize */
 .post-input {
     width: 100%;
-    min-height: 80px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--border-radius-sm);
-    padding: 16px;
-    font-size: 0.9rem;
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 50px 16px 16px 16px;
+    font-size: 15px;
     resize: none;
-    transition: var(--transition);
-    background: var(--card-bg);
+    overflow-y: auto;
+    transition: all 0.2s ease;
+    background: white;
     font-family: inherit;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 .post-input:focus {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px var(--primary-light);
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.post-input::placeholder {
+    color: #9ca3af;
+}
+
+/* Privacy Selector cho Profile */
+.privacy-selector-profile {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+.privacy-select-modern {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    min-width: 120px;
+}
+
+.privacy-select-modern:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+.privacy-select-modern:focus {
+    outline: none;
+    border-color: #3eb489;
+    box-shadow: 0 0 0 2px rgba(62, 180, 137, 0.2);
+}
+
+.privacy-select-modern option {
+    background: white;
+    color: #333;
+    padding: 5px;
 }
 
 .post-actions {
@@ -356,16 +532,33 @@ body {
 .post-author {
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 0.9rem;
+    margin-bottom: 4px;
 }
 
 .post-time {
     font-size: 0.75rem;
     color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: normal;
+}
+
+.post-privacy {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-top: 2px;
+}
+
+.post-privacy i {
+    font-size: 0.7rem;
 }
 
 .post-content {
@@ -373,6 +566,766 @@ body {
     line-height: 1.5;
     color: var(--text-primary);
     font-size: 0.9rem;
+}
+
+/* Post content truncation for long posts */
+.post-content.truncated,
+.shared-content.truncated {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ==================== TAGGED FRIEND MENTIONS & HASHTAGS ==================== */
+
+.tagged-friend-mention {
+    color: var(--primary) !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+}
+
+.tagged-friend-mention:hover {
+    color: var(--primary-dark) !important;
+    text-decoration: underline !important;
+    opacity: 0.8;
+}
+
+.hashtag-link,
+.post-content .hashtag-link,
+.profile-post-content .hashtag-link {
+    color: var(--primary) !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease;
+}
+
+.hashtag-link:hover,
+.post-content .hashtag-link:hover,
+.profile-post-content .hashtag-link:hover {
+    text-decoration: underline !important;
+    opacity: 0.8;
+}
+
+/* ==================== ENHANCED HASHTAG MODAL ==================== */
+
+.tag-posts-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tag-posts-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.tag-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.tag-modal-content {
+    position: relative;
+    width: 90%;
+    max-width: 650px;
+    max-height: 85vh;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 25px 100px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    transform: scale(0.9) translateY(20px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.tag-posts-modal.show .tag-modal-content {
+    transform: scale(1) translateY(0);
+}
+
+/* Modal Header */
+.tag-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #3eb489, #2d9cdb);
+    color: white;
+    flex-shrink: 0;
+}
+
+.tag-modal-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tag-modal-icon {
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.tag-modal-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tag-label {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tag-name {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.tag-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tag-modal-follow-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.tag-modal-follow-btn:hover {
+    background: white;
+    color: #3eb489;
+}
+
+.tag-modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.tag-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+/* Modal Stats */
+.tag-modal-stats {
+    display: flex;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+    flex-shrink: 0;
+}
+
+.tag-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+}
+
+.tag-stat-count {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.tag-stat-label {
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-transform: lowercase;
+}
+
+/* Modal Body */
+.tag-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #3eb489 transparent;
+}
+
+.tag-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tag-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tag-modal-body::-webkit-scrollbar-thumb {
+    background: #3eb489;
+    border-radius: 3px;
+}
+
+/* Loading State */
+.tag-posts-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+.loading-spinner-modern {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin-bottom: 20px;
+}
+
+.spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 3px solid transparent;
+    border-top-color: #3eb489;
+    border-radius: 50%;
+    animation: spin-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.spinner-ring:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.spinner-ring:nth-child(2) {
+    width: 80%;
+    height: 80%;
+    top: 10%;
+    left: 10%;
+    animation-delay: -0.4s;
+    border-top-color: #6ee7b7;
+}
+
+.spinner-ring:nth-child(3) {
+    width: 60%;
+    height: 60%;
+    top: 20%;
+    left: 20%;
+    animation-delay: -0.8s;
+    border-top-color: #2d9cdb;
+}
+
+@keyframes spin-ring {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Empty State */
+.tag-posts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 40px;
+    text-align: center;
+}
+
+.empty-icon {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #6ee7b7, #3eb489);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: white;
+    margin-bottom: 24px;
+    box-shadow: 0 10px 40px rgba(62, 180, 137, 0.3);
+}
+
+.tag-posts-empty h3 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 12px;
+}
+
+.tag-posts-empty p {
+    font-size: 1rem;
+    color: #6b7280;
+    margin-bottom: 24px;
+    max-width: 400px;
+    line-height: 1.6;
+}
+
+.create-post-btn {
+    background: linear-gradient(135deg, #3eb489, #2d9cdb);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.create-post-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(62, 180, 137, 0.4);
+}
+
+/* Tag Post Items */
+.tag-post-item {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag-post-item:hover {
+    background: #f8fafc;
+}
+
+.tag-post-item:last-child {
+    border-bottom: none;
+}
+
+.tag-post-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.tag-post-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.tag-post-info {
+    flex: 1;
+}
+
+.tag-post-author {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 0.9rem;
+}
+
+.tag-post-time {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+.tag-post-content {
+    color: #374151;
+    line-height: 1.5;
+    font-size: 0.95rem;
+}
+
+/* Tag Post Actions */
+.tag-post-actions {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid #f3f4f6;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.tag-action-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #6b7280;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.tag-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.tag-action-btn:hover:not(:disabled) {
+    background: #f3f4f6;
+    color: #3eb489;
+    transform: translateY(-2px);
+}
+
+.tag-action-btn.liked {
+    color: #e74c3c;
+}
+
+.tag-action-btn.liked:hover:not(:disabled) {
+    background: rgba(231, 76, 60, 0.1);
+}
+
+.tag-action-btn i {
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+.tag-action-btn.liked i {
+    animation: heartBeat 0.3s ease;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.3); }
+    50% { transform: scale(1); }
+    75% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .tag-modal-content {
+        width: 95%;
+        max-height: 90vh;
+        border-radius: 16px;
+    }
+    
+    .tag-modal-header {
+        padding: 16px 20px;
+    }
+    
+    .tag-modal-stats {
+        padding: 12px 20px;
+    }
+    
+    .tag-modal-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+    
+    .tag-name {
+        font-size: 1.2rem;
+    }
+    
+    .tag-post-item {
+        padding: 12px 20px;
+    }
+    
+    .tag-action-btn {
+        padding: 8px 6px;
+        font-size: 0.8rem;
+    }
+    
+    .tag-action-btn i {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .tag-modal-content {
+        width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+    
+    .tag-modal-header {
+        padding: 12px 16px;
+    }
+    
+    .tag-modal-stats {
+        padding: 8px 16px;
+    }
+    
+    .tag-post-item {
+        padding: 10px 16px;
+    }
+    
+    .tag-action-btn {
+        padding: 6px 4px;
+        font-size: 0.75rem;
+        gap: 4px;
+    }
+    
+    .tag-action-btn i {
+        font-size: 0.9rem;
+    }
+}
+
+.tag-modal-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tag-modal-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.tag-modal-title {
+    display: flex;
+    flex-direction: column;
+}
+
+.tag-label {
+    font-size: 12px;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tag-name {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.tag-modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.tag-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.tag-modal-body {
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+    padding: 0;
+}
+
+.tag-posts-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #6b7280;
+    gap: 16px;
+}
+
+.tag-posts-loading i {
+    font-size: 32px;
+    color: #3eb489;
+}
+
+.tag-posts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #9ca3af;
+    text-align: center;
+}
+
+.tag-posts-empty i {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.tag-posts-empty h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.tag-post-item {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag-post-item:hover {
+    background: #f9fafb;
+}
+
+.tag-post-item:last-child {
+    border-bottom: none;
+}
+
+.tag-post-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.tag-post-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.tag-post-info {
+    flex: 1;
+}
+
+.tag-post-author {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 14px;
+}
+
+.tag-post-time {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.tag-post-content {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.post-content.expanded,
+.shared-content.expanded {
+    display: block;
+}
+
+/* Xem thêm button */
+.post-content-toggle {
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-top: 8px;
+    padding: 6px 12px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(62, 180, 137, 0.2);
+    background: rgba(62, 180, 137, 0.05);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.post-content-toggle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(62, 180, 137, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.post-content-toggle:hover::before {
+    left: 100%;
+}
+
+.post-content-toggle:hover {
+    color: var(--primary-dark);
+    border-color: rgba(62, 180, 137, 0.4);
+    background: rgba(62, 180, 137, 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(62, 180, 137, 0.15);
+}
+
+.post-content-toggle:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(62, 180, 137, 0.2);
+}
+
+.post-content-toggle i {
+    font-size: 0.75rem;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.post-content-toggle.expanded i {
+    transform: rotate(180deg);
+}
+
+/* Animation for button text */
+.post-content-toggle span {
+    transition: all 0.3s ease;
+}
+
+.post-content-toggle:hover span {
+    letter-spacing: 0.5px;
 }
 
 .post-media {
@@ -1364,6 +2317,28 @@ body {
     font-size: 18px;
 }
 
+.video-play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.video-play-overlay i {
+    font-size: 16px;
+    margin-left: 2px;
+}
+
 /* Empty States */
 .no-friends, .no-photos {
     grid-column: 1 / -1;
@@ -1613,7 +2588,7 @@ body {
     margin: 15px 0;
     border-radius: 12px;
     overflow: hidden;
-    background: #000;
+    background: rgba(0, 0, 0, 0.8);
 }
 
 .carousel-container {
@@ -1644,7 +2619,7 @@ body {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background: #000;
+    background: rgba(0, 0, 0, 0.6);
 }
 
 /* Carousel Navigation */
@@ -1790,7 +2765,7 @@ body {
     width: 95%;
     height: 95%;
     max-width: 1400px;
-    background: #000;
+    background: rgba(0, 0, 0, 0.9);
     border-radius: 12px;
     overflow: hidden;
     display: flex;
@@ -1829,18 +2804,25 @@ body {
     padding: 20px;
 }
 
+/* Media container with better background */
 .viewer-media {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: rgba(0, 0, 0, 0.95);
+    border-radius: 8px;
+    margin: 10px;
 }
 
 .viewer-media-item {
     max-width: 100%;
     max-height: 100%;
+    width: auto;
+    height: auto;
     object-fit: contain;
+    margin: auto;
 }
 
 .viewer-nav-btn {
@@ -1951,12 +2933,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.viewer-media-item {
-    max-width: calc(100% - 40px);
-    max-height: calc(100% - 40px);
-    object-fit: contain;
+    background: rgba(0, 0, 0, 0.95);
+    border-radius: 8px;
+    margin: 10px;
 }
 .viewer-nav-btn {
     position: absolute;
@@ -2105,7 +3084,7 @@ body {
     position: relative;
     width: 100%;
     height: 100%;
-    background: #000;
+    background: rgba(0, 0, 0, 0.7);
 }
 
 .video-container video {
@@ -2148,7 +3127,7 @@ body {
 /* Carousel video specific */
 .carousel-slide video {
     max-height: 500px;
-    background: #000;
+    background: rgba(0, 0, 0, 0.8);
 }
 /* Friend item interactions */
 .friend-item {
@@ -2242,77 +3221,6 @@ body {
 /* Ẩn phần bạn bè hoàn toàn khi cần */
 .friends-hidden {
     display: none !important;
-}
-/* Container cho nút trở về */
-.back-to-my-profile-container {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    z-index: 1000;
-}
-
-/* Nút trở về trang của tôi */
-.back-to-my-profile-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #2c3e50;
-    border: 2px solid #3eb489;
-    border-radius: 25px;
-    padding: 10px 16px;
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
-}
-
-.back-to-my-profile-btn:hover {
-    background: #3eb489;
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
-}
-
-.back-to-my-profile-btn:active {
-    transform: translateY(0);
-}
-
-.back-to-my-profile-btn i {
-    font-size: 16px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .back-to-my-profile-container {
-        top: 15px;
-        left: 15px;
-    }
-    
-    .back-to-my-profile-btn {
-        padding: 8px 12px;
-        font-size: 13px;
-    }
-    
-    .back-to-my-profile-btn span {
-        display: none; /* Ẩn chữ trên mobile, chỉ hiện icon */
-    }
-    
-    .back-to-my-profile-btn {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 480px) {
-    .back-to-my-profile-container {
-        top: 10px;
-        left: 10px;
-    }
 }
 .side-nav {
     position: fixed;
@@ -2579,4 +3487,1750 @@ body {
     .nav-toggle {
         display: flex;
     }
+}
+
+.comment-reply {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.comment-reply .comment-avatar {
+    width: 30px;
+    height: 30px;
+}
+
+.comment-reply .comment-content {
+    flex: 1;
+}
+/* ==================== COMMENT REPLIES TOGGLE STYLES ==================== */
+
+/* Toggle replies button */
+.view-replies-btn {
+    margin-left: auto;
+    font-size: 12px;
+    color: #65676b;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.view-replies-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #1a1a1a;
+}
+
+.view-replies-btn .toggle-icon {
+    font-size: 10px;
+    margin-left: 2px;
+    transition: transform 0.3s;
+}
+
+.view-replies-btn.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.view-replies-btn .reply-count {
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+/* Replies container */
+.comment-replies-container {
+    margin-top: 10px;
+    padding-left: 40px;
+    border-left: 2px solid #e4e6eb;
+    animation: slideDown 0.3s ease;
+}
+
+.comment-replies-container.showing {
+    display: block !important;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Comment replies */
+.comment-replies {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comment-reply {
+    display: flex;
+    gap: 8px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+/* Comment actions adjustments */
+.comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .comment-replies-container {
+        padding-left: 20px;
+    }
+    
+    .view-replies-btn {
+        font-size: 11px;
+    }
+}
+/* ==================== COMMENT ACTIONS STYLES ==================== */
+
+/* Container cho comment actions */
+.comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Base style cho tất cả nút trong comment */
+.comment-actions .btn-link {
+    padding: 4px 8px;
+    color: #65676b;
+    font-size: 12px;
+    font-weight: 500;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+}
+/* Nút like comment - MÀU XANH THEME */
+.like-comment-btn {
+    color: #65676b;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid transparent;
+}
+
+.like-comment-btn:hover {
+    color: var(--primary); /* Màu xanh chủ đạo khi hover */
+    background: rgba(62, 180, 137, 0.08);
+    border-color: rgba(62, 180, 137, 0.2);
+}
+
+.like-comment-btn.liked {
+    color: var(--primary); /* Màu xanh khi đã like */
+    background: rgba(62, 180, 137, 0.12);
+    border-color: rgba(62, 180, 137, 0.3);
+}
+
+.like-comment-btn.liked:hover {
+    background: rgba(62, 180, 137, 0.16);
+}
+
+/* Icon trong nút like */
+.like-comment-btn i {
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.like-comment-btn.liked i {
+    color: var(--primary);
+    animation: heartBeat 0.3s ease;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Số lượng like */
+.like-count {
+    font-weight: 600;
+    color: #4a4a4a;
+    margin-left: 2px;
+    transition: color 0.2s ease;
+}
+
+.like-comment-btn:hover .like-count {
+    color: var(--primary); /* Màu xanh khi hover */
+}
+
+.like-comment-btn.liked .like-count {
+    color: var(--primary); /* Màu xanh khi đã like */
+}
+
+/* Nút reply */
+.reply-action-btn {
+    color: #65676b;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid transparent;
+}
+
+.reply-action-btn:hover {
+    color: var(--primary); /* Sử dụng màu chủ đạo của bạn */
+    background: rgba(62, 180, 137, 0.08); /* Màu primary với opacity */
+    border-color: rgba(62, 180, 137, 0.2);
+}
+
+/* Nút xem replies */
+.view-replies-btn {
+    color: #65676b;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid transparent;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.view-replies-btn:hover {
+    color: var(--primary);
+    background: rgba(62, 180, 137, 0.08);
+    border-color: rgba(62, 180, 137, 0.2);
+}
+
+.view-replies-btn.expanded {
+    color: var(--primary);
+    background: rgba(62, 180, 137, 0.12);
+    border-color: rgba(62, 180, 137, 0.3);
+}
+
+/* Icon trong nút xem replies */
+.view-replies-btn i {
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.view-replies-btn .toggle-icon {
+    font-size: 10px;
+    transition: transform 0.3s ease;
+}
+
+.view-replies-btn.expanded .toggle-icon {
+    transform: rotate(180deg);
+    color: var(--primary);
+}
+
+/* Số lượng replies */
+.reply-count {
+    font-weight: 600;
+    color: #4a4a4a;
+    transition: color 0.2s ease;
+}
+
+.view-replies-btn:hover .reply-count {
+    color: var(--primary);
+}
+
+.view-replies-btn.expanded .reply-count {
+    color: var(--primary);
+}
+
+/* Hover effects chung cho tất cả nút */
+.comment-actions .btn-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Active state cho tất cả nút */
+.comment-actions .btn-link:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* Disabled state */
+.comment-actions .btn-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Style cho nút trong comment replies */
+.comment-reply .comment-actions {
+    padding-top: 6px;
+    margin-top: 6px;
+    border-top: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .comment-actions {
+        gap: 8px;
+    }
+    
+    .comment-actions .btn-link {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+    
+    .view-replies-btn {
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+}
+
+/* Animation cho các actions */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.comment-item, .comment-reply {
+    animation: fadeInUp 0.3s ease;
+}
+
+/* Reply chain styling - cập nhật để phù hợp với theme */
+.reply-to {
+    color: var(--primary);
+    font-size: 11px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(62, 180, 137, 0.08);
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+/* Comment author name - phù hợp với theme */
+.comment-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.comment-author a {
+    color: #2c3e50;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.comment-author a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+/* Comment text styling */
+.comment-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #4a5568;
+    margin: 4px 0;
+    word-break: break-word;
+}
+
+/* Comment time styling */
+.comment-time {
+    font-size: 11px;
+    color: #718096;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Comment input trong reply mode */
+.comment-input[data-reply-to] {
+    border-left: 3px solid var(--primary);
+    background: rgba(62, 180, 137, 0.05);
+}
+
+/* Badge cho comment đã chỉnh sửa */
+.edited-badge {
+    font-size: 11px;
+    color: #718096;
+    font-style: italic;
+    margin-left: 4px;
+}
+
+/* Loading state cho comment actions */
+.comment-actions .btn-link.loading {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.comment-actions .btn-link.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Success state cho comment actions */
+.comment-actions .btn-link.success {
+    background: rgba(52, 199, 89, 0.1);
+    border-color: rgba(52, 199, 89, 0.3);
+    color: #34c759;
+}
+
+/* Error state cho comment actions */
+.comment-actions .btn-link.error {
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.3);
+    color: #ff3b30;
+}
+/* Badge chia sẻ */
+.shared-post-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Post card có chia sẻ */
+.post-card[data-is-shared="true"] {
+    border-left: 4px solid #667eea;
+    position: relative;
+}
+
+/* Thông tin chia sẻ từ ai */
+.shared-from {
+    font-size: 13px;
+    color: #666;
+    margin-left: 8px;
+    font-weight: normal;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.shared-from i {
+    font-size: 11px;
+}
+
+.original-author {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.original-author:hover {
+    text-decoration: underline;
+}
+
+/* Khung hiển thị bài viết gốc */
+.shared-post-original {
+    background: #f8f9fa;
+    border-left: 3px solid #dee2e6;
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+}
+
+.original-post-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6c757d;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.original-post-content {
+    color: #495057;
+    font-size: 14px;
+    line-height: 1.5;
+    max-height: 100px;
+    overflow: hidden;
+    position: relative;
+}
+
+.original-post-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, #f8f9fa);
+}
+
+/* Phần nội dung chia sẻ */
+.share-content {
+    margin: 15px 0;
+    padding: 15px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.share-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #667eea;
+    font-size: 14px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #dee2e6;
+}
+
+/* Thời gian bài gốc */
+.shared-original-time {
+    font-size: 12px;
+    color: #6c757d;
+    margin-left: 5px;
+}
+
+/* Màu sắc khác cho nút tương tác của bài chia sẻ */
+.post-card[data-is-shared="true"] .post-stats {
+    background: #f8f9fa;
+    border-top: 1px dashed #dee2e6;
+}
+
+/* Hiệu ứng hover khác */
+.post-card[data-is-shared="true"]:hover {
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+}
+
+/* Avatar đặc biệt cho bài chia sẻ */
+.post-card[data-is-shared="true"] .post-avatar {
+    border: 2px solid #667eea;
+    position: relative;
+}
+
+.post-card[data-is-shared="true"] .post-avatar::after {
+    content: '↻';
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background: #667eea;
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+/* Menu context cho bài chia sẻ */
+.menu-divider {
+    height: 1px;
+    background: #dee2e6;
+    margin: 5px 0;
+}
+
+.view-original-btn {
+    color: #667eea;
+    cursor: pointer;
+}
+
+.view-original-btn:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+/* Nút trong menu */
+.post-menu-item.view-original-post-btn {
+    color: #667eea;
+}
+
+.post-menu-item.share-again-btn {
+    color: #28a745;
+}
+
+.post-menu-item.undo-share-btn {
+    color: #dc3545;
+}
+
+/* Tooltip khi hover */
+.post-card[data-is-shared="true"]:hover::before {
+    content: 'Bài viết chia sẻ - Nhấn đúp để xem bài gốc';
+    position: absolute;
+    top: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    opacity: 0;
+    animation: fadeIn 0.2s ease forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+/* Thêm vào file profile.css */
+
+/* ==================== COMMENTS SECTION - FIX ==================== */
+
+/* Đảm bảo comments section có thể hiển thị */
+.comments-section {
+    margin-top: 15px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 15px;
+    animation: fadeIn 0.3s ease;
+}
+
+.comments-section.active {
+    display: block !important;
+}
+
+/* Comments list */
+.comments-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* Comment item */
+.comment-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: var(--hover-bg);
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.comment-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+/* Comment avatar */
+.comment-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* Comment content */
+.comment-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.comment-author {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.comment-text {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.comment-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* Comment actions */
+.comment-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.comment-actions .btn-link {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.comment-actions .btn-link:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--primary);
+}
+
+/* Replies */
+.replies-list {
+    margin-left: 20px;
+    margin-top: 10px;
+    border-left: 2px solid var(--border);
+    padding-left: 15px;
+}
+
+.reply-item {
+    margin-bottom: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 6px;
+}
+
+.reply-author {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.reply-text {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.reply-time {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+/* Share info compact */
+.share-info-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
+.share-info-compact i {
+    font-size: 10px;
+    color: var(--primary);
+}
+
+.share-info-compact a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.share-info-compact a:hover {
+    text-decoration: underline;
+}
+
+/* Comment input area (nếu cần thêm) */
+.comment-input-area {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.comment-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.comment-input:focus {
+    border-color: var(--primary);
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* ==================== COMMENT INPUT SECTION STYLES ==================== */
+
+/* Container for comment input */
+.comment-input-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-light);
+}
+
+/* Comment input area */
+.comment-input-area {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.comment-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.comment-input-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.comment-input {
+    width: 100%;
+    min-height: 36px;
+    max-height: 120px;
+    padding: 8px 12px;
+    padding-right: 45px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+    transition: all 0.2s ease;
+    background: var(--card-bg);
+    color: var(--text-primary);
+}
+
+.comment-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.comment-input::placeholder {
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+/* Reply mode styling */
+.comment-input[data-reply-to] {
+    border-left: 3px solid var(--primary);
+    background: rgba(62, 180, 137, 0.05);
+}
+
+.comment-input[data-reply-to]::placeholder {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+/* Comment actions */
+.comment-input-actions {
+    position: absolute;
+    right: 2px;
+    top: 8%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 6px;
+}
+
+.comment-submit-btn {
+    background: var(--primary) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 15px !important;
+    width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    cursor: pointer;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+    max-width: 30px !important;
+    max-height: 30px !important;
+    transform: none !important;
+    transition: none !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    text-align: center !important;
+}
+
+.comment-submit-btn:hover,
+.comment-submit-btn:focus,
+.comment-submit-btn:active {
+    background: var(--primary) !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+.comment-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.comment-submit-btn i {
+    font-size: 11px;
+    margin: 0;
+}
+
+/* Cancel reply button */
+.cancel-reply-btn {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: none;
+    align-items: center;
+    gap: 3px;
+    min-height: 26px;
+}
+
+.cancel-reply-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-primary);
+}
+
+.cancel-reply-btn.show {
+    display: flex;
+}
+
+/* Character counter */
+.comment-char-counter {
+    position: absolute;
+    bottom: -18px;
+    right: 0;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.comment-char-counter.warning {
+    color: #ff9800;
+}
+
+.comment-char-counter.error {
+    color: #f44336;
+}
+
+/* Loading state */
+.comment-input-wrapper.loading .comment-input {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.comment-input-wrapper.loading .comment-submit-btn {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Reply info display */
+.reply-info-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: rgba(62, 180, 137, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid var(--primary);
+    font-size: 12px;
+}
+
+.reply-info-display span {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.close-reply-info {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.close-reply-info:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+}
+
+/* Comments section improvements */
+.comments-section.active {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.comments-section.active::-webkit-scrollbar {
+    width: 4px;
+}
+
+.comments-section.active::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.comments-section.active::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .comment-input-area {
+        gap: 8px;
+    }
+    
+    .comment-avatar-small {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .comment-input {
+        font-size: 12px;
+        padding: 6px 10px;
+        padding-right: 80px;
+    }
+    
+    .comment-submit-btn {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+    
+    .cancel-reply-btn {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .comment-input-section {
+        margin-top: 12px;
+        padding-top: 12px;
+    }
+    
+    .comment-input-area {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .comment-avatar-small {
+        align-self: flex-start;
+    }
+    
+    .comment-input {
+        min-height: 40px;
+    }
+}
+/* Thêm vào cuối file profile.css */
+
+/* Profile Likes Styles */
+#like-profile-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+#like-profile-btn:hover:not(.liked) {
+    border-color: #93c5fd;
+    color: #3b82f6;
+    background: #eff6ff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+#like-profile-btn.liked {
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    border-color: #3eb489;
+    box-shadow: 0 2px 10px rgba(62, 180, 137, 0.25);
+}
+
+
+#like-profile-btn .like-count-badge {
+    margin-left: 8px;
+    background: rgba(231, 76, 60, 0.1);
+    color: #e74c3c;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#like-profile-btn.liked .like-count-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+
+.recent-likers-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 12px;
+    font-size: 13px;
+    color: #666;
+    white-space: nowrap;
+}
+
+.recent-likers-avatars {
+    display: flex;
+    align-items: center;
+}
+
+.recent-liker-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-left: -8px;
+    border: 2px solid white;
+    cursor: pointer;
+    transition: transform 0.2s;
+    position: relative;
+}
+
+.recent-liker-avatar:first-child {
+    margin-left: 0;
+}
+
+.recent-liker-avatar:hover {
+    transform: translateY(-2px);
+    z-index: 1;
+}
+
+.recent-liker-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.3); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.3); }
+    70% { transform: scale(1); }
+}
+
+.heart-animation {
+    animation: heartBeat 1s;
+}
+/* ==================== PROFILE LIKES BUTTON - BLUE THEME ==================== */
+
+/* Nút thích profile nhỏ xinh - THEME XANH */
+#like-profile-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1.5px solid #dbeafe;
+    border-radius: 18px;
+    background: white;
+    color: #4b5563;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    line-height: 1;
+    height: 36px;
+    min-width: fit-content;
+}
+
+#like-profile-btn:hover:not(.liked) {
+    border-color: #93c5fd;
+    color: #3b82f6;
+    background: #eff6ff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+#like-profile-btn.liked {
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    border-color: #3eb489;
+    box-shadow: 0 2px 10px rgba(62, 180, 137, 0.25);
+}
+
+#like-profile-btn.liked:hover {
+    background: linear-gradient(135deg, #36a07b 0%, #2680c1 100%);
+    box-shadow: 0 3px 12px rgba(62, 180, 137, 0.3);
+    transform: translateY(-1px);
+}
+
+
+/* Icon trái tim nhỏ */
+#like-profile-btn i {
+    font-size: 14px;
+    transition: all 0.3s ease;
+    margin-top: -1px;
+}
+
+#like-profile-btn:hover:not(.liked) i {
+    color: #3b82f6;
+}
+
+#like-profile-btn.liked i {
+    color: white;
+    animation: heartBeatBlue 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes heartBeatBlue {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+/* Text trong nút */
+#like-profile-text {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+#like-profile-btn:hover:not(.liked) #like-profile-text {
+    color: #3b82f6;
+}
+
+/* Badge số lượng thích - xanh nhạt */
+#like-profile-btn .like-count-badge {
+    margin-left: 2px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #3eb489;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+    transition: all 0.25s ease;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+
+#like-profile-btn:hover:not(.liked) .like-count-badge {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3eb489;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+#like-profile-btn.liked .like-count-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#like-profile-btn.liked:hover .like-count-badge {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Loading state */
+#like-profile-btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+#like-profile-btn.loading i {
+    animation: spinSmall 0.8s linear infinite;
+}
+
+@keyframes spinSmall {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Tooltip tinh tế */
+#like-profile-btn[data-tooltip] {
+    position: relative;
+}
+
+#like-profile-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(15, 23, 42, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    pointer-events: none;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+#like-profile-btn[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-4px);
+}
+
+/* Stat số lượt thích profile - màu xanh */
+.profile-likes-stat {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+/* Hiệu ứng khi có lượt thích mới */
+@keyframes gentleGlow {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
+    70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.new-like-animation {
+    animation: gentleGlow 1.5s ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #like-profile-btn {
+        padding: 5px 12px;
+        height: 32px;
+        font-size: 12px;
+    }
+    
+    #like-profile-btn i {
+        font-size: 13px;
+    }
+    
+    #like-profile-text {
+        font-size: 12px;
+    }
+    
+    #like-profile-btn .like-count-badge {
+        font-size: 11px;
+        padding: 1px 6px;
+        min-width: 18px;
+    }
+    
+    /* Trên mobile nhỏ, chuyển thành nút tròn đơn giản */
+    @media (max-width: 480px) {
+        #like-profile-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            justify-content: center;
+        }
+        
+        #like-profile-text {
+            display: none;
+        }
+        
+        #like-profile-btn .like-count-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            margin: 0;
+            min-width: 16px;
+            height: 16px;
+            line-height: 16px;
+            font-size: 10px;
+            padding: 0;
+            border-radius: 50%;
+        }
+    }
+}
+
+/* Animation success nhẹ nhàng */
+@keyframes successPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.like-success {
+    animation: successPulse 0.4s ease;
+}
+
+/* Tạo hiệu ứng gradient border khi hover */
+#like-profile-btn::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(135deg, #3eb489, #3b82f6, #3eb489);
+    border-radius: 20px;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#like-profile-btn:hover::before {
+    opacity: 0.3;
+}
+
+/* Style cho bài viết gốc được chia sẻ */
+.shared-post-embed {
+    margin: 10px 0;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 12px;
+    background-color: #f9f9f9; /* Nền hơi xám để phân biệt */
+}
+
+.shared-post-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.shared-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+}
+
+.shared-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.shared-author {
+    font-weight: 600;
+    color: #333;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.shared-time {
+    font-size: 11px;
+    color: #65676b;
+}
+
+.shared-content {
+    font-size: 14px;
+    color: #1c1e21;
+    margin-bottom: 10px;
+}
+/* --- CSS SỬA LỖI ẢNH BÀI SHARE (CÁCH 2: KHÔNG CẮT) --- */
+
+.shared-media-preview {
+    position: relative;
+    width: 100%;
+    /* Vẫn cần chiều cao cố định để khung không bị quá khổ */
+    height: 300px; 
+    
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #eee;
+    margin-top: 10px;
+    /* Dùng màu nền tối để làm nổi bật ảnh bên trong (như rạp phim) */
+    background-color: #222; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.shared-media-item {
+    /* Chỉ định max để ảnh không vượt quá khung */
+    max-width: 100%;
+    max-height: 100%;
+    width: auto; /* Để auto để giữ tỷ lệ gốc */
+    height: auto; /* Để auto để giữ tỷ lệ gốc */
+    
+    /* QUAN TRỌNG: 'contain' giúp toàn bộ ảnh nằm gọn trong khung */
+    object-fit: contain; 
+    display: block;
+}
+
+.shared-media-more {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(255, 255, 255, 0.2); /* Nền trong suốt hơn */
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+/* ==================== SHARE MODAL STYLES - GREEN THEME ==================== */
+
+/* Modal chia sẻ chính (modal cũ) */
+.share-modal {
+    border-color: #3eb489;
+}
+
+.share-modal .modal-header {
+    border-bottom-color: rgba(62, 180, 137, 0.2);
+}
+
+.share-modal .modal-title {
+    color: #3eb489;
+}
+
+.share-modal .modal-title i {
+    color: #3eb489;
+}
+
+/* Nút chia sẻ trong modal cũ */
+.share-option-btn {
+    border-color: #e0e0e0;
+    color: #333;
+}
+
+.share-option-btn:hover {
+    border-color: #3eb489;
+    color: #3eb489;
+    background: rgba(62, 180, 137, 0.05);
+}
+
+.share-option-btn.active {
+    border-color: #3eb489;
+    background: #3eb489;
+    color: white;
+}
+
+/* Nút chia sẻ trong post actions */
+.post-stat.share-btn:hover {
+    color: #3eb489;
+    background: rgba(62, 180, 137, 0.1);
+}
+
+/* Modal menu chia sẻ nhỏ */
+.share-menu-modal {
+    border-color: #3eb489;
+    box-shadow: 0 4px 20px rgba(62, 180, 137, 0.15);
+}
+
+.share-menu-modal::before {
+    border-bottom-color: #3eb489;
+}
+
+.share-menu-item:hover {
+    background: rgba(62, 180, 137, 0.1);
+    color: #3eb489;
+}
+
+.share-menu-item i {
+    color: #3eb489;
+}
+
+/* Badge chia sẻ */
+.shared-post-badge {
+    background: linear-gradient(135deg, #3eb489, #2d9a71);
+}
+
+/* Bài viết được chia sẻ */
+.post-card[data-is-shared="true"] {
+    border-left-color: #3eb489;
+}
+
+.post-card[data-is-shared="true"]:hover {
+    box-shadow: 0 4px 15px rgba(62, 180, 137, 0.15);
+    border-color: #3eb489;
+}
+
+.post-card[data-is-shared="true"] .post-avatar {
+    border-color: #3eb489;
+}
+
+.post-card[data-is-shared="true"] .post-avatar::after {
+    background: #3eb489;
+}
+
+/* Link trong bài chia sẻ */
+.shared-from .original-author {
+    color: #3eb489;
+}
+
+/* Nút trong menu context */
+.post-menu-item.view-original-post-btn {
+    color: #3eb489;
+}
+
+.post-menu-item.share-again-btn {
+    color: #3eb489; /* Hoặc giữ #28a745 nếu muốn giữ màu xanh lá */
+}
+
+/* Info icon trong bài chia sẻ */
+.share-info-compact i {
+    color: #3eb489;
+}
+
+.share-info-compact a {
+    color: #3eb489;
+}
+
+/* Modal overlay cho tất cả modal chia sẻ */
+.modal-overlay {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Nút đóng modal */
+.modal-close {
+    color: #666;
+}
+
+.modal-close:hover {
+    color: #3eb489;
+    background: rgba(62, 180, 137, 0.1);
+}
+
+/* Tiêu đề modal */
+.modal-header h3 {
+    color: #3eb489;
+}
+
+/* Nút hành động trong modal */
+.modal-footer .btn-primary {
+    background: #3eb489;
+    border-color: #3eb489;
+}
+
+.modal-footer .btn-primary:hover {
+    background: #36a07b;
+    border-color: #36a07b;
+}
+
+.modal-footer .btn-outline:hover {
+    border-color: #3eb489;
+    color: #3eb489;
+}
+
+/* ============================================
+   HIỆU ỨNG CO LẠI KHI SIDEBAR MỞ RA
+   ============================================ */
+
+/* Profile container đẩy sang phải */
+.modern-nav:hover ~ .profile-container,
+.modern-nav.active ~ .profile-container {
+    margin-left: 160px;
+    transition: margin-left 0.3s ease;
+}
+
+/* Các phần tử co lại nhẹ */
+.modern-nav:hover ~ .profile-container .profile-header,
+.modern-nav.active ~ .profile-container .profile-header,
+.modern-nav:hover ~ .profile-container .profile-content,
+.modern-nav.active ~ .profile-container .profile-content,
+.modern-nav:hover ~ .profile-container .post-card,
+.modern-nav.active ~ .profile-container .post-card,
+.modern-nav:hover ~ .profile-container .friends-section,
+.modern-nav.active ~ .profile-container .friends-section,
+.modern-nav:hover ~ .profile-container .photos-section,
+.modern-nav.active ~ .profile-container .photos-section,
+.modern-nav:hover ~ .profile-container .intro-section,
+.modern-nav.active ~ .profile-container .intro-section {
+    transform: scale(0.99);
+    transition: transform 0.3s ease;
+}
+
+/* Reset về bình thường khi hover vào */
+.modern-nav:hover ~ .profile-container .post-card:hover,
+.modern-nav.active ~ .profile-container .post-card:hover {
+    transform: scale(1);
+}
+
+/* Vô hiệu hóa trên mobile */
+@media (max-width: 768px) {
+    .modern-nav:hover ~ .profile-container,
+    .modern-nav.active ~ .profile-container {
+        margin-left: 0;
+    }
+    
+    .modern-nav:hover ~ .profile-container .profile-header,
+    .modern-nav.active ~ .profile-container .profile-header,
+    .modern-nav:hover ~ .profile-container .profile-content,
+    .modern-nav.active ~ .profile-container .profile-content,
+    .modern-nav:hover ~ .profile-container .post-card,
+    .modern-nav.active ~ .profile-container .post-card,
+    .modern-nav:hover ~ .profile-container .friends-section,
+    .modern-nav.active ~ .profile-container .friends-section,
+    .modern-nav:hover ~ .profile-container .photos-section,
+    .modern-nav.active ~ .profile-container .photos-section,
+    .modern-nav:hover ~ .profile-container .intro-section,
+    .modern-nav.active ~ .profile-container .intro-section {
+        transform: none;
+    }
+}
+
+/* Modern Badge - Primary Green Theme */
+.modern-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(62, 180, 137, 0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.modern-badge.has-notifications {
+    display: flex;
+}
+
+.modern-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 8px rgba(62, 180, 137, 0.35);
 }

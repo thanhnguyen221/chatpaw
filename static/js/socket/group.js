@@ -1,11 +1,16 @@
 import { socket } from "./index.js";
 import { setCurrentConversation, displayMessage } from '../chat_input.js';
-import { setupChatInteractions } from './chat_interactions.js';
+import { setupChatInteractions, showAISummaryButton,getSmartMessages } from './chat_interactions.js';
+// 🔥 [NEW] Import macPreview for file preview features
+import { macPreview } from '../mac-file-preview.js';
+window.macPreview = macPreview;
 
 
 // --- DEFAULT AVATARS (fallback) ---
 const defaultGroupAvatar = window.defaultGroupAvatar || '/static/img/default-group.png';
 // ------------------------------------
+// 13/12/2025 - Cờ để chỉ gắn context menu chuột phải cho item nhóm (sidebar) một lần
+let groupSidebarContextMenuAttached = false;
 
 let currentGroupId = null;
 let groupClickHandlerAttached = false; 
@@ -13,6 +18,53 @@ let groupContextMenuAttached = false;
 // Nhớ những group đang có cuộc gọi đang hoạt động
 const activeGroupCalls = new Set();
 
+// Biến lưu danh sách thành viên của nhóm hiện tại
+window.currentGroupMembers = [];
+
+
+// 13/12/2025 - Hàm nội bộ áp dụng theme nhóm (màu preset hoặc ảnh nền) cho khu vực chat
+function applyGroupThemeForCurrentUserInternal(groupId, theme) {
+  const chatArea = document.querySelector('.chat-area');
+  if (!chatArea) return;
+
+  // Xóa class theme màu cũ và background ảnh cũ
+  chatArea.classList.remove('theme-blue', 'theme-pink', 'theme-dark');
+  chatArea.style.backgroundImage = '';
+  chatArea.style.backgroundSize = '';
+  chatArea.style.backgroundPosition = '';
+  chatArea.style.backgroundRepeat = '';
+
+  if (!theme || typeof theme !== 'object') {
+    return;
+  }
+
+  if (theme.type === 'color') {
+    const name = theme.name || 'default';
+    if (name && name !== 'default') {
+      chatArea.classList.add(`theme-${name}`);
+    }
+  } else if (theme.type === 'image' && theme.image_url) {
+    // 13/12/2025 - Ảnh nền giống Zalo: full-screen cover
+    chatArea.style.backgroundImage = `url('${theme.image_url}')`;
+    chatArea.style.backgroundSize = 'cover';
+    chatArea.style.backgroundPosition = 'center center';
+    chatArea.style.backgroundRepeat = 'no-repeat';
+  }
+}
+// 13/12/2025 - Gắn helper theme nhóm ra window để chat.js và nơi khác gọi được
+window.applyGroupThemeForCurrentUser = applyGroupThemeForCurrentUserInternal;
+
+// Hàm lấy danh sách thành viên (Gọi khi join group)
+function fetchGroupMembers(groupId) {
+    fetch(`/get_group_members/${groupId}`) // Bạn cần đảm bảo Backend có API này
+        .then(r => r.json())
+        .then(data => {
+            if (data.members) {
+                window.currentGroupMembers = data.members; // Format: [{username: 'A', avatar: '...'}, ...]
+            }
+        })
+        .catch(e => console.log("Lỗi lấy thành viên:", e));
+}
 
 function resetPrivateChat() {
   // QUAN TRỌNG: Chỉ reset nếu đang có conversation private
@@ -33,25 +85,36 @@ function resetPrivateChat() {
 }
 
 export function setupGroupSocketEvents() {
-
-  // TỰ ĐỘNG JOIN TOÀN BỘ GROUP ĐỂ NHẬN THÔNG BÁO REALTIME
+  
   socket.on('connect', () => {
-    try {
-      fetch('/user_groups')
-        .then(res => res.json())
-        .then(data => {
-          if (!data || !Array.isArray(data.groups)) return;
+      // 1. Join nhóm đang mở (nếu có)
+      if (currentGroupId) {
+          socket.emit('join_group', { group_id: currentGroupId });
+      }
 
-          data.groups.forEach(group => {
-            if (group._id) {
-              socket.emit('join_group', { group_id: group._id });
-            }
-          });
-        })
-        .catch(err => console.error('[Group] Silent join groups failed:', err));
-    } catch (e) {
-      console.error('[Group] Error in auto join groups on connect:', e);
-    }
+      // 2. 🔥 [QUAN TRỌNG] Silent Join TẤT CẢ nhóm trong danh sách
+      // Để khi có ai gọi, nút camera đổi thành "Tham gia" ngay lập tức
+      const allGroups = document.querySelectorAll('.group-item');
+      allGroups.forEach(el => {
+          socket.emit('join_group', { group_id: el.dataset.id });
+      });
+  });
+
+  // 3. Xử lý đổi trạng thái nút Gọi <-> Tham gia
+  socket.on('call:status_update', (data) => {
+      // data = { conversation_id, is_active: true/false }
+      const convId = String(data.conversation_id);
+
+      if (data.is_active) {
+          activeGroupCalls.add(convId);
+      } else {
+          activeGroupCalls.delete(convId);
+      }
+
+      // Nếu đang mở đúng nhóm đó -> Đổi nút ngay
+      if (currentGroupId && String(currentGroupId) === convId) {
+          updateCallButtonState(data.is_active);
+      }
   });
 
   // [MỚI] Hiển thị thông báo nổi (Toast) khi có người Tham gia/Từ chối
@@ -180,33 +243,35 @@ export function setupGroupSocketEvents() {
     }
   });
 
-  socket.on('group_message', (data) => {
+socket.on('group_message', (data) => {
   console.log('[Socket] Nhận tin nhắn nhóm (group_message):', data);
 
   const myId = window.session?.user_id;
   const isMyMessage = String(data.sender_id) === String(myId);
-  const isCurrentGroup =
-    currentGroupId && String(currentGroupId) === String(data.group_id);
+  const isCurrentGroup = currentGroupId && String(currentGroupId) === String(data.group_id);
+  
+  console.log('[DEBUG] currentGroupId:', currentGroupId);
+  console.log('[DEBUG] data.group_id:', data.group_id);
+  console.log('[DEBUG] isCurrentGroup:', isCurrentGroup);
 
   if (isCurrentGroup) {
+    console.log('[DEBUG] Calling appendGroupMessage');
     appendGroupMessage(data);
-    // Cập nhật preview nhưng KHÔNG tăng unread
     updateGroupListItemPreview(data.group_id, data, false);
-    // Đang mở group này => reset unread
     resetGroupUnread(data.group_id);
     return;
   }
 
-  // KHÔNG ở trong group đó
-  // Luôn cập nhật preview
+  // KHÔNG ở trong group đó - luôn cập nhật preview
   updateGroupListItemPreview(data.group_id, data, !isMyMessage);
 
-  // Nếu không phải tin của mình thì mới hiện notification
+  // Notification nếu không phải tin của mình
   if (!isMyMessage && typeof window.showInAppNotification === 'function') {
+    const groupItem = document.querySelector(`.group-item[data-id="${data.group_id}"]`);
+    const isMutedGroup = groupItem && groupItem.dataset.muted === '1';
+    if (isMutedGroup) return;
+    
     let groupName = 'Nhóm';
-    const groupItem = document.querySelector(
-      `.group-item[data-id="${data.group_id}"]`
-    );
     if (groupItem) {
       const nameEl = groupItem.querySelector('.group-name');
       if (nameEl && nameEl.textContent.trim()) {
@@ -467,7 +532,96 @@ if (!isMyMessage && typeof window.showInAppNotification === 'function') {
       updateSeenByIndicator(data);
     }
   });
+
+  // 🔥 [NEW] Message status updates for group chat
+  socket.on('message_status_updated', (data) => {
+    if (data.conversation_type !== 'group') return;
+    
+    console.log('[Group Message Status] Received:', data);
+    const messageEl = document.querySelector(`[data-message-id="${data.message_id}"]`);
+    if (!messageEl) return;
+
+    // Update status text
+    const statusEl = messageEl.querySelector('.message-status');
+    if (statusEl) {
+      const statusText = {
+        'sent': 'Đã gửi',
+        'delivered': 'Đã nhận',
+        'read': 'Đã xem'
+      };
+      statusEl.textContent = statusText[data.status] || data.status;
+      statusEl.className = `message-status status-${data.status}`;
+    }
+
+    // Update seen by avatars if read
+    if (data.status === 'read' && data.read_by) {
+      updateMessageReadByAvatars(data.message_id, data.read_by);
+    }
+  });
+
+  // 🔥 [NEW] Real-time update when someone reads a group message
+  socket.on('group_message_read', (data) => {
+    console.log('[Group Message Read] Someone read message:', data);
+    const messageEl = document.querySelector(`[data-message-id="${data.message_id}"]`);
+    if (!messageEl) return;
+
+    // Update read by avatars
+    if (data.read_by) {
+      updateMessageReadByAvatars(data.message_id, data.read_by);
+    }
+
+    // Update status to "read" if I'm the sender
+    const myId = window.session?.user_id;
+    const senderId = messageEl.dataset.senderId;
+    if (String(senderId) === String(myId)) {
+      const statusEl = messageEl.querySelector('.message-status');
+      if (statusEl) {
+        statusEl.textContent = 'Đã xem';
+        statusEl.className = 'message-status status-read';
+      }
+    }
+  });
   
+}
+
+// 🔥 [NEW] Helper function to update read by avatars for group messages
+function updateMessageReadByAvatars(messageId, readByUsers) {
+  const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (!messageEl) return;
+
+  let seenContainer = messageEl.querySelector('.seen-by-container');
+  if (!seenContainer) {
+    seenContainer = document.createElement('div');
+    seenContainer.className = 'seen-by-container';
+    seenContainer.style.cssText = `
+      display: flex;
+      gap: 2px;
+      margin-top: 4px;
+      margin-left: auto;
+      justify-content: flex-end;
+    `;
+    messageEl.appendChild(seenContainer);
+  }
+
+  seenContainer.innerHTML = '';
+
+  const myId = window.session?.user_id;
+  readByUsers.forEach(user => {
+    if (String(user.user_id) !== String(myId)) {
+      const avatar = document.createElement('img');
+      avatar.src = user.avatar || '/static/img/default-avatar.png';
+      avatar.title = user.name || 'Unknown';
+      avatar.className = 'seen-by-avatar';
+      avatar.style.cssText = `
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid white;
+        object-fit: cover;
+      `;
+      seenContainer.appendChild(avatar);
+    }
+  });
 }
 
 let messageObserver;
@@ -517,7 +671,7 @@ function updateSeenByIndicator(data) {
     if (String(user.user_id) !== myId) {
       const avatar = document.createElement('img');
       avatar.src = user.avatar;
-      avatar.title = user.username;
+      avatar.title = user.full_name || user.username;
       avatar.className = 'seen-by-avatar';
       seenByContainer.appendChild(avatar);
     }
@@ -583,8 +737,8 @@ function openManageGroupModal(groupId) {
 
         memberEl.innerHTML = `
           <img src="${member.avatar || (window.defaultUserAvatar || '/static/img/default-avatar.png')}" 
-               alt="${member.username}" class="member-avatar">
-          <span class="member-username">${member.username}</span>
+               alt="${member.full_name || member.username}" class="member-avatar">
+          <span class="member-username">${member.full_name || member.username}</span>
           ${isCreator ? '<span class="creator-badge">Trưởng nhóm</span>' : ''}
           ${actionsHTML}
         `;
@@ -763,6 +917,7 @@ export function openGroupChat(groupId, groupName) {
 
   // Cập nhật biến toàn cục
   currentGroupId = groupId;
+  fetchGroupMembers(groupId);
   window.currentGroupId = groupId; 
 
   // Cập nhật context cho Input (để gửi tin nhắn đúng chỗ)
@@ -800,14 +955,12 @@ export function openGroupChat(groupId, groupName) {
         </div>
       </div>
       
-      <div class="header-actions" style="display: flex; gap: 15px; align-items: center;">
-        <button id="btn-group-call" class="btn-icon" title="Gọi video nhóm" 
-                style="border: none; background: none; font-size: 18px; cursor: pointer; color: #555;">
+      <div class="header-actions">
+        <button id="btn-group-call" class="btn-icon" title="Gọi video nhóm">
             <i class="fas fa-video"></i>
         </button>
-        <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm" 
-                style="border: none; background: none; font-size: 18px; cursor: pointer; color: #555;">
-            <i class="fi fi-br-bars-staggered"></i>
+        <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
+            <i class="fas fa-users-cog"></i>
         </button>
       </div>
     `;
@@ -855,7 +1008,9 @@ export function openGroupChat(groupId, groupName) {
   resetGroupUnread(groupId);
   socket.emit('reset_group_unread', { group_id: groupId });
 }
-
+// Gắn ra window để module khác (chat.js) có thể gọi sau khi set theme
+// 13/12/2025 - Hàm global áp dụng theme nhóm
+window.applyGroupThemeForCurrentUser = applyGroupThemeForCurrentUserInternal;
 
 
 // THÊM HÀM MỚI: Load dữ liệu tuần tự để tránh giật
@@ -874,6 +1029,10 @@ async function loadGroupDataSequentially(groupId, groupName) {
     
     // Cập nhật header với thông tin đầy đủ
     updateGroupHeader(groupId, groupName, groupInfo);
+     // 13/12/2025 - Áp dụng theme nhóm cho user hiện tại nếu có
+    if (groupInfo.theme) {
+      applyGroupThemeForCurrentUserInternal(groupId, groupInfo.theme);
+    }
     
     // Bước 2: Load tin nhắn
     const messagesData = await fetch(`/group_message?group_id=${groupId}&_=${Date.now()}`).then(res => res.json());
@@ -915,18 +1074,22 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
       </div>
       
       <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
-          <button id="btn-group-call" class="btn-icon" title="Gọi nhóm"
+          <button id="btn-group-audio-call" class="btn-icon" title="Gọi thoại nhóm"
+                  style="font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;">
+            <i class="fas fa-phone"></i>
+          </button>
+          <button id="btn-group-call" class="btn-icon" title="Gọi video nhóm"
                   style="font-size: 1.2rem; border:none; background:none; cursor:pointer; color: #555;">
             <i class="fas fa-video"></i>
           </button>
 
           <button id="manage-group-btn" class="btn-manage" title="Quản lý nhóm">
-            <i class="fi fi-br-bars-staggered"></i>
+            <i class="fas fa-users-cog"></i>
           </button>
       </div>
     `;
 
-    // 2. GẮN SỰ KIỆN CHO NÚT GỌI
+    // 2. GẮN SỰ KIỆN CHO NÚT GỌI VIDEO
     const btnCall = document.getElementById('btn-group-call');
     if (btnCall) {
         // Mặc định
@@ -949,29 +1112,43 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
 
         btnCall.addEventListener('click', () => {
             const isActive = btnCall.dataset.callActive === "1";
-            console.log("[Group] Bấm nút gọi nhóm:", groupId, "state:", isActive ? "JOIN" : "CALL");
+            console.log("[Group] Bấm nút gọi video nhóm:", groupId, "state:", isActive ? "JOIN" : "CALL");
 
             if (isActive) {
                 // Đang có call -> Tham gia
                 if (window.startGroupCall) {
-                    window.startGroupCall(groupId, 'group');
+                    window.startGroupCall(groupId, 'group', { callMode: 'video' });
                 } else {
                     console.error("Lỗi: Không tìm thấy hàm window.startGroupCall.");
                     alert("Chưa tải được chức năng gọi video.");
                 }
             } else {
-                // Chưa có call -> Mời cả nhóm + tự vào call
-                socket.emit('call:invite_group', {
-                    conversation_id: groupId,
-                    conversation_type: 'group'
-                });
-
-                if (window.startGroupCall) {
-                    window.startGroupCall(groupId, 'group');
-                } else {
-                    console.error("Lỗi: Không tìm thấy hàm window.startGroupCall.");
-                    alert("Chưa tải được chức năng gọi video.");
+                // Chưa có call -> HIỆN MÀN HÌNH "ĐANG GỌI..." và gửi lời mời (KHÔNG vô ngay)
+                // Lấy tên nhóm
+                const groupEl = document.querySelector(`.group-item[data-id="${groupId}"]`);
+                const groupName = groupEl?.querySelector('.group-name')?.textContent || 'Nhóm';
+                const groupAvatar = groupEl?.querySelector('.group-avatar img')?.src || '/static/img/default-group.png';
+                
+                // Hiện màn hình "Đang gọi..."
+                if (typeof safeShowOutgoingCallUI === 'function') {
+                    safeShowOutgoingCallUI(groupName, groupAvatar, 'video');
+                } else if (window.showOutgoingCallUI) {
+                    window.showOutgoingCallUI(groupName, groupAvatar, 'video');
                 }
+                
+                // 🔥 [NEW] Set initiator flag để tự động vô phòng khi có người accept
+                if (window.setCallInitiator) {
+                    window.setCallInitiator(groupId, 'video');
+                }
+                
+                // Gửi lời mời gọi nhóm - KHÔNG tự vô phòng
+                socket.emit('call:invite_group', {
+                    conversation_id: groupId,  // 🔥 SỬA: dùng conversation_id thay vì group_id
+                    conversation_type: 'group',  // 🔥 THÊM: chỉ định loại group
+                    call_mode: 'video'
+                });
+                
+                console.log(`[Group Call] Đã gửi lời mời video call cho nhóm ${groupId}, chờ người nhận accept...`);
             }
         });
 
@@ -983,6 +1160,40 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
         }
     }
 
+    // 2.5 GẮN SỰ KIỆN CHO NÚT GỌI THOẠI (AUDIO)
+    const btnAudioCall = document.getElementById('btn-group-audio-call');
+    if (btnAudioCall) {
+        btnAudioCall.addEventListener('click', () => {
+            console.log("[Group] Bấm nút gọi thoại nhóm:", groupId);
+
+            // Lấy tên nhóm
+            const groupEl = document.querySelector(`.group-item[data-id="${groupId}"]`);
+            const groupName = groupEl?.querySelector('.group-name')?.textContent || 'Nhóm';
+            const groupAvatar = groupEl?.querySelector('.group-avatar img')?.src || '/static/img/default-group.png';
+            
+            // Hiện màn hình "Đang gọi..."
+            if (typeof safeShowOutgoingCallUI === 'function') {
+                safeShowOutgoingCallUI(groupName, groupAvatar, 'audio');
+            } else if (window.showOutgoingCallUI) {
+                window.showOutgoingCallUI(groupName, groupAvatar, 'audio');
+            }
+
+            // 🔥 [NEW] Set initiator flag để tự động vô phòng khi có người accept
+            if (window.setCallInitiator) {
+                window.setCallInitiator(groupId, 'audio');
+            }
+
+            // Gửi lời mời gọi thoại nhóm - KHÔNG tự vô phòng
+            socket.emit('call:invite_group', {
+                conversation_id: groupId,  // 🔥 SỬA: dùng conversation_id thay vì group_id
+                conversation_type: 'group',  // 🔥 THÊM: chỉ định loại group
+                call_mode: 'audio'
+            });
+            
+            console.log(`[Group Call] Đã gửi lời mời audio call cho nhóm ${groupId}, chờ người nhận accept...`);
+        });
+    }
+
     // 3. GẮN SỰ KIỆN NÚT QUẢN LÝ (Giữ nguyên logic cũ)
     const manageBtn = document.getElementById('manage-group-btn');
     if (manageBtn) {
@@ -992,29 +1203,82 @@ function updateGroupHeader(groupId, groupName, groupInfo) {
 
 
 
-// THÊM: Hàm hiển thị tin nhắn
-function displayGroupMessages(messagesData) {
-  const messagesDiv = document.getElementById('messages');
-  if (!messagesDiv) return;
-  
-  messagesDiv.innerHTML = '';
-  
-  if (messagesData.messages && messagesData.messages.length > 0) {
-    // Sử dụng document fragment để tối ưu render
-    const fragment = document.createDocumentFragment();
-    messagesData.messages.forEach(msg => {
-      const messageEl = createGroupMessageElement(msg);
-      if (messageEl) fragment.appendChild(messageEl);
-    });
-    messagesDiv.appendChild(fragment);
-  } else {
-    messagesDiv.innerHTML = '<div class="no-messages">Chưa có tin nhắn nào trong nhóm</div>';
-  }
-  
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+// --- File: group.js ---
 
-  // Call setupMessageObserver after messages are rendered
-  setupMessageObserver();
+function displayGroupMessages(messagesData) {
+    const messagesDiv = document.getElementById('messages');
+    if (!messagesDiv) return;
+    
+    messagesDiv.innerHTML = '';
+
+    if (messagesData.messages && messagesData.messages.length > 0) {
+        
+        // 1. Render tin nhắn với xử lý thời gian thông minh
+        const fragment = document.createDocumentFragment();
+        let lastDate = null;
+        
+        messagesData.messages.forEach((msg, index) => {
+            // Check if we need date separator
+            let needDateSeparator = false;
+            let dateSeparatorText = '';
+            
+            if (msg.timestamp) {
+                const currentDate = new Date(msg.timestamp);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                // Determine date text
+                if (currentDate.toDateString() === today.toDateString()) {
+                    dateSeparatorText = 'Hôm nay';
+                } else if (currentDate.toDateString() === yesterday.toDateString()) {
+                    dateSeparatorText = 'Hôm qua';
+                } else {
+                    dateSeparatorText = currentDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+                
+                // Check if different from last message date
+                if (!lastDate || lastDate.toDateString() !== currentDate.toDateString()) {
+                    needDateSeparator = true;
+                    lastDate = currentDate;
+                }
+            }
+            
+            // Add date separator if needed
+            if (needDateSeparator && dateSeparatorText) {
+                const separatorEl = document.createElement('div');
+                separatorEl.className = 'date-separator';
+                separatorEl.innerHTML = `
+                  <div style="text-align: center; margin: 20px 0; position: relative;">
+                    <span style="background: #f0f0f0; padding: 5px 15px; border-radius: 12px; font-size: 0.8rem; color: #666; position: relative; z-index: 1;">
+                      ${dateSeparatorText}
+                    </span>
+                    <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #e0e0e0; z-index: 0;"></div>
+                  </div>
+                `;
+                fragment.appendChild(separatorEl);
+            }
+            
+            // Create message with smart time formatting
+            const messageEl = createGroupMessageElement(msg, lastDate); 
+            if (messageEl) fragment.appendChild(messageEl);
+        });
+        messagesDiv.appendChild(fragment);
+
+        // 2. 🔥 LOGIC MỚI 🔥
+        const groupId = window.currentGroupId || messagesData.group_id; 
+        
+        // Gọi hàm smart message
+        const { msgs, label, isNew } = getSmartMessages(messagesData.messages, 'group', groupId);
+        
+        // Truyền thêm biến isNew để nút đổi màu
+        showAISummaryButton('messages', msgs, label, isNew);
+
+    } else {
+        messagesDiv.innerHTML = '<div class="no-messages">Chưa có tin nhắn nào trong nhóm</div>';
+    }
+    
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 // THÊM: Hàm xử lý lỗi
@@ -1146,8 +1410,8 @@ async function loadFriendsForGroupCreation() {
         <input type="checkbox" class="friend-selector" 
                data-user-id="${friend._id}" id="friend-${friend._id}">
         <label for="friend-${friend._id}">
-          <img src="${friend.avatar}" alt="${friend.username}" class="friend-avatar">
-          <span>${friend.username}</span>
+          <img src="${friend.avatar}" alt="${friend.full_name || friend.username}" class="friend-avatar">
+          <span>${friend.full_name || friend.username}</span>
         </label>
       `;
       container.appendChild(friendElement);
@@ -1214,6 +1478,31 @@ export function addGroupToList(groupId, groupName, avatarUrl, lastMessage, lastS
 
     if (typeof unreadCount !== 'undefined') {
       applyUnreadBadge(existingGroup);
+    }
+    // 13/12/2025 - Cập nhật trạng thái mute nếu backend trả về
+    if (typeof isMuted !== 'undefined') {
+      existingGroup.dataset.muted = isMuted ? '1' : '0';
+      if (isMuted) {
+        existingGroup.classList.add('is-muted');
+      } else {
+        existingGroup.classList.remove('is-muted');
+      }
+
+      const meta = existingGroup.querySelector('.group-meta');
+      if (meta) {
+        let mutedIcon = meta.querySelector('.conversation-muted-icon');
+        if (isMuted) {
+          if (!mutedIcon) {
+            mutedIcon = document.createElement('div');
+            mutedIcon.className = 'conversation-muted-icon';
+            mutedIcon.title = 'Đã tắt thông báo nhóm';
+            mutedIcon.innerHTML = '<i class="fas fa-bell-slash"></i>';
+            meta.appendChild(mutedIcon);
+          }
+        } else if (mutedIcon) {
+          mutedIcon.remove();
+        }
+      }
     }
 
     return;
@@ -1313,65 +1602,11 @@ function resetGroupUnread(groupId) {
 }
 
 export function setupGroupMessageSending() {
-  const messageInput = document.getElementById('message');
-  const sendButton = document.getElementById('send');
-
-  function sendGroupMessage() {
-  const content = messageInput.value.trim();
-  
-  // Chỉ gửi nếu đang ở group và có nội dung
-  if (!content || !currentGroupId) {
-    console.log('[Group] Cannot send message - no content or not in group');
-    return;
-  }
-
-  // Nếu vẫn còn state private thì reset
-  if (window.currentConversation) {
-    console.log('[Group] Warning: Still in private conversation, resetting...');
-    resetPrivateChat();
-  }
-
-  // LẤY REPLY CONTEXT TỪ .reply-preview (nếu đang reply)
-  let reply_context = null;
-  const preview = document.querySelector('.reply-preview');
-
-  if (preview && !preview.classList.contains('hidden') && preview.dataset.messageId) {
-    reply_context = {
-      message_id: preview.dataset.messageId,
-      sender_name: preview.dataset.senderName || null,
-      sender_id: preview.dataset.senderId || null,
-      content: preview.dataset.messageText || ''
-    };
-  }
-
-  console.log('[Group] Sending message to group:', {
-    group_id: currentGroupId,
-    content,
-    reply_context
-  });
-
-  socket.emit('send_group_message', {
-    group_id: currentGroupId,
-    content,
-    reply_context // 👈 GỬI KÈM
-  });
-
-  // Clear input
-  messageInput.value = '';
-
-  // Nếu chat_input.js có hàm tắt reply mode thì gọi luôn (không có thì thôi, không sao)
-  if (window.disableReplyMode) {
-    window.disableReplyMode();
-  }
-}
-
-
-  sendButton.addEventListener('click', sendGroupMessage);
-  messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      sendGroupMessage();
-    }
-  });
+  // 🔥 [QUAN TRỌNG - SỬA LỖI] 
+  // KHÔNG gắn event listener ở đây nữa vì chat_input.js đã xử lý gửi tin nhắn thống nhất
+  // cho cả chat riêng và chat nhóm qua hàm handleSendText
+  // Chỉ cần export hàm này để tương thích với code cũ
+  console.log('[Group] setupGroupMessageSending - Delegated to chat_input.js');
 }
 function loadGroupMessages(groupId) {
   // Kiểm tra nghiêm ngặt hơn
@@ -1439,48 +1674,22 @@ export function resetGroupChat() {
   window.currentGroupId = null; // 🔥 [QUAN TRỌNG] THÊM DÒNG NÀY
 }
 
-function createGroupMessageElement(messageData) {
-  // 0. Tin nhắn hệ thống
-  if (messageData.message_type === 'system' || messageData.sender_id === 'system' || messageData.message_type === 'call') {
+// ============================================================
+// HÀM TẠO HTML TIN NHẮN GROUP (ĐÃ THÊM XỬ LÝ POLL/VOTE)
+// ============================================================
+function createGroupMessageElement(messageData, lastDate = null) {
+  // 0. Tin nhắn hệ thống - BỎ HIỂN THỊ CALL
+  if (messageData.message_type === 'system' || messageData.sender_id === 'system') {
     const div = document.createElement('div');
     div.className = 'system-message';
     div.style.cssText = 'text-align: center; margin: 15px 0; color: #888; font-size: 0.85rem; font-style: italic; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;';
-    if (messageData.message_type === 'call') {
-        try {
-            const callData = JSON.parse(messageData.content.replace(/'/g, '"'));
-            const duration = Math.round(callData.duration);
-            const hours = Math.floor(duration / 3600);
-            const minutes = Math.floor((duration % 3600) / 60);
-            const seconds = duration % 60;
-            const durationString = [
-                hours > 0 ? `${hours} giờ` : '',
-                minutes > 0 ? `${minutes} phút` : '',
-                seconds > 0 ? `${seconds} giây` : '',
-            ].filter(Boolean).join(' ');
-
-            if (callData.status === 'missed') {
-                div.innerHTML = `
-                    <div class="call-message">
-                        <i class="fas fa-phone-slash"></i>
-                        <span>Cuộc gọi nhỡ</span>
-                    </div>
-                `;
-            } else {
-                div.innerHTML = `
-                    <div class="call-message">
-                        <i class="fas fa-phone"></i>
-                        <span>Cuộc gọi đã kết thúc</span>
-                        <span class="duration">Thời gian: ${durationString}</span>
-                    </div>
-                `;
-            }
-        } catch (e) {
-            div.innerHTML = `<span>[Lỗi hiển thị thông tin cuộc gọi]</span>`;
-        }
-    } else {
-        div.innerHTML = `<span>${escapeHtml(messageData.content || '')}</span>`;
-    }
+    div.innerHTML = `<span>${escapeHtml(messageData.content || '')}</span>`;
     return div;
+  }
+  
+  // 🔥 [MỚI] BỎ HIỂN THỊ TIN NHẮN CALL (không hiện thông báo kết thúc cuộc gọi)
+  if (messageData.message_type === 'call') {
+    return null; // Không tạo element, không hiển thị gì
   }
 
   const messageEl = document.createElement('div');
@@ -1497,7 +1706,33 @@ function createGroupMessageElement(messageData) {
   messageEl.dataset.conversationType = 'group';
 
   const avatarSrc = messageData.sender_avatar || window.defaultUserAvatar || '/static/img/default-avatar.png';
-  const timeString = formatTime(messageData.timestamp);
+  console.log('[DEBUG] createGroupMessageElement timestamp:', messageData.timestamp);
+  
+  // Smart time formatting
+  let timeString = '';
+  
+  if (messageData.timestamp) {
+    const currentDate = new Date(messageData.timestamp);
+    
+    // Check if we should show full time or just time based on lastDate
+    let showFullTime = true;
+    
+    if (lastDate && lastDate.toDateString() === currentDate.toDateString()) {
+      showFullTime = false; // Same day as previous message, only show time
+    }
+    
+    if (showFullTime) {
+      // When showing first message of the day, only show time (HH:mm) since date separator handles the date
+      const date = new Date(messageData.timestamp);
+      timeString = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else {
+      // Only show time (HH:mm) for same day messages
+      const date = new Date(messageData.timestamp);
+      timeString = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+  }
+  
+  console.log('[DEBUG] createGroupMessageElement timeString:', timeString);
 
   // 1. XÁC ĐỊNH LOẠI NỘI DUNG
   let messageType = messageData.message_type || 'text';
@@ -1508,13 +1743,14 @@ function createGroupMessageElement(messageData) {
     if (trimmed.startsWith('{')) {
       try {
         const test = JSON.parse(trimmed);
-        // THÊM 'location' vào đây
-        if (test && (test.type === 'file' || test.type === 'image' || test.type === 'audio' || test.type === 'location')) {
-          messageType = test.type;
+        // Thêm 'poll' vào đây nếu backend gửi json string
+        if (test && (test.type === 'file' || test.type === 'image' || test.type === 'audio' || test.type === 'location' || messageType === 'poll')) {
+          if (messageType !== 'poll') messageType = test.type; // Chỉ override nếu không phải poll
           parsedContent = test;
         }
       } catch (e) {
-        messageType = 'text';
+        // Nếu parse lỗi thì giữ nguyên text, trừ khi type gốc là poll
+        if (messageType !== 'poll') messageType = 'text';
       }
     } else {
       const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
@@ -1535,6 +1771,8 @@ function createGroupMessageElement(messageData) {
         else if (qObj.type === 'file') quoteText = `📎 [File] ${qObj.name || ''}`;
         else if (qObj.type === 'audio') quoteText = '🎤 [Tin nhắn thoại]';
         else if (qObj.type === 'location') quoteText = '📍 [Vị trí]';
+        // Nếu reply cái poll
+        else if (quoteText.includes('"options":')) quoteText = '📊 [Bình chọn]';
       } else {
         const stickerCodes = ['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'];
         if (stickerCodes.includes(quoteText)) {
@@ -1558,40 +1796,93 @@ function createGroupMessageElement(messageData) {
     `;
   }
 
-  // 3. NỘI DUNG CHÍNH (THÊM LOCATION)
+// 3. NỘI DUNG CHÍNH
   let messageContent = '';
 
-  if (messageType === 'file') {
-    const fileInfo = parsedContent || {};
+  // 🔥 [QUAN TRỌNG] Kiểm tra tin nhắn đã bị xóa/thu hồi
+  const isDeleted = messageData.deleted === true || messageData.content === 'Tin nhắn đã được thu hồi';
+  
+  if (isDeleted) {
+    // Hiển thị thông báo tin nhắn đã thu hồi
     messageContent = `
-      <div class="file-message">
-        <div class="file-info">
-          <div class="file-icon"><i class="fi fi-rr-file"></i></div>
-          <div class="file-details">
-            <div class="file-name">${escapeHtml(fileInfo.name || 'File')}</div>
-            <div class="file-size">${formatFileSize(fileInfo.size || 0)}</div>
-          </div>
-        </div>
-        <a href="${fileInfo.url || '#'}" class="file-download" download>
-          Tải xuống
-        </a>
+      <div class="message-deleted">
+        <i class="fas fa-ban" style="margin-right: 6px; color: #999;"></i>
+        <span style="font-style: italic; color: #888;">Tin nhắn đã được thu hồi</span>
       </div>
     `;
+  } else if (messageType === 'file') {
+    const fileInfo = parsedContent || {};
+    const fileName = fileInfo.name || '';
+    const isVideo = /\.(mp4|mov|avi|mkv|flv|wmv)$/i.test(fileName);
+    const isPdf = fileName.toLowerCase().endsWith('.pdf');
+    // 🔥 [NEW] Check for archive files
+    const isArchive = /\.(zip|rar|7z|tar|gz)$/i.test(fileName);
+    const archiveData = fileInfo.archive_data || null;
+    
+    if (isVideo) {
+      // Video message with nice CSS
+      messageContent = `
+        <div class="video-message">
+          <div class="video-container">
+            <video controls class="video-player" preload="metadata">
+              <source src="${fileInfo.url}" type="video/mp4">
+              <source src="${fileInfo.url}" type="video/webm">
+              Trình duyệt không hỗ trợ video.
+            </video>
+          </div>
+          <div class="video-actions">
+            <a href="${fileInfo.url}" download="${escapeHtml(fileName)}" class="video-download" target="_blank">
+              <i class="fas fa-download"></i> Tải xuống
+            </a>
+          </div>
+        </div>
+      `;
+    } else {
+      // 🔥 [NEW] macOS-style file attachment with preview support
+      const fileSize = fileInfo.size || 0;
+      messageContent = `
+        <div class="mac-file-attachment" 
+             data-file-url="${escapeHtml(fileInfo.url || '#')}" 
+             data-file-name="${escapeHtml(fileName || 'File')}" 
+             data-file-size="${fileSize}"
+             data-is-archive="${isArchive}"
+             data-archive-data='${archiveData ? escapeHtml(JSON.stringify(archiveData)) : ''}'>
+          <div class="mac-file-icon ${macPreview.getFileIconClass(fileName)}">
+            <i class="fas ${macPreview.getFileIcon(fileName)}"></i>
+          </div>
+          <div class="mac-file-info">
+            <div class="mac-file-name">${escapeHtml(fileName || 'File')}</div>
+            <div class="mac-file-meta">
+              ${formatFileSize(fileSize)}${isArchive ? ' <span class="archive-badge"><i class="fas fa-folder-tree"></i> Project</span>' : ''}
+            </div>
+          </div>
+          <div class="mac-file-actions">
+            <button class="mac-file-action-btn mac-file-preview-btn" title="Xem trước (Space)">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="mac-file-action-btn mac-file-open-btn" title="Mở file">
+              <i class="fas fa-external-link-alt"></i>
+            </button>
+            <button class="mac-file-action-btn mac-file-download-btn" title="Tải xuống">
+              <i class="fas fa-download"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mac-file-inline-preview" style="display: none;">
+          <div class="mac-file-inline-content"></div>
+        </div>
+      `;
+    }
   } else if (messageType === 'image') {
     const imageInfo = parsedContent || {};
     messageContent = `
       <div class="image-message">
-        <div class="image-info">
-          <i class="fi fi-rr-picture"></i> ${escapeHtml(imageInfo.name || 'Hình ảnh')}
-        </div>
-        <img src="${imageInfo.thumbnail || imageInfo.url}" 
+        <img src="${imageInfo.url}" 
              class="uploaded-image" 
-             alt="${escapeHtml(imageInfo.name || '')}"
+             alt="${escapeHtml(imageInfo.name || 'Hình ảnh')}"
              onclick="window.openImageModal && window.openImageModal('${imageInfo.url}')">
         <div class="image-actions">
-          <a href="${imageInfo.url}" target="_blank" class="view-original">
-            Xem ảnh gốc
-          </a>
+          <a href="${imageInfo.url}" target="_blank" class="view-original">Xem ảnh gốc</a>
         </div>
       </div>
     `;
@@ -1602,7 +1893,8 @@ function createGroupMessageElement(messageData) {
     messageContent = `
       <div class="audio-message">
         <div class="audio-info">
-          <i class="fas fa-microphone"></i> ${escapeHtml(audioName)}
+          <i class="fas fa-microphone"></i>
+          <span>${escapeHtml(audioName)}</span>
         </div>
         ${audioUrl ? 
             `<audio controls src="${audioUrl}" class="voice-audio"></audio>` 
@@ -1623,7 +1915,6 @@ function createGroupMessageElement(messageData) {
         mapUrl = loc.url || loc.map_url;
     }
 
-    // 🔥 HTML CARD GIAO DIỆN MỚI CHO GROUP (Đồng bộ)
     messageContent = `
       <div class="location-card">
         <div class="location-header">
@@ -1642,16 +1933,87 @@ function createGroupMessageElement(messageData) {
         </a>
       </div>
     `;
+  } else if (messageType === 'poll') {
+    // 1. Parse dữ liệu JSON
+    let pollData = {};
+    try {
+        pollData = typeof parsedContent === 'string' ? JSON.parse(parsedContent) : parsedContent;
+    } catch(e) { 
+        pollData = { question: 'Lỗi hiển thị vote', options: [] }; 
+    }
+
+    // 2. Tính tổng số vote
+    let totalVotes = 0;
+    if (pollData.options) {
+        pollData.options.forEach(opt => totalVotes += (opt.voters ? opt.voters.length : 0));
+    }
+
+    // 3. Tạo HTML cho từng dòng lựa chọn
+    let optionsHTML = '';
+    if (pollData.options) {
+        optionsHTML = pollData.options.map(opt => {
+            const voters = opt.voters || [];
+            const voteCount = voters.length;
+            const percent = totalVotes === 0 ? 0 : Math.round((voteCount / totalVotes) * 100);
+            
+            // Check xem user hiện tại đã vote chưa
+            const isVoted = voters.includes(myId);
+            
+            return `
+                <div class="poll-option-item ${isVoted ? 'voted' : ''}" 
+                     onclick="window.handleVotePoll('${msgId}', ${opt.id})">
+                    
+                    <div class="poll-progress-bar" style="width: ${percent}%"></div>
+                    
+                    <div class="poll-option-content">
+                        <span class="poll-text">${escapeHtml(opt.text)}</span>
+                        <span class="poll-count">
+                            ${isVoted ? '<i class="fas fa-check-circle poll-check-icon"></i>' : ''}
+                            ${percent}%
+                        </span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 4. Gói vào khung Poll Bubble
+    messageContent = `
+        <div class="poll-bubble">
+            <div class="poll-question-text">${escapeHtml(pollData.question)}</div>
+            <div class="poll-options-container">
+                ${optionsHTML}
+            </div>
+            
+            <div class="poll-footer-actions" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; border-top:1px solid #eee; padding-top:8px;">
+                <span class="poll-meta" style="border:none; padding:0; margin:0;">
+                    ${totalVotes} lượt bình chọn
+                </span>
+                <button onclick="window.viewPollDetails('${msgId}')" 
+                        style="background:none; border:none; color:#4CAF50; font-size:13px; font-weight:600; cursor:pointer;">
+                    Xem chi tiết
+                </button>
+            </div>
+        </div>
+    `;
   } else if (messageType === 'sticker') {
     messageContent = `
       <div class="sticker-message">${getStickerHTML(messageData.content)}</div>
     `;
   } else {
+    // Xử lý Text thường
+    let textContent = escapeHtml(messageData.content || '');
+    
+    // 1. Xử lý @all trước (Biến thành thẻ span class mention-all)
+    textContent = textContent.replace(/(@all)\b/g, '<span class="mention-all">@all</span>');
+
+    // 2. Xử lý Tag tên người (@Username)
+    textContent = textContent.replace(/(@(?!(?:all)\b)\w+)/g, '<span class="mention-text">$1</span>');
+
     messageContent = `
-      <div class="message-text">${escapeHtml(messageData.content || '')}</div>
+        <div class="message-text">${textContent}</div>
     `;
   }
-
   // 🔥 HỘP QUÀ
   if (messageData.gift_style) {
     const isOpenClass = messageData.is_gift_open ? 'is-open' : '';
@@ -1667,34 +2029,26 @@ function createGroupMessageElement(messageData) {
     `;
   }
 
-  // 🔥 REACTION DISPLAY (ĐÃ CẬP NHẬT CHO MODAL)
+// 🔥 REACTION DISPLAY (Giữ nguyên logic cũ)
   let reactionsHTML = '';
-  // Lấy ID tin nhắn chuẩn
   const messageIdReal = messageData.message_id || messageData._id; 
-  // QUAN TRỌNG: Định nghĩa loại là 'group' để API biết tìm ở đâu
-  const conversationType = 'group';
-
+  
   if (messageData.reactions && Object.keys(messageData.reactions).length > 0) {
     const allReactions = Object.values(messageData.reactions);
     const totalCount = allReactions.length;
     
-    // 1. Đếm số lượng từng icon
     const reactionCounts = {};
     for (const emoji of allReactions) {
       reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
     }
 
-    // 2. Sắp xếp giảm dần
     const sortedReactions = Object.entries(reactionCounts).sort(([, countA], [, countB]) => countB - countA);
 
-    // 3. Lấy tối đa 3-4 icon đầu tiên
     let iconsHtml = '';
     for (let i = 0; i < Math.min(4, sortedReactions.length); i++) {
       iconsHtml += sortedReactions[i][0]; 
     }
     
-    // 4. Gắn sự kiện click gọi Modal
-    // Lưu ý: Phải truyền đúng 'group' vào tham số thứ 3
     reactionsHTML = `
         <div class="message-reactions-display" 
              onclick="window.viewReactionDetails(event, '${messageIdReal}', 'group')"> 
@@ -1712,6 +2066,13 @@ function createGroupMessageElement(messageData) {
     </button>
   `;
 
+  // 🔥 [MỚI] TẠO NÚT DỊCH (Chỉ hiện nếu là tin nhắn văn bản)
+  // Biến messageData lấy từ tham số hàm createGroupMessageElement
+  const translateBtn = (messageData.message_type === 'text') 
+      ? `<button class="message-action-btn btn-translate" title="Dịch tin nhắn"><i class="fas fa-language"></i></button>` 
+      : '';
+
+  // --- LẮP RÁP HTML ---
   messageEl.innerHTML = `
     ${!isCurrentUser ? `
       <img src="${avatarSrc}" alt="${messageData.sender_name || ''}" 
@@ -1729,16 +2090,17 @@ function createGroupMessageElement(messageData) {
             ${reactionsHTML}
           </div>
           
+          <div class="message-time" title="${messageData.timestamp || ''}" style="font-size: 0.75rem; color: #888; margin-top: 4px; text-align: ${isCurrentUser ? 'right' : 'left'};">
+            ${timeString}
+          </div>
+          
           <div class="message-status-container">
             ${isCurrentUser ? '<div class="seen-by-container"></div>' : ''}
-            <span class="message-time" title="${messageData.timestamp || ''}">
-              ${timeString}
-            </span>
           </div>
         </div>
 
         <div class="message-actions">
-          ${reactionTriggerBtn}
+          ${translateBtn} ${reactionTriggerBtn}
           <button class="message-action-btn reply-btn" title="Trả lời">
             <i class="fas fa-reply"></i>
           </button>
@@ -1756,18 +2118,75 @@ function createGroupMessageElement(messageData) {
   return messageEl;
 }
 
-
-
-
-
-
 function appendGroupMessage(messageData) {
+  console.log('[DEBUG] appendGroupMessage called with:', messageData);
   const messagesContainer = document.getElementById('messages');
-  if (!messagesContainer) return;
+  if (!messagesContainer) {
+    console.log('[DEBUG] messages container not found');
+    return;
+  }
+  
+  // Check if we need to add date separator
+  const previousMessage = Array.from(messagesContainer.children).reverse().find(el => el.classList.contains('message-item'));
+  let needDateSeparator = false;
+  let dateSeparatorText = '';
+  
+  if (messageData.timestamp) {
+    const currentDate = new Date(messageData.timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Determine date text
+    if (currentDate.toDateString() === today.toDateString()) {
+      dateSeparatorText = 'Hôm nay';
+    } else if (currentDate.toDateString() === yesterday.toDateString()) {
+      dateSeparatorText = 'Hôm qua';
+    } else {
+      dateSeparatorText = currentDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    
+    // Check if previous message has different date
+    if (previousMessage) {
+      const prevTimeElement = previousMessage.querySelector('.message-time');
+      if (prevTimeElement) {
+        const prevTimestamp = prevTimeElement.getAttribute('title');
+        if (prevTimestamp) {
+          const prevDate = new Date(prevTimestamp);
+          if (prevDate.toDateString() !== currentDate.toDateString()) {
+            needDateSeparator = true;
+          }
+        }
+      }
+    } else {
+      // First message, always show separator
+      needDateSeparator = true;
+    }
+  }
+  
+  // Add date separator if needed
+  if (needDateSeparator && dateSeparatorText) {
+    const separatorEl = document.createElement('div');
+    separatorEl.className = 'date-separator';
+    separatorEl.innerHTML = `
+      <div style="text-align: center; margin: 20px 0; position: relative;">
+        <span style="background: #f0f0f0; padding: 5px 15px; border-radius: 12px; font-size: 0.8rem; color: #666; position: relative; z-index: 1;">
+          ${dateSeparatorText}
+        </span>
+        <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #e0e0e0; z-index: 0;"></div>
+      </div>
+    `;
+    messagesContainer.appendChild(separatorEl);
+  }
+  
   const messageEl = createGroupMessageElement(messageData);
-  if(messageEl) {
+  console.log('[DEBUG] createGroupMessageElement returned:', messageEl);
+  if (messageEl) {
       messagesContainer.appendChild(messageEl);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      console.log('[DEBUG] Message appended to DOM');
+  } else {
+    console.log('[DEBUG] Failed to create message element');
   }
 }
 
@@ -1844,9 +2263,9 @@ function formatTime(timestamp) {
       return window.formatTime(timestamp);
     }
 
-    // Backend đã trả timestamp giờ VN, nên frontend chỉ cần moment() mà không áp timezone lại
+    // Backend đã trả timestamp giờ VN, cần parse as local time
     if (window.moment) {
-      const m = moment(timestamp); 
+      const m = moment(timestamp, moment.ISO_8601, true); 
       const now = moment();
 
       if (!m.isValid()) return 'Vừa xong';
@@ -1963,9 +2382,118 @@ function setupAddMemberSearch() {
 document.addEventListener('DOMContentLoaded', () => {
   setupAddMemberSearch();
   
+  // 🔥 [NEW] Setup file preview event listeners for group chat
+  const messagesContainer = document.getElementById('messages');
+  if (messagesContainer) {
+    messagesContainer.addEventListener('click', (e) => {
+      // Handle preview button - open Mac-style preview
+      const previewBtn = e.target.closest('.mac-file-preview-btn');
+      if (previewBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const fileAttachment = previewBtn.closest('.mac-file-attachment');
+        if (!fileAttachment) return;
+        
+        const fileUrl = fileAttachment.getAttribute('data-file-url');
+        const fileName = fileAttachment.getAttribute('data-file-name');
+        const fileSize = parseInt(fileAttachment.getAttribute('data-file-size')) || 0;
+        const isArchive = fileAttachment.getAttribute('data-is-archive') === 'true';
+        const archiveDataStr = fileAttachment.getAttribute('data-archive-data');
+        let archiveData = null;
+        if (archiveDataStr && isArchive) {
+          try {
+            archiveData = JSON.parse(archiveDataStr);
+          } catch (e) {
+            console.error('Failed to parse archive data:', e);
+          }
+        }
+        
+        // Open Mac-style preview
+        if (window.macPreview) {
+          window.macPreview.currentFile = { 
+            url: fileUrl, 
+            name: fileName, 
+            size: fileSize,
+            archiveData: archiveData,
+            isArchive: isArchive
+          };
+          window.macPreview.open(fileUrl, fileName, fileSize);
+        }
+        return;
+      }
+      
+      // Handle open button
+      const openBtn = e.target.closest('.mac-file-open-btn');
+      if (openBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const fileAttachment = openBtn.closest('.mac-file-attachment');
+        if (!fileAttachment) return;
+        
+        const fileUrl = fileAttachment.getAttribute('data-file-url');
+        window.open(fileUrl, '_blank');
+        return;
+      }
+      
+      // Handle download button
+      const downloadBtn = e.target.closest('.mac-file-download-btn');
+      if (downloadBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const fileAttachment = downloadBtn.closest('.mac-file-attachment');
+        if (!fileAttachment) return;
+        
+        const fileUrl = fileAttachment.getAttribute('data-file-url');
+        const fileName = fileAttachment.getAttribute('data-file-name');
+        
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = fileName;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      
+      // Handle clicking on the attachment itself - open Mac-style preview
+      const fileAttachment = e.target.closest('.mac-file-attachment');
+      if (fileAttachment && !e.target.closest('.mac-file-actions')) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const fileUrl = fileAttachment.getAttribute('data-file-url');
+        const fileName = fileAttachment.getAttribute('data-file-name');
+        const fileSize = parseInt(fileAttachment.getAttribute('data-file-size')) || 0;
+        
+        // Open Mac-style preview
+        if (window.macPreview) {
+          const isArchive = fileAttachment.getAttribute('data-is-archive') === 'true';
+          const archiveDataStr = fileAttachment.getAttribute('data-archive-data');
+          let archiveData = null;
+          if (archiveDataStr && isArchive) {
+            try {
+              archiveData = JSON.parse(archiveDataStr);
+            } catch (e) {
+              console.error('Failed to parse archive data:', e);
+            }
+          }
+          window.macPreview.currentFile = { 
+            url: fileUrl, 
+            name: fileName, 
+            size: fileSize,
+            archiveData: archiveData,
+            isArchive: isArchive
+          };
+          window.macPreview.open(fileUrl, fileName, fileSize);
+        }
+      }
+    });
+  }
+  
   const manageBtn = document.getElementById("manage-group-button");
-  const sidebar = document.getElementById("manage-group-sidebar");
-  const overlay = document.getElementById("sidebar-overlay");
+  const sidebar = document.getElementById('manage-group-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
 
   if (manageBtn && sidebar && overlay) {
     manageBtn.addEventListener("click", () => {
@@ -1977,9 +2505,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const closeBtn = document.getElementById("close-manage-sidebar");
+  const closeBtn = document.getElementById('close-manage-sidebar');
   if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
+    closeBtn.addEventListener('click', () => {
       closeManageSidebar();
     });
   }
@@ -2356,7 +2884,7 @@ export async function editGroupMessage(messageId, newContent) {
 export async function deleteGroupMessage(messageId) {
   if (!messageId) return;
   
-  if (!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
+  if (!confirm('Bạn có chắc muốn thu hồi tin nhắn này?\nMọi người trong nhóm sẽ không còn nhìn thấy tin nhắn này nữa.')) return;
   
   try {
     const response = await fetch('/delete_message', {
@@ -2378,10 +2906,58 @@ export async function deleteGroupMessage(messageId) {
       });
       removeGroupMessageUI(messageId);
     } else {
-      alert('Lỗi khi xóa tin nhắn: ' + data.error);
+      alert('Lỗi khi thu hồi tin nhắn: ' + data.error);
     }
   } catch (error) {
-    console.error('Error deleting group message:', error);
+    console.error('Error recalling group message:', error);
+    alert('Lỗi khi thu hồi tin nhắn');
+  }
+}
+
+// Xóa tin nhắn chỉ ở phía tôi
+async function deleteMessageForMeOnly(messageId) {
+  if (!messageId) {
+    console.error('[DeleteForMe] No message ID provided');
+    return;
+  }
+  
+  console.log('[DeleteForMe] Attempting to delete message:', messageId);
+  
+  if (!confirm('Xóa tin nhắn này chỉ ở phía bạn?\nMọi người khác trong nhóm vẫn nhìn thấy tin nhắn này.')) {
+    console.log('[DeleteForMe] User cancelled');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/delete_message_for_me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: messageId,
+        conversation_type: 'group'
+      })
+    });
+    
+    const data = await response.json();
+    console.log('[DeleteForMe] Response:', data);
+    
+    if (data.success) {
+      // Tìm và xóa element khỏi UI
+      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+      console.log('[DeleteForMe] Found element:', messageElement);
+      
+      if (messageElement) {
+        messageElement.remove();
+        console.log('[DeleteForMe] Message removed from UI');
+      } else {
+        console.warn('[DeleteForMe] Message element not found in UI');
+      }
+    } else {
+      console.error('[DeleteForMe] Server error:', data.error);
+      alert('Lỗi khi xóa tin nhắn: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('[DeleteForMe] Error:', error);
     alert('Lỗi khi xóa tin nhắn');
   }
 }
@@ -2464,25 +3040,49 @@ function showGroupMessageContextMenu(x, y, messageId, isMyMessage) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
   
+  // Kiểm tra tin nhắn này có phải đang được ghim không
+  const isPinned = pinnedGroupMessage && pinnedGroupMessage.message_id === messageId;
+  
   let menuItems = '';
   
+  // TIN CỦA MÌNH: hiện Sửa, Thu hồi, Xóa chỉ ở phía tôi
   if (isMyMessage) {
     menuItems += `
       <div class="context-menu-item" data-action="edit" data-message-id="${messageId}">
         <i class="fi fi-rr-edit" style="margin-right: 8px;"></i>Sửa tin nhắn
       </div>
       <div class="context-menu-item" data-action="delete" data-message-id="${messageId}">
-        <i class="fi fi-rr-trash" style="margin-right: 8px;"></i>Xóa tin nhắn
+        <i class="fi fi-rr-rotate-left" style="margin-right: 8px; color: #ff9800;"></i>Thu hồi tin nhắn
+      </div>
+      <div class="context-menu-item" data-action="delete_for_me" data-message-id="${messageId}">
+        <i class="fi fi-rr-trash" style="margin-right: 8px; color: #666;"></i>Xóa chỉ ở phía tôi
+      </div>
+      <div class="context-menu-divider"></div>
+    `;
+  } else {
+    // TIN CỦA NGƯỜI KHÁC: hiện Xóa chỉ ở phía tôi
+    menuItems += `
+      <div class="context-menu-item" data-action="delete_for_me" data-message-id="${messageId}">
+        <i class="fi fi-rr-trash" style="margin-right: 8px; color: #666;"></i>Xóa chỉ ở phía tôi
       </div>
       <div class="context-menu-divider"></div>
     `;
   }
   
-  menuItems += `
-    <div class="context-menu-item" data-action="pin" data-message-id="${messageId}">
-      <i class="fi fi-rr-thumbtack" style="margin-right: 8px;"></i>Ghim tin nhắn
-    </div>
-  `;
+  // TẤT CẢ TIN NHẮN: Ghim hoặc Bỏ ghim
+  if (isPinned) {
+    menuItems += `
+      <div class="context-menu-item" data-action="unpin" data-message-id="${messageId}">
+        <i class="fi fi-rr-thumbtack" style="margin-right: 8px; color: #ff4444;"></i>Bỏ ghim tin nhắn
+      </div>
+    `;
+  } else {
+    menuItems += `
+      <div class="context-menu-item" data-action="pin" data-message-id="${messageId}">
+        <i class="fi fi-rr-thumbtack" style="margin-right: 8px;"></i>Ghim tin nhắn
+      </div>
+    `;
+  }
   
   contextMenu.innerHTML = menuItems;
   document.body.appendChild(contextMenu);
@@ -2503,9 +3103,18 @@ function showGroupMessageContextMenu(x, y, messageId, isMyMessage) {
         case 'delete':
           deleteGroupMessage(msgId);
           break;
+        case 'delete_for_me':
+          console.log('[DeleteForMe] Action triggered for message:', msgId);
+          deleteMessageForMeOnly(msgId);
+          break;
         case 'pin':
           pinGroupMessage(msgId);
           break;
+        case 'unpin':
+          unpinGroupMessage();
+          break;
+        default:
+          console.warn('[Group Context Menu] Unknown action:', action);
       }
       
       hideGroupMessageContextMenu();
@@ -2521,7 +3130,7 @@ function showGroupMessageContextMenu(x, y, messageId, isMyMessage) {
     contextMenu.style.top = (y - rect.height) + 'px';
   }
   
-  console.log('[Group Context Menu] Context menu shown');
+  console.log('[Group Context Menu] Context menu shown, isPinned:', isPinned);
 }
 
 function hideGroupMessageContextMenu() {
@@ -2810,3 +3419,440 @@ window.scrollToMessage = function(messageId) {
         console.warn("Không tìm thấy tin nhắn gốc (có thể chưa load lịch sử hoặc đã bị xóa).");
     }
 };
+
+// --- [POLL] CÁC HÀM XỬ LÝ VOTE ---
+
+// 1. Hàm gọi khi người dùng bấm vào 1 dòng lựa chọn
+window.handleVotePoll = function(messageId, optionId) {
+    // Kiểm tra xem đang ở trong nhóm không
+    if (!window.currentGroupId) return;
+
+    console.log(`[Poll] Voting: Msg ${messageId}, Option ${optionId}`);
+    
+    // Gửi sự kiện lên server
+    socket.emit('vote_poll', {
+        message_id: messageId,
+        option_id: optionId,
+        group_id: window.currentGroupId
+    });
+};
+
+// 2. Lắng nghe server phản hồi khi có ai đó vote (để cập nhật thanh %)
+// Bạn cần gọi hàm setupPollEvents() này trong setupGroupSocketEvents() hoặc để ở global scope
+socket.on('poll_updated', (data) => {
+    // data = { message_id: '...', new_content: {...json poll...} }
+    console.log('[Poll] Update received:', data);
+
+    const messageId = data.message_id;
+    // Parse nội dung mới nhất
+    const pollData = typeof data.new_content === 'string' ? JSON.parse(data.new_content) : data.new_content;
+
+    // Tìm tin nhắn tương ứng trên màn hình
+    const messageEl = document.querySelector(`.message[data-id="${messageId}"]`);
+    if (!messageEl) return;
+
+    // Tính lại tổng
+    let totalVotes = 0;
+    pollData.options.forEach(opt => totalVotes += (opt.voters ? opt.voters.length : 0));
+
+    // Cập nhật giao diện từng dòng option
+    const optionItems = messageEl.querySelectorAll('.poll-option-item');
+    
+    pollData.options.forEach((opt, index) => {
+        const itemEl = optionItems[index];
+        if (itemEl) {
+            const voteCount = opt.voters ? opt.voters.length : 0;
+            const percent = totalVotes === 0 ? 0 : Math.round((voteCount / totalVotes) * 100);
+            const myId = window.session?.user_id;
+            const isVoted = opt.voters && opt.voters.includes(myId);
+
+            // Cập nhật độ dài thanh màu xanh
+            const bar = itemEl.querySelector('.poll-progress-bar');
+            if(bar) bar.style.width = `${percent}%`;
+
+            // Cập nhật số % và icon check
+            const countEl = itemEl.querySelector('.poll-option-content .poll-count');
+            if (countEl) {
+                countEl.innerHTML = `
+                    ${isVoted ? '<i class="fas fa-check-circle poll-check-icon"></i>' : ''}
+                    ${percent}%
+                `;
+            }
+
+            // Đổi màu viền nếu mình đã vote
+            if (isVoted) itemEl.classList.add('voted');
+            else itemEl.classList.remove('voted');
+        }
+    });
+
+    // Cập nhật dòng tổng số lượt vote
+    const metaEl = messageEl.querySelector('.poll-meta');
+    if (metaEl) metaEl.textContent = `${totalVotes} lượt bình chọn`;
+});
+
+// ============================================================
+// 1. HÀM DEBOUNCE (Thêm cái này lên trên cùng để không bị lỗi)
+// ============================================================
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), wait);
+  };
+}
+
+
+// ============================================================
+// XEM CHI TIẾT NGƯỜI BÌNH CHỌN (MODAL)
+// ============================================================
+window.viewPollDetails = function(messageId) {
+    const modal = document.getElementById('reaction-details-modal');
+    const container = document.getElementById('reaction-list-container');
+    const modalContent = document.querySelector('.modal-content.reaction-modal-content');
+
+    if (!modal || !container || !modalContent) return;
+
+    // 🔥 [CẬP NHẬT] Đổi tiêu đề thành "Chi tiết bình chọn"
+    const headerTitle = modalContent.querySelector('.reaction-modal-header div') || 
+                        modalContent.querySelector('.reaction-modal-header h3');
+    if (headerTitle) {
+        headerTitle.textContent = "Chi tiết bình chọn";
+    }
+
+    // Xóa Tabs cũ (của phần Reaction để lại)
+    const existingTabs = modalContent.querySelector('#reaction-tabs');
+    if (existingTabs) existingTabs.remove();
+
+    modal.style.display = 'flex';
+    container.innerHTML = '<div style="padding:20px; text-align:center;">Đang tải...</div>';
+
+    // Gọi API lấy danh sách người vote
+    fetch(`/get_poll_voters/${messageId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Tái sử dụng logic render nhưng cho Poll
+                // Lưu ý: data.reactions ở đây chứa {username, avatar, emoji: 'Tên Lựa Chọn'}
+                renderPollVotersTabs(data.reactions, container, modalContent);
+            } else {
+                container.innerHTML = '<div style="padding:20px; text-align:center;">Lỗi tải dữ liệu</div>';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            container.innerHTML = '<div style="padding:20px; text-align:center;">Lỗi kết nối</div>';
+        });
+};
+
+// Hàm render Tabs dành riêng cho Poll (Để tránh phụ thuộc file kia)
+function renderPollVotersTabs(reactions, userListContainer, modalContent) {
+    if (!reactions || reactions.length === 0) {
+        userListContainer.innerHTML = '<div style="padding:20px; text-align:center;">Chưa có ai bình chọn</div>';
+        return;
+    }
+
+    // Nhóm theo Lựa chọn (biến emoji chính là Tên lựa chọn)
+    const grouped = reactions.reduce((acc, user) => {
+        const key = user.emoji; 
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(user);
+        return acc;
+    }, {});
+
+    // Tạo thanh Tabs
+    const tabsContainer = document.createElement('div');
+    tabsContainer.id = 'reaction-tabs';
+    tabsContainer.className = 'reaction-tabs';
+    tabsContainer.style.cssText = "display:flex; gap:10px; padding:10px; overflow-x:auto; border-bottom:1px solid #eee;";
+
+    // Tab "Tất cả"
+    const allBtn = document.createElement('button');
+    allBtn.className = 'reaction-tab active';
+    allBtn.innerHTML = `Tất cả (${reactions.length})`;
+    allBtn.onclick = () => {
+        tabsContainer.querySelectorAll('.reaction-tab').forEach(t => t.classList.remove('active'));
+        allBtn.classList.add('active');
+        renderPollUserList(reactions, userListContainer);
+    };
+    tabsContainer.appendChild(allBtn);
+
+    // Các Tab Lựa chọn (Option A, Option B...)
+    for (const optName in grouped) {
+        const users = grouped[optName];
+        const btn = document.createElement('button');
+        btn.className = 'reaction-tab';
+        btn.innerHTML = `${optName} (${users.length})`;
+        btn.onclick = () => {
+            tabsContainer.querySelectorAll('.reaction-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            renderPollUserList(users, userListContainer);
+        };
+        tabsContainer.appendChild(btn);
+    }
+
+    // Chèn thanh Tab vào Modal
+    const header = modalContent.querySelector('.reaction-modal-header');
+    if(header && header.parentNode) {
+        header.parentNode.insertBefore(tabsContainer, userListContainer);
+    }
+
+    // Render mặc định danh sách tất cả
+    renderPollUserList(reactions, userListContainer);
+}
+
+function renderPollUserList(users, container) {
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div style="padding:20px; text-align:center;">Trống</div>';
+        return;
+    }
+    
+    let html = '';
+    users.forEach(user => {
+        html += `
+            <div class="reaction-user-item" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f5f5f5;">
+                <img src="${user.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; margin-right:12px;">
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:14px;">${user.username}</div>
+                    <div style="font-size:12px; color:#666;">Đã chọn: <b>${user.emoji}</b></div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+// 13/12/2025 - Context menu chuột phải cho item nhóm (sidebar)
+export function setupGroupSidebarContextMenu() {
+  if (groupSidebarContextMenuAttached) return;
+  groupSidebarContextMenuAttached = true;
+
+  const groupsList = document.getElementById('groups-list');
+  if (!groupsList) return;
+
+  // Right-click trên .group-item trong sidebar
+  groupsList.addEventListener('contextmenu', (e) => {
+    const groupItem = e.target.closest('.group-item');
+    if (!groupItem) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const groupId = groupItem.dataset.id;
+    const nameEl = groupItem.querySelector('.group-name');
+    const groupName = nameEl ? nameEl.textContent.trim() : 'Nhóm';
+
+    showGroupSidebarContextMenu(e.clientX, e.clientY, groupId, groupName);
+  });
+
+  // Ẩn menu khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#group-context-menu')) {
+      hideGroupSidebarContextMenu();
+    }
+  });
+
+  // Ẩn menu khi nhấn ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideGroupSidebarContextMenu();
+    }
+  });
+}
+
+// 13/12/2025 - Hiển thị menu context cho item nhóm: Mở nhóm, đổi theme nhóm
+function showGroupSidebarContextMenu(x, y, groupId, groupName) {
+  hideGroupSidebarContextMenu();
+
+  const contextMenu = document.createElement('div');
+  contextMenu.id = 'group-context-menu';
+  contextMenu.className = 'context-menu';
+  contextMenu.style.cssText = `
+    position: fixed;
+    left: ${x}px;
+    top: ${y}px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10000;
+    min-width: 200px;
+    padding: 4px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+
+  let menuItems = '';
+
+  const groupItem = document.querySelector(`.group-item[data-id="${groupId}"]`);
+  const isMuted = groupItem && groupItem.dataset.muted === '1';
+  const muteLabel = isMuted ? 'Bật thông báo nhóm' : 'Tắt thông báo nhóm';
+
+  menuItems += `
+    <div class="context-menu-item" data-action="open" data-group-id="${groupId}">
+      <i class="fi fi-rr-users" style="margin-right: 8px;"></i>Mở nhóm
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="mute" data-group-id="${groupId}">
+      <i class="fi fi-rr-bell" style="margin-right: 8px;"></i>${muteLabel}
+    </div>
+    <div class="context-menu-item" data-action="theme" data-group-id="${groupId}">
+      <i class="fi fi-rr-palette" style="margin-right: 8px;"></i>Đổi theme nhóm
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="delete" data-group-id="${groupId}">
+      <i class="fi fi-rr-trash" style="margin-right: 8px;"></i>Xóa hội thoại nhóm
+    </div>
+  `;
+
+  contextMenu.innerHTML = menuItems;
+  document.body.appendChild(contextMenu);
+// Lắng nghe click trên từng item menu
+  contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = item.dataset.action;
+      const gid = item.dataset.groupId;
+
+      switch (action) {
+        case 'open':
+          // Mở group giống như click trái
+          openGroupChat(gid, groupName);
+          break;
+        case 'mute':
+          // 13/12/2025 - Tắt/bật thông báo nhóm
+          toggleMuteGroup(gid);
+          break;
+        case 'theme':
+          if (window.openThemePicker) {
+            window.openThemePicker('group', gid);
+          } else {
+            alert('Theme picker chưa sẵn sàng');
+          }
+          break;
+        case 'delete':
+          // 13/12/2025 - Ẩn/xóa hội thoại nhóm khỏi danh sách cho riêng mình
+          deleteGroupConversation(gid, groupName);
+          break;
+      }
+
+      hideGroupSidebarContextMenu();
+    });
+  });
+
+  // Đảm bảo menu không vượt ra ngoài màn hình
+  const rect = contextMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    contextMenu.style.left = (x - rect.width) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    contextMenu.style.top = (y - rect.height) + 'px';
+  }
+}
+function hideGroupSidebarContextMenu() {
+  const existingMenu = document.getElementById('group-context-menu');
+  if (existingMenu) {
+    existingMenu.remove();
+  }
+}
+// 13/12/2025 - Hàm tắt/bật thông báo nhóm (mute group) gọi API /mute_group
+async function toggleMuteGroup(groupId) {
+  const groupItem = document.querySelector(`.group-item[data-id="${groupId}"]`);
+  if (!groupItem) return;
+
+  const currentlyMuted = groupItem.dataset.muted === '1';
+  let duration = 'off';
+
+  if (currentlyMuted) {
+    const confirmOn = confirm('Bật lại thông báo cho nhóm này?');
+    if (!confirmOn) return;
+    duration = 'off';
+  } else {
+    const input = prompt('Nhập thời gian tắt thông báo cho nhóm (vd: 15m, 1h, 8h, 24h, 7d, forever).\nĐể trống = 8h mặc định.', '8h');
+    duration = (input || '8h').trim().toLowerCase();
+  }
+
+  try {
+    const res = await fetch('/mute_group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: groupId, duration })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.error || 'Không thể cập nhật trạng thái thông báo nhóm');
+      return;
+    }
+
+    const isMuted = !!data.is_muted;
+    groupItem.dataset.muted = isMuted ? '1' : '0';
+    if (isMuted) {
+      groupItem.classList.add('is-muted');
+    } else {
+      groupItem.classList.remove('is-muted');
+    }
+
+    // Cập nhật icon bell-slash trong meta của group
+    const meta = groupItem.querySelector('.group-meta');
+    if (meta) {
+      let mutedIcon = meta.querySelector('.conversation-muted-icon');
+      if (isMuted) {
+        if (!mutedIcon) {
+          mutedIcon = document.createElement('div');
+          mutedIcon.className = 'conversation-muted-icon';
+          mutedIcon.title = 'Đã tắt thông báo nhóm';
+          mutedIcon.innerHTML = '<i class="fas fa-bell-slash"></i>';
+          meta.appendChild(mutedIcon);
+        }
+      } else if (mutedIcon) {
+        mutedIcon.remove();
+      }
+    }
+  } catch (e) {
+    console.error('Error toggling mute group:', e);
+    alert('Lỗi khi cập nhật tắt thông báo nhóm');
+  }
+}
+
+// 13/12/2025 - Ẩn/xóa hội thoại nhóm khỏi sidebar cho user hiện tại
+async function deleteGroupConversation(groupId, groupName) {
+  if (!groupId) return;
+
+  const confirmDel = confirm(`Xóa hội thoại nhóm \"${groupName || ''}\" khỏi danh sách?\nBạn vẫn ở trong nhóm và sẽ thấy lại khi có tin nhắn mới.`);
+  if (!confirmDel) return;
+
+  try {
+    const res = await fetch('/hide_group_conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: groupId })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.error || 'Không thể xóa hội thoại nhóm');
+      return;
+    }
+
+    const groupItem = document.querySelector(`.group-item[data-id="${groupId}"]`);
+    if (groupItem && groupItem.parentNode) {
+      groupItem.parentNode.removeChild(groupItem);
+    }
+// Nếu đang mở đúng group này thì reset UI về màn hình chào mừng
+    if (currentGroupId && String(currentGroupId) === String(groupId)) {
+      resetGroupChat();
+
+      const messagesDiv = document.getElementById('messages');
+      if (messagesDiv) messagesDiv.innerHTML = '';
+
+      const inputArea = document.querySelector('.message-input');
+      if (inputArea) inputArea.classList.add('hidden');
+
+      const welcomeScreen = document.getElementById('welcome-screen');
+      if (welcomeScreen) welcomeScreen.style.display = 'flex';
+    }
+  } catch (e) {
+    console.error('Error hiding group conversation:', e);
+    alert('Lỗi khi xóa hội thoại nhóm');
+  }
+}

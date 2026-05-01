@@ -27,12 +27,30 @@
     box-sizing: border-box;
 }
 
+/* Additional global rules to prevent horizontal scroll */
+img, video, iframe {
+    max-width: 100%;
+    height: auto;
+}
+
+table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+pre, code {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 100%;
+}
+
 body {
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: var(--background);
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 /* Post Detail Container - No Side Menu Padding */
@@ -40,6 +58,125 @@ body {
     width: 100%;
     min-height: 100vh;
     background: var(--background);
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Modern Detail Header */
+.modern-detail-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    box-shadow: 0 4px 20px rgba(62, 180, 137, 0.3);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: none;
+}
+
+.detail-header-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.back-btn-modern {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    color: white;
+    font-weight: 500;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.back-btn-modern:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.back-btn-modern i {
+    font-size: 1rem;
+}
+
+.brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.paw-logo {
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.paw-logo i {
+    font-size: 1.2rem;
+    color: white;
+}
+
+.brand-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.5px;
+}
+
+.detail-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    margin-left: 20px;
+}
+
+.brand-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+}
+
+.brand-icon i {
+    font-size: 1.3rem;
+    color: white;
+}
+
+.brand-text h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: white;
+    margin: 0 0 4px 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.brand-subtitle {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    font-weight: 400;
 }
 
 /* Header - Fixed at top without side menu */
@@ -89,6 +226,63 @@ body {
 }
 
 @media (max-width: 768px) {
+    .modern-detail-header {
+        padding: 12px 16px;
+    }
+    
+    .detail-header-nav {
+        padding: 12px 16px;
+        gap: 12px;
+    }
+    
+    .back-btn-modern {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+    
+    .back-btn-modern span {
+        display: none;
+    }
+    
+    .detail-header-brand {
+        margin-left: 12px;
+        gap: 12px;
+    }
+    
+    .brand-logo {
+        padding: 6px 12px;
+    }
+    
+    .paw-logo {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .paw-logo i {
+        font-size: 1rem;
+    }
+    
+    .brand-name {
+        font-size: 0.95rem;
+    }
+    
+    .brand-icon {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .brand-icon i {
+        font-size: 1.1rem;
+    }
+    
+    .brand-text h1 {
+        font-size: 1.2rem;
+    }
+    
+    .brand-subtitle {
+        font-size: 0.8rem;
+    }
+    
     .post-detail-header {
         padding: 15px;
     }
@@ -108,19 +302,23 @@ body {
 /* Main Content - Adjusted for no side menu */
 .post-detail-content {
     max-width: 800px;
-    margin: 80px auto 0; /* Adjusted for fixed header */
-    padding: 40px 20px;
+    margin: 20px auto 0; /* Reduced spacing from header */
+    padding: 20px 20px; /* Reduced padding */
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 /* Post Card */
 .post-card-detail {
     background: var(--card-bg);
     border-radius: var(--border-radius);
-    padding: 24px;
+    padding: 16px; /* Reduced padding for compact layout */
     box-shadow: var(--shadow);
-    margin-bottom: 24px;
+    margin-bottom: 16px; /* Reduced margin */
     transition: var(--transition);
-    max-width: 900px; 
+    max-width: 900px;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    word-wrap: break-word; /* Break long words */
+    word-break: break-word; /* Ensure text breaks */
 }
 
 .post-card-detail:hover {
@@ -174,7 +372,27 @@ body {
     color: var(--text-primary);
     margin-bottom: 24px;
     white-space: pre-line;
-    word-wrap: break-word;
+    word-wrap: break-word; /* Break long words */
+    word-break: break-word; /* Ensure text breaks */
+    overflow-wrap: break-word; /* Modern property for word breaking */
+    max-width: 100%; /* Ensure it doesn't exceed container */
+}
+
+/* Hashtag styling in post text */
+.post-text a[href^="/hashtag/"] {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    background: var(--primary-light);
+    padding: 2px 6px;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.post-text a[href^="/hashtag/"]:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+    background: rgba(62, 180, 137, 0.15);
 }
 
 /* Post Media */
@@ -348,8 +566,11 @@ body {
 .comments-section {
     background: var(--card-bg);
     border-radius: var(--border-radius);
-    padding: 24px;
+    padding: 16px; /* Reduced padding */
     box-shadow: var(--shadow);
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    word-wrap: break-word; /* Break long words */
+    word-break: break-word; /* Ensure text breaks */
 }
 
 .comments-section h3 {
@@ -489,7 +710,10 @@ body {
     font-size: 0.875rem;
     line-height: 1.4;
     color: var(--text-primary);
-    word-wrap: break-word;
+    word-wrap: break-word; /* Break long words */
+    word-break: break-word; /* Ensure text breaks */
+    overflow-wrap: break-word; /* Modern property for word breaking */
+    max-width: 100%; /* Ensure it doesn't exceed container */
 }
 
 /* No Comments */
@@ -588,19 +812,19 @@ body {
 @media (max-width: 1024px) {
     .post-detail-content {
         max-width: 95%;
-        padding: 30px 15px;
-        margin-top: 70px;
+        padding: 15px 15px; /* Reduced padding */
+        margin-top: 20px; /* Reduced margin from header */
     }
 }
 
 @media (max-width: 768px) {
     .post-detail-content {
-        padding: 20px 12px;
-        margin-top: 70px;
+        padding: 12px 12px; /* Reduced padding */
+        margin-top: 15px; /* Reduced margin from header */
     }
     
     .post-card-detail {
-        padding: 20px;
+        padding: 12px; /* Reduced padding for mobile */
     }
     
     .post-owner-info {
@@ -826,4 +1050,622 @@ body {
 .viewer-indicator.active {
     background: white;
     transform: scale(1.2);
+}
+/* Reply Indicator Styles */
+.reply-indicator {
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+    animation: slideDown 0.3s ease;
+}
+
+.reply-indicator-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cancel-reply-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.cancel-reply-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Comment Replies Styles */
+.comment-replies-container {
+    margin-top: 10px;
+    padding-left: 20px;
+    border-left: 2px solid #e0e0e0;
+}
+
+.comment-reply {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    animation: fadeIn 0.3s ease;
+}
+
+.comment-reply:last-child {
+    margin-bottom: 0;
+}
+
+.comment-avatar-small {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-top: 4px;
+}
+
+.reply-to-text {
+    font-size: 12px;
+    color: #666;
+    margin-left: 5px;
+    font-style: italic;
+}
+
+/* Comment Actions */
+.comment-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 8px;
+}
+
+.comment-action-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.comment-action-btn:hover {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.comment-action-btn.liked {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.comment-action-btn.liked:hover {
+    color: var(--primary-dark);
+    background: rgba(62, 180, 137, 0.2);
+}
+
+.view-replies-btn {
+    color: #007bff;
+}
+
+.view-replies-btn:hover {
+    background: rgba(0, 123, 255, 0.1);
+}
+
+/* Animations */
+@keyframes slideDown {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* Nếu bạn muốn tạo file CSS riêng hoặc thêm vào file CSS hiện tại */
+
+/* Style cho nút xem reply - XANH LÁ CÂY */
+.view-replies-btn {
+    background: none;
+    border: none;
+    color: #28a745 !important;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.view-replies-btn:hover {
+    background: rgba(40, 167, 69, 0.1);
+    color: #218838 !important;
+}
+
+.view-replies-btn .fa-comments {
+    color: #28a745;
+}
+
+.view-replies-btn:hover .fa-comments {
+    color: #218838;
+}
+
+.view-replies-btn .reply-count {
+    font-weight: 600;
+    color: #28a745;
+}
+
+.view-replies-btn:hover .reply-count {
+    color: #218838;
+}
+
+.view-replies-btn .toggle-icon {
+    color: #28a745;
+    font-size: 10px;
+    transition: transform 0.3s;
+}
+
+/* Hiệu ứng khi mở replies */
+.comment-replies-container {
+    border-left: 2px solid #28a745;
+    margin-left: 20px;
+    padding-left: 15px;
+    margin-top: 10px;
+}
+
+.comment-reply .reply-to-text {
+    color: #28a745;
+    font-weight: 500;
+}
+
+/* Post Likes Modal */
+.post-likes-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.post-likes-modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+}
+
+.post-likes-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.post-likes-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.close-post-likes-modal {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 5px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.close-post-likes-modal:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.post-likes-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    max-height: 400px;
+}
+
+.post-likes-user-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.post-likes-user-item:hover {
+    background: var(--hover-bg);
+}
+
+.post-likes-user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border);
+}
+
+.post-likes-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.post-likes-user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.post-likes-user-username {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.post-likes-user-icon {
+    color: var(--primary);
+    font-size: 16px;
+}
+
+.post-likes-loading,
+.post-likes-empty,
+.post-likes-error {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.post-likes-loading i {
+    font-size: 24px;
+    margin-bottom: 12px;
+    color: var(--primary);
+}
+
+.post-likes-empty i,
+.post-likes-error i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.post-likes-empty p,
+.post-likes-error p {
+    margin: 0;
+    font-size: 16px;
+}
+
+.post-likes-error i {
+    color: #e74c3c;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .post-likes-modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 20px;
+    }
+    
+    .post-likes-user-item {
+        padding: 10px;
+    }
+    
+    .post-likes-user-avatar {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Share Modal Styles */
+.share-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.share-modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+.share-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.share-modal-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.share-modal-header h3 i {
+    color: #3eb489;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #666;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-modal:hover {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.share-modal-body {
+    padding: 20px;
+}
+
+.share-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.share-option-btn {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+}
+
+.share-option-btn:hover {
+    background: #f8f9fa;
+    border-color: #3eb489;
+    color: #3eb489;
+}
+
+.share-option-btn i {
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Share to Profile Modal Styles */
+.share-modal-content.share-to-profile {
+    max-width: 500px;
+}
+
+.share-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.share-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #3eb489;
+}
+
+.share-user {
+    display: flex;
+    flex-direction: column;
+}
+
+.share-username {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+}
+
+.share-label {
+    font-size: 13px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.share-input-container {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.share-input {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    background: #fafafa;
+}
+
+.share-input:focus {
+    border-color: #3eb489;
+    background: white;
+}
+
+.share-input-counter {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 12px;
+    color: #999;
+}
+
+.privacy-options {
+    margin-bottom: 20px;
+}
+
+.privacy-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.privacy-label i {
+    color: #3eb489;
+}
+
+.privacy-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.privacy-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: white;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.privacy-btn:hover {
+    border-color: #3eb489;
+    color: #3eb489;
+}
+
+.privacy-btn.active {
+    background: #3eb489;
+    color: white;
+    border-color: #3eb489;
+}
+
+.privacy-btn i {
+    font-size: 12px;
+}
+
+.btn-submit-share {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-submit-share:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.btn-submit-share:active {
+    transform: translateY(0);
 }

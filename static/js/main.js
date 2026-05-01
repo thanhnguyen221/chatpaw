@@ -6,7 +6,8 @@ import {
   setupConversationClickEvents,
   setupSendMessage,
   setupMessageStatus,
-  setupMessageContextMenu 
+  setupMessageContextMenu,
+  setupConversationContextMenu
 } from './socket/chat.js';
 
 // Bạn bè
@@ -28,7 +29,8 @@ import {
   setupGroupSocketEvents,
   openGroupChat,
   addGroupToList,
-  setupGroupClickEvents 
+  setupGroupClickEvents,
+  setupGroupSidebarContextMenu
 } from './socket/group.js';
 
 // QUAN TRỌNG: Import từ chat_input.js
@@ -36,6 +38,7 @@ import { initFileSharing, setCurrentConversation as setFileConversation } from '
 
 // --- LƯU Ý: ĐÃ XÓA IMPORT CALL.JS CŨ ĐỂ TRÁNH LỖI ---
 
+// ====== DOM đã sẵn sàng ======
 // ====== DOM đã sẵn sàng ======
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[Main] DOM loaded');
@@ -82,15 +85,41 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMessageActions();
     console.log('[Main] setupMessageActions OK');
     
+    // Gắn context menu chuột phải cho tin nhắn
+    setupMessageContextMenu();
+    console.log('[Main] setupMessageContextMenu OK');
+    
+    // 13/12/2025 - Gắn context menu chuột phải cho từng hội thoại 1v1 trong sidebar
+    setupConversationContextMenu();
+    console.log('[Main] setupConversationContextMenu OK');
+    // 13/12/2025 - Gắn context menu chuột phải cho item nhóm trong sidebar
+    setupGroupSidebarContextMenu();
+    console.log('[Main] setupGroupSidebarContextMenu OK');
+
     setupGroupClickEvents();
     console.log('[Main] setupGroupClickEvents OK');
 
     setupTabSwitching();
     console.log('[Main] setupTabSwitching OK');
+
+    // 🔥 [MỚI] TỰ ĐỘNG JOIN PHÒNG CÁ NHÂN (Để nhận cuộc gọi 1v1 bất cứ lúc nào)
+    socket.on('connect', () => {
+        console.log('✅ [Main] Socket connected');
+        
+        // Lấy ID của chính mình từ giao diện (Avatar góc trái)
+        const userAvatar = document.querySelector('.user-avatar');
+        const myId = userAvatar ? userAvatar.dataset.userId : null;
+
+        if (myId) {
+            console.log('🔗 Joining private user room:', myId);
+            socket.emit('join_user_room', { user_id: myId });
+        }
+    });
   } catch (e) {
     console.error('[Main] Initialization failed:', e);
   }
 });
+
 
 
 // ====== CÁC HÀM TIỆN ÍCH & LOGIC CHUYỂN TAB ======
@@ -174,16 +203,29 @@ window.openGroupChat = (groupId, groupName) => {
 function setupTabSwitching() {
   let currentTab = 'conversations';
   
-  document.querySelectorAll('.mini-sidebar button').forEach(btn => {
+  // Handle tab buttons in sidebar
+  document.querySelectorAll('.sidebar-tabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       if (currentTab === tab) return;
       currentTab = tab;
 
-      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
-      const selected = document.getElementById('tab-' + tab);
-      if (selected) selected.classList.add('active');
+      // Update active state on tab buttons
+      document.querySelectorAll('.sidebar-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
 
+      // Show corresponding panel section
+      document.querySelectorAll('.panel-section').forEach(sec => {
+        sec.classList.remove('active');
+        sec.style.display = 'none';
+      });
+      const selectedPanel = document.getElementById('tab-' + tab);
+      if (selectedPanel) {
+        selectedPanel.style.display = 'block';
+        selectedPanel.classList.add('active');
+      }
+
+      // Load data based on tab
       if (tab === 'contacts') fetchFriends();
       else if (tab === 'requests') fetchFriendRequests();
       else if (tab === 'groups') loadUserGroups();
@@ -371,8 +413,6 @@ function maybeShowBrowserNotification({ title, messagePreview, conversationId, c
 }
 
 // Export globals
-window.pinMessage = window.pinMessage || function(){};
-window.unpinMessage = window.unpinMessage || function(){};
 window.editMessage = window.editMessage || function(){};
 window.deleteMessage = window.deleteMessage || function(){};
 window.startEditMessage = window.startEditMessage || function(){};

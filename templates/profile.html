@@ -3,239 +3,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ profile_user.username }} - PAW TALK</title>
+    <title>{{ profile_user.full_name or profile_user.username }} - PAW TALK</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        /* Clickable card header */
+        .card-header.clickable {
+            transition: background-color 0.2s ease;
+        }
+        .card-header.clickable:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
 </head>
-<body>
-<!-- Side Navigation -->
-<button class="nav-toggle" id="nav-toggle">
-    <i class="fas fa-bars"></i>
-</button>
-
-<div class="nav-overlay" id="nav-overlay"></div>
-
-<aside class="side-nav" id="side-nav">
-    <div class="nav-header">
-        <div class="nav-logo">PT</div>
-        <div class="nav-title">PAW TALK</div>
-    </div>
-    
-    <nav class="nav-menu">
-        <a href="/chat" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-home"></i>
+<body class="modern-timeline">
+    <!-- Modern Navigation -->
+    <nav class="modern-nav">
+        <div class="nav-brand">
+            <div class="nav-logo-circle">
+                <i class="fas fa-paw"></i>
             </div>
-            <span class="nav-text">Trang chủ</span>
-        </a>
+            <span class="nav-brand-text">PAW TALK</span>
+        </div>
         
-        <a href="/profile/{{ profile_user.username }}" class="nav-item active">
-            <div class="nav-icon">
-                <i class="fas fa-user"></i>
-            </div>
-            <span class="nav-text">Trang cá nhân</span>
-        </a>
-        
-        <a href="/friend_requests_page" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-user-friends"></i>
-            </div>
-            <span class="nav-text">Lời mời kết bạn</span>
-            <span class="nav-badge" id="friend-requests-nav-badge" style="display: none;">0</span>
-        </a>
-        
-        <div class="nav-divider"></div>
-        
-        <a href="/messages" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-comments"></i>
-            </div>
-            <span class="nav-text">Tin nhắn</span>
-            <span class="nav-badge show">5</span>
-        </a>
-        
-        <a href="/notifications" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-bell"></i>
-            </div>
-            <span class="nav-text">Thông báo</span>
-            <span class="nav-badge" id="notifications-nav-badge" style="display: none;">0</span>
-        </a>
-        
-        <div class="nav-divider"></div>
-        
-        <a href="/settings" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-cog"></i>
-            </div>
-            <span class="nav-text">Cài đặt</span>
-        </a>
-        
-        <a href="/logout" class="nav-item">
-            <div class="nav-icon">
-                <i class="fas fa-sign-out-alt"></i>
-            </div>
-            <span class="nav-text">Đăng xuất</span>
-        </a>
-    </nav>
-</aside>
-    <!-- Sửa dòng này -->
-<div class="profile-container" data-user-id="{{ profile_user._id }}" data-current-user-id="{{ current_user_id }}">
-    {% if profile_user._id|string != current_user_id %}
-    <div class="back-to-my-profile-container">
-        <button class="back-to-my-profile-btn" id="back-to-my-profile-btn">
-            <i class="fas fa-arrow-left"></i>
-            <span>Trang của tôi</span>
-        </button>
-    </div>
-    {% endif %}
-        <!-- Integrated Profile Header with Cover and Hero -->
-        <section class="profile-header">
-            <div class="header-background">
-                {% if profile_user.cover_photo %}
-                <img src="{{ profile_user.cover_photo }}" alt="Cover photo" class="cover-image">
-                {% else %}
-                <div class="cover-placeholder">
-                    <i class="fas fa-mountain"></i>
-                    <span>Ảnh bìa</span>
+        <div class="nav-main">
+            <a href="/chat" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                <i class="fas fa-comment"></i>
                 </div>
-                {% endif %}
-                
-                {% if profile_user._id|string == current_user_id %}
-                <div class="cover-actions">
-                    <button class="cover-btn" id="change-cover-btn">
-                        <i class="fas fa-camera"></i>
-                        Đổi ảnh bìa
-                    </button>
-                </div>
-                {% endif %}
-            </div>
+                <span class="nav-text-modern">Tin nhắn</span>
+            </a>
             
-            <div class="header-content">
-                <div class="profile-identity">
-                    <div class="avatar-container">
-                        <img src="{{ user_avatar }}" alt="Avatar" class="profile-avatar">
-                        <div class="online-status"></div>
-                    </div>
-                    
-                    <div class="profile-info">
-                        <h1 class="profile-name">{{ profile_user.username }}</h1>
-                     
-                        <div class="profile-stats">
-                            <div class="stat">
-                                <span class="stat-number">{{ posts|length }}</span>
-                                <span class="stat-label">Bài viết</span>
-                            </div>
-                            <div class="stat">
-                                <!-- SỬA DÒNG NÀY: XÓA THẺ <aside> THỪA -->
-                                <span class="stat-number">{{ profile_user.friends|length if profile_user.friends else 0 }}</span>
-                                <span class="stat-label">Bạn bè</span>
-                            </div>
-                            <div class="stat">
-                                <span class="stat-number">0</span>
-                                <span class="stat-label">Lượt thích</span>
-                            </div>
-                        </div>
-                    </div>
+            <a href="/profile/{{ profile_user.username }}" class="nav-item-modern active">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-user"></i>
                 </div>
-            <!-- Trong phần profile-actions -->
-                <div class="profile-actions">
-                    {% if profile_user._id|string == current_user_id %}
-                    <button id="edit-profile-btn" class="btn btn-primary">
-                        <i class="fas fa-pen-to-square"></i>
-                        Chỉnh sửa
-                    </button>
-                    {% else %}
-                    <!-- Hiển thị cho profile người khác -->
-                    <div class="friend-actions">
-                        {% if is_friend %}
-                        <!-- Đã là bạn bè -->
-                        <button class="btn btn-outline" id="send-message-btn">
-                            <i class="fas fa-paper-plane"></i>
-                            Nhắn tin
-                        </button>
-                        <button class="btn btn-outline" id="unfriend-btn">
-                            <i class="fas fa-user-times"></i>
-                            Hủy kết bạn
-                        </button>
-                        {% else %}
-                        <!-- Chưa là bạn bè -->
-                        <button class="btn btn-primary" id="add-friend-btn">
-                            <i class="fa-solid fa-user-plus"></i>
-                            Kết bạn
-                        </button>
-                        <button class="btn btn-outline" id="send-message-btn">
-                            <i class="fas fa-paper-plane"></i>
-                            Nhắn tin
-                        </button>
-                        {% endif %}
-                        <button class="btn btn-outline" id="more-actions-btn">
-                            <i class="fas fa-ellipsis-h"></i>
-                        </button>
-                    </div>
+                <span class="nav-text-modern">Trang cá nhân</span>
+            </a>
+            
+            <a href="/timeline" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-stream"></i>
+                </div>
+                <span class="nav-text-modern">Dòng thời gian</span>
+            </a>
+            
+            <a href="/friend_requests_page" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <span class="nav-text-modern">Bạn bè</span>
+                <span class="modern-badge" id="friend-requests-badge">0</span>
+            </a>
+            
+            <a href="/notifications" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <span class="nav-text-modern">Thông báo</span>
+                <span class="modern-badge" id="notifications-badge">0</span>
+            </a>
+            
+        <div class="nav-bottom">
+            <a href="/settings" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span class="nav-text-modern">Cài đặt</span>
+            </a>
+            
+            <a href="/logout" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <span class="nav-text-modern">Đăng xuất</span>
+            </a>
+        </div>
+    </nav>
+
+<div class="profile-container" data-user-id="{{ profile_user._id }}" data-current-user-id="{{ current_user_id }}">
+    
+    <!-- Integrated Profile Header with Cover and Hero -->
+    <section class="profile-header">
+        <div class="header-background">
+            {% if profile_user.cover_photo %}
+            <img src="{{ profile_user.cover_photo }}" alt="Cover photo" class="cover-image">
+            {% else %}
+            <div class="cover-placeholder">
+                <i class="fas fa-mountain"></i>
+            </div>
+            {% endif %}
+            
+            {% if profile_user._id|string == current_user_id %}
+            <div class="cover-actions">
+                <button class="cover-btn" id="change-cover-btn">
+                    <i class="fas fa-camera"></i>
+                    Đổi ảnh bìa
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="header-content">
+            <div class="profile-identity">
+                <div class="avatar-container">
+                    <img src="{{ user_avatar }}" alt="Avatar" class="profile-avatar">
+                    {% if profile_user.online %}
+                    <div class="online-status"></div>
                     {% endif %}
                 </div>
-            </div>
-        </section>
-
-        <!-- Main Content -->
-        <main class="profile-main">
-            <!-- Left Column - Posts -->
-            <div class="posts-column">
-                <!-- Create Post (only for profile owner) -->
-                {% if profile_user._id|string == current_user_id %}
-                <!-- Trong phần create-post -->
-                <section class="create-post">
-                    <div class="post-input-container">
-                        <textarea id="post-content" class="post-input" placeholder="Hôm nay bạn muốn chia sẻ điều gì? 🌟"></textarea>
-                    </div>
+                
+                <div class="profile-info">
+                    <h1 class="profile-name">{{ profile_user.full_name or profile_user.username }}</h1>
                     
-                    <!-- Media Preview với grid layout -->
-                    <div id="media-preview" class="media-preview-grid"></div>
-                    
-                    <div class="post-actions">
-                        <div class="media-buttons">
-                            <!-- Thay đổi nút ảnh để hỗ trợ multiple -->
-                            <button id="add-image-btn" type="button" class="media-btn">
-                                <i class="fi fi-rr-picture"></i>
-                                Ảnh/Video
-                            </button>
-                            <!-- Xóa nút video riêng vì đã gộp chung -->
-                            <input type="file" id="media-upload" multiple accept="image/*,video/*" class="file-input" style="display: none;">
+                    <div class="profile-stats">
+                        <div class="stat">
+                            <span class="stat-number">{{ posts|length }}</span>
+                            <span class="stat-label">Bài viết</span>
                         </div>
-                        <button id="submit-post" class="btn btn-primary btn-sm">
-                            <i class="fi fi-br-paper-plane"></i>
-                            Đăng bài
+                        <div class="stat">
+                            <span class="stat-number">{{ profile_user.friends|length if profile_user.friends else 0 }}</span>
+                            <span class="stat-label">Bạn bè</span>
+                        </div>
+                        <!-- Thay vì gọi trực tiếp từ main blueprint, gọi từ profile_likes blueprint -->
+                        <div class="stat profile-likes-stat" id="profile-likes-stat" 
+                        data-user-id="{{ profile_user._id }}"
+                        onclick="showProfileLikersModal('{{ profile_user._id }}')"
+                        style="cursor: pointer;">
+                        <span class="stat-number" id="profile-likes-count">0</span>
+                        <span class="stat-label">Lượt thích</span>
+                        </div>
+
+                        <!-- Nút thích profile -->
+                        <button class="btn btn-outline {% if current_user_has_liked_profile %}liked{% endif %}" 
+                        id="like-profile-btn"
+                        data-user-id="{{ profile_user._id }}">
+                        <i class="fas fa-heart"></i>
+                        <span id="like-profile-text">
+                        {% if current_user_has_liked_profile %}Đã thích{% else %}Thích trang{% endif %}
+                        </span>
+                        <span class="like-count-badge" id="like-profile-count">0</span>
                         </button>
                     </div>
-                </section>
+                </div>
+            </div>
+            
+            <!-- Profile Actions -->
+            <div class="profile-actions">
+                {% if profile_user._id|string == current_user_id %}
+                <button id="edit-profile-btn" class="btn btn-primary">
+                    <i class="fas fa-pen-to-square"></i>
+                    Chỉnh sửa
+                </button>
+                {% else %}
+                <!-- Hiển thị cho profile người khác -->
+                <div class="friend-actions">
+                    {% if is_friend %}
+                    <!-- Đã là bạn bè -->
+                    <button class="btn btn-outline" id="send-message-btn">
+                        <i class="fas fa-paper-plane"></i>
+                        Nhắn tin
+                    </button>
+                    <button class="btn btn-outline" id="unfriend-btn">
+                        <i class="fas fa-user-minus"></i>
+                        Hủy kết bạn
+                    </button>
+                    {% else %}
+                    <!-- Chưa là bạn bè -->
+                    <button class="btn btn-primary" id="add-friend-btn">
+                        <i class="fas fa-user-plus"></i>
+                        Kết bạn
+                    </button>
+                    <button class="btn btn-outline" id="send-message-btn">
+                        <i class="fas fa-paper-plane"></i>
+                        Nhắn tin
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-outline" id="more-actions-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
                 {% endif %}
+            </div>
+        </div>
+    </section>
 
-                <!-- Posts Feed -->
-                <div class="posts-feed">
+    <!-- Main Content -->
+    <main class="profile-main">
+        <!-- Left Column - Posts -->
+        <div class="posts-column">
+            <!-- Create Post (only for profile owner) -->
+            {% if profile_user._id|string == current_user_id %}
+            <section class="create-post">
+                <div class="post-input-container">
+                    <textarea id="post-content" class="post-input" placeholder="Hôm nay bạn muốn chia sẻ điều gì? 🌟" oninput="handleTagInput(this)" rows="4"></textarea>
+                    
+                    <!-- Tagged Friends Display -->
+                    <div id="tagged-friends-container" class="tagged-friends-container" style="display: none;">
+                        <div class="tagged-friends-label">Đang gắn thẻ:</div>
+                        <div id="tagged-friends-list" class="tagged-friends-list"></div>
+                    </div>
+                    
+                    <!-- Friend Tagging Dropdown -->
+                    <div id="friend-tag-dropdown" class="friend-tag-dropdown" style="display: none;">
+                        <div class="friend-tag-search">
+                            <input type="text" id="friend-search-input" placeholder="Tìm kiếm bạn bè..." autocomplete="off">
+                            <div class="search-results" id="friend-search-results"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Privacy Selector - Custom Dropdown -->
+                    <div class="privacy-selector-profile">
+                        <div class="custom-privacy-dropdown" id="privacy-dropdown">
+                            <button type="button" class="privacy-dropdown-trigger" onclick="togglePrivacyDropdown()">
+                                <span id="selected-privacy-icon"><i class="fas fa-globe-asia"></i></span>
+                                <span id="selected-privacy-text">Công khai</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </button>
+                            <div class="privacy-dropdown-menu" id="privacy-dropdown-menu">
+                                <div class="privacy-option" data-value="public" onclick="selectPrivacy('public')">
+                                    <div class="privacy-option-icon"><i class="fas fa-globe-asia"></i></div>
+                                    <div class="privacy-option-info">
+                                        <div class="privacy-option-title">Công khai</div>
+                                        <div class="privacy-option-desc">Mọi người đều có thể xem</div>
+                                    </div>
+                                </div>
+                                <div class="privacy-option" data-value="friends" onclick="selectPrivacy('friends')">
+                                    <div class="privacy-option-icon"><i class="fas fa-user-friends"></i></div>
+                                    <div class="privacy-option-info">
+                                        <div class="privacy-option-title">Bạn bè</div>
+                                        <div class="privacy-option-desc">Chỉ bạn bè của bạn</div>
+                                    </div>
+                                </div>
+                                <div class="privacy-option" data-value="private" onclick="selectPrivacy('private')">
+                                    <div class="privacy-option-icon"><i class="fas fa-lock"></i></div>
+                                    <div class="privacy-option-info">
+                                        <div class="privacy-option-title">Chỉ mình tôi</div>
+                                        <div class="privacy-option-desc">Chỉ bạn mới có thể xem</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="profile-post-privacy" value="public">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Media Preview với grid layout -->
+                <div id="media-preview" class="media-preview-grid"></div>
+                
+                <div class="post-actions">
+                    <div class="media-buttons">
+                        <button id="add-image-btn" type="button" class="media-btn">
+                            <i class="fi fi-rr-picture"></i>
+                            Ảnh/Video
+                        </button>
+                        <button type="button" class="media-btn" onclick="tagFriends()">
+                            <i class="fas fa-tag"></i>
+                            Gắn thẻ bạn bè
+                        </button>
+                        <input type="file" id="media-upload" multiple accept="image/*,video/*" class="file-input" style="display: none;">
+                    </div>
+                    <button id="submit-post" class="btn btn-primary btn-sm">
+                        <i class="fi fi-br-paper-plane"></i>
+                        Đăng bài
+                    </button>
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Posts Feed -->
+            <div class="posts-feed">
+                {% if posts %}
                     {% for post in posts %}
-                    <article class="post-card" data-post-id="{{ post._id }}">
+                    <article class="post-card {% if post.is_shared %}shared-post{% endif %}" 
+                        data-post-id="{{ post._id }}"
+                        data-is-shared="{{ post.is_shared|default(false) }}"
+                        data-original-post-id="{{ post.original_post_id|default('') }}"
+                        data-tagged-friends='{{ post.tagged_friends|default([])|tojson|safe }}'>
+
+                        <!-- HEADER -->
                         <div class="post-header">
                             <img src="{{ user_avatar }}" alt="Avatar" class="post-avatar">
                             <div class="post-meta">
-                                <div class="post-author">{{ profile_user.username }}</div>
-                                <div class="post-time">
-                                    <i class="fi fi-rr-clock"></i>
-                                    {{ post.created_at.strftime('%d/%m/%Y %H:%M') if post.created_at else '' }}
-                                    {% if post.edited %}
-                                    <span class="edited-badge">(đã chỉnh sửa)</span>
+                                <div class="post-author">
+                                    <strong>{{ profile_user.full_name or profile_user.username }}</strong>
+                                    <span class="post-time">
+                                        <i class="fi fi-rr-clock"></i>
+                                        {{ post.created_at | format_time }}
+                                        {% if post.edited %}<span class="edited-badge">(đã chỉnh sửa)</span>{% endif %}
+                                    </span>
+                                </div>
+                                
+                                {% if post.privacy %}
+                                <div class="post-privacy">
+                                    {% if post.privacy == 'private' or post.privacy == 'only_me' %}
+                                        <i class="fas fa-lock"></i>
+                                        <span>Chỉ mình tôi</span>
+                                    {% elif post.privacy == 'friends' %}
+                                        <i class="fas fa-user-friends"></i>
+                                        <span>Bạn bè</span>
+                                    {% else %}
+                                        <i class="fas fa-globe-asia"></i>
+                                        <span>Công khai</span>
                                     {% endif %}
                                 </div>
+                                {% else %}
+                                <div class="post-privacy">
+                                    <i class="fas fa-globe-asia"></i>
+                                    <span>Công khai</span>
+                                </div>
+                                {% endif %}
                             </div>
                             
-                            <!-- Post Actions Dropdown -->
+                            <!-- Menu chỉnh sửa -->
                             {% if profile_user._id|string == current_user_id %}
                             <div class="post-actions-dropdown">
-                                <button class="post-menu-btn">
-                                    <i class="fas fa-ellipsis-h"></i>
-                                </button>
+                                <button class="post-menu-btn"><i class="fas fa-ellipsis-h"></i></button>
                                 <div class="post-menu-content">
                                     <button class="post-menu-item edit-post-btn" data-post-id="{{ post._id }}">
                                         <i class="fas fa-edit"></i> Chỉnh sửa
@@ -247,222 +333,419 @@
                             </div>
                             {% endif %}
                         </div>
-                        
+
+                        <!-- NỘI DUNG CHIA SẺ -->
+                        {% if post.content %}
                         <div class="post-content" id="post-content-{{ post._id }}">
                             {{ post.content }}
                         </div>
-                        
-                        <!-- PHẦN CAROUSEL ĐÃ SỬA Ở TRÊN -->
-                        {% if post.media_urls %}
-                        <div class="post-media-carousel" data-media-count="{{ post.media_urls|length }}">
-                            <div class="carousel-container" id="carousel-{{ post._id }}" 
-                                 onclick="openMediaViewer('{{ post._id }}', 0)" 
-                                 style="cursor: pointer;">
-                                {% for media in post.media_urls %}
-                                <div class="carousel-slide {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}">
-                                    {% if media.type == 'image' %}
-                                    <img src="{{ media.url }}" alt="Post image" loading="lazy">
-                                    {% elif media.type == 'video' %}
-                                    <video controls class="post-media-item">
-                                        <source src="{{ media.url }}" type="video/mp4">
-                                        Trình duyệt không hỗ trợ video.
-                                    </video>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
+                        {% endif %}
+                        {% if post.is_shared and post.original_post %}
+                        <div class="shared-post-embed" onclick="viewOriginalPost('{{ post.original_post_id }}')" style="cursor: pointer;">
+                            <div class="shared-post-header">
+                                <img src="{{ post.original_post.owner_avatar or url_for('static', filename='img/default-avatar.png') }}" 
+                                     alt="{{ post.original_post.owner_full_name or post.original_post.owner_username }}" 
+                                     class="shared-avatar">
                                 
-                                 <!-- Navigation - KHÔNG mở viewer -->
-                                <div class="carousel-nav">
-                                    <button class="carousel-btn prev-btn" onclick="carouselPrev('{{ post._id }}', event)">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </button>
-                                    <button class="carousel-btn next-btn" onclick="carouselNext('{{ post._id }}', event)">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                </div>
-                                
-                                <!-- Indicators - KHÔNG mở viewer -->
-                                <div class="carousel-indicators">
-                                    {% for media in post.media_urls %}
-                                    <button class="carousel-indicator {% if loop.first %}active{% endif %}" 
-                                            onclick="carouselGoTo('{{ post._id }}', {{ loop.index0 }}, event)"></button>
-                                    {% endfor %}
-                                </div>
-                                
-                                <!-- Counter -->
-                                <div class="carousel-counter">
-                                    <span class="current-slide">1</span> / <span class="total-slides">{{ post.media_urls|length }}</span>
+                                <div class="shared-meta">
+                                    <a href="/profile/{{ post.original_post.owner_username }}" class="shared-author" onclick="event.stopPropagation()">
+                                        {{ post.original_post.owner_full_name or post.original_post.owner_username }}
+                                    </a>
+                                    <span class="shared-time">
+                                        {{ post.original_post.created_at | format_time if post.original_post.created_at else '' }}
+                                    </span>
                                 </div>
                             </div>
+
+                            {% if post.original_post.content %}
+                            <div class="shared-content">
+                                {{ post.original_post.content }}
+                            </div>
+                            {% endif %}
+
+                            {% if post.original_post.media_urls %}
+                            <div class="shared-media-preview">
+                                {% set media = post.original_post.media_urls[0] %}
+                                {% if media.type == 'image' %}
+                                    <img src="{{ media.url }}" class="shared-media-item">
+                                {% elif media.type == 'video' %}
+                                    <video src="{{ media.url }}" controls class="shared-media-item"></video>
+                                {% endif %}
+                                
+                                {% if post.original_post.media_urls|length > 1 %}
+                                <div class="shared-media-more">
+                                    +{{ post.original_post.media_urls|length - 1 }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
+                        {% endif %}
+
+                        <!-- MEDIA -->
+                        {% if post.media_urls and post.media_urls|length > 0 and not post.is_shared %}
+                        <div class="post-media-carousel" data-media-count="{{ post.media_urls|length }}">
+                        <div class="carousel-container" id="carousel-{{ post._id }}"
+                                onclick="openMediaViewer('{{ post._id }}', 0)" style="cursor:pointer;">
+                            {% for media in post.media_urls %}
+                            <div class="carousel-slide {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}">
+                                {% if media.type == 'image' %}
+                                <img src="{{ media.url }}" alt="Post image" loading="lazy">
+                                {% elif media.type == 'video' %}
+                                <video controls class="post-media-item">
+                                    <source src="{{ media.url }}" type="video/mp4">
+                                </video>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                            
+                            <div class="carousel-nav">
+                                <button class="carousel-btn prev-btn" onclick="carouselPrev('{{ post._id }}', event)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <button class="carousel-btn next-btn" onclick="carouselNext('{{ post._id }}', event)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="carousel-indicators">
+                                {% for _ in post.media_urls %}
+                                <button class="carousel-indicator {% if loop.first %}active{% endif %}"
+                                        onclick="carouselGoTo('{{ post._id }}', {{ loop.index0 }}, window.event)">
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <div class="carousel-counter">
+                                <span class="current-slide">1</span> / 
+                                <span class="total-slides">{{ post.media_urls|length }}</span>
+                            </div>
+                        </div>
+                    </div>
                     {% endif %}
-                        
+                        <!-- INTERACTION STATS -->
                         <div class="post-stats">
-                            <div class="post-stat like-btn {% if current_user_id in post.likes %}liked{% endif %}" 
-                                  data-post-id="{{ post._id }}">
+                            <div class="post-stat like-btn {% if current_user_id in post.likes %}liked{% endif %}"
+                                 data-post-id="{{ post._id }}">
                                 <i class="fas fa-heart"></i>
                                 <span class="like-count">{{ post.likes|length }}</span>
                             </div>
-                            
                             <div class="post-stat comment-toggle" data-post-id="{{ post._id }}">
                                 <i class="fas fa-comment"></i>
-                                <span class="comment-count">{{ post.comments|length }}</span>
+                                <span class="comment-count" id="comment-count-{{ post._id }}">
+                                    {{ post.comments|length if post.comments else 0 }}
+                                </span>
                             </div>
-                            
-                            <div class="post-stat">
-                                <i class="fi fi-rr-share"></i>
-                                <span>Chia sẻ</span>
+                            <div class="post-stat share-btn" data-post-id="{{ post._id }}">
+                                <i class="fa-solid fa-share-nodes"></i>
+                                <span>{{ post.shares or 0 }} chia sẻ</span>
                             </div>
                         </div>
-                        
-                        <!-- Comments Section -->
-              <!-- Comments Section -->
-                    <div id="comments-{{ post._id }}" class="comments-section">
-                        <div class="comments-list">
-                            {% for comment in post.comments %}
-                            <div class="comment-item">
-                                <img src="{{ comment.user_avatar }}" 
-                                    alt="Avatar" 
-                                    class="comment-avatar"
-                                    onerror="this.src='{{ url_for('static', filename='img/default-avatar.png') }}'">
-                                <div class="comment-content">
-                                    <div class="comment-author">{{ comment.username }}</div>
-                                    <p class="comment-text">{{ comment.content }}</p>
-                                    <div class="comment-time">
-                                        {{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment.created_at else '' }}
+
+                        <!-- COMMENTS SECTION -->
+                        <div id="comments-{{ post._id }}" class="comments-section">
+                            <div class="comments-list" id="comments-list-{{ post._id }}">
+                                {% for comment in post.comments %}
+                                {% if comment %}
+                                <div class="comment-item" data-comment-id="{{ comment.id }}" data-post-id="{{ post._id }}">
+                                    <!-- Avatar -->
+                                    <div class="comment-avatar-container">
+                                        <img src="{{ comment.user_avatar or url_for('static', filename='img/default-avatar.png') }}"
+                                             alt="{{ comment.full_name or comment.username }}"
+                                             class="comment-avatar"
+                                             onerror="this.src='/static/img/default-avatar.png'">
+                                        {% if comment.online %}
+                                        <div class="comment-avatar-status"></div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Comment Content -->
+                                    <div class="comment-content">
+                                        <!-- Author Info -->
+                                        <div class="comment-header">
+                                            <span class="comment-author">{{ comment.full_name or comment.username }}</span>
+                                            {% if comment.reply_to_username %}
+                                            <span class="reply-to">→ @{{ comment.reply_to_username }}</span>
+                                            {% endif %}
+                                            <span class="comment-time">{{ comment.created_at | format_time }}</span>
+                                            {% if comment.edited %}
+                                            <span class="edited-badge">(đã chỉnh sửa)</span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Comment Text -->
+                                        <div class="comment-text">{{ comment.content }}</div>
+                                        
+                                        <!-- Comment Actions -->
+                                        <div class="comment-actions">
+                                            <!-- Like Button -->
+                                            <button class="btn btn-link btn-sm like-comment-btn"
+                                                    data-post-id="{{ post._id }}"
+                                                    data-comment-id="{{ comment.id }}">
+                                                <i class="fas fa-heart"></i>
+                                                <span class="like-count">{{ comment.likes|length if comment.likes else 0 }}</span>
+                                            </button>
+                                            
+                                            <!-- Reply Button -->
+                                            <button class="btn btn-link btn-sm reply-action-btn"
+                                                    data-post-id="{{ post._id }}"
+                                                    data-comment-id="{{ comment.id }}"
+                                                    onclick="startReplyToComment('{{ post._id }}', '{{ comment.id }}', '{{ comment.username }}')">
+                                                <i class="fas fa-reply"></i> Trả lời
+                                            </button>
+                                            
+                                            <!-- View Replies Button (only if has replies) -->
+                                            {% if comment.replies and comment.replies|length > 0 %}
+                                            <button class="btn btn-link btn-sm view-replies-btn"
+                                                    data-post-id="{{ post._id }}"
+                                                    data-comment-id="{{ comment.id }}"
+                                                    onclick="toggleReplies('{{ post._id }}', '{{ comment.id }}')">
+                                                <i class="fas fa-comments"></i>
+                                                <span class="reply-count">{{ comment.replies|length }}</span> trả lời
+                                                <i class="fas fa-chevron-down toggle-icon"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Replies Container -->
+                                        {% if comment.replies and comment.replies|length > 0 %}
+                                        <div class="comment-replies-container" id="replies-{{ post._id }}-{{ comment.id }}" style="display: none;">
+                                            <div class="comment-replies" id="replies-list-{{ post._id }}-{{ comment.id }}">
+                                                {% for reply in comment.replies %}
+                                                {% if reply %}
+                                                <!-- Reply Item -->
+                                                <div class="comment-reply" data-comment-id="{{ reply.id }}" data-post-id="{{ post._id }}" {% if reply.reply_to %}data-reply-to="{{ reply.reply_to }}"{% endif %}>
+                                                    <!-- Reply Avatar -->
+                                                    <div class="comment-avatar-container">
+                                                        <img src="{{ reply.user_avatar or url_for('static', filename='img/default-avatar.png') }}"
+                                                             alt="{{ reply.full_name or reply.username }}"
+                                                             class="comment-avatar"
+                                                             onerror="this.src='/static/img/default-avatar.png'">
+                                                        {% if reply.online %}
+                                                        <div class="comment-avatar-status"></div>
+                                                        {% endif %}
+                                                    </div>
+                                                    
+                                                    <!-- Reply Content -->
+                                                    <div class="comment-content">
+                                                        <!-- Reply Author Info -->
+                                                        <div class="comment-header">
+                                                            <span class="comment-author">{{ reply.full_name or reply.username }}</span>
+                                                            {% if reply.reply_to_username %}
+                                                            <span class="reply-to">→ @{{ reply.reply_to_username }}</span>
+                                                            {% endif %}
+                                                            <span class="comment-time">{{ reply.created_at | format_time }}</span>
+                                                            {% if reply.edited %}
+                                                            <span class="edited-badge">(đã chỉnh sửa)</span>
+                                                            {% endif %}
+                                                        </div>
+                                                        
+                                                        <!-- Reply Text -->
+                                                        <div class="comment-text">{{ reply.content }}</div>
+                                                        
+                                                        <!-- Reply Actions -->
+                                                        <div class="comment-actions">
+                                                            <!-- Like Button for Reply -->
+                                                            <button class="btn btn-link btn-sm like-comment-btn"
+                                                                    data-post-id="{{ post._id }}"
+                                                                    data-comment-id="{{ reply.id }}"
+                                                                    data-reply-id="{{ reply.id }}">
+                                                                <i class="fas fa-heart"></i>
+                                                                <span class="like-count">{{ reply.likes|length if reply.likes else 0 }}</span>
+                                                            </button>
+                                                            
+                                                            <!-- Reply Button for Reply -->
+                                                            <button class="btn btn-link btn-sm reply-action-btn"
+                                                                    data-post-id="{{ post._id }}"
+                                                                    data-comment-id="{{ reply.id }}"
+                                                                    onclick="startReplyToComment('{{ post._id }}', '{{ reply.id }}', '{{ reply.username }}')">
+                                                                <i class="fas fa-reply"></i> Trả lời
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- ADD COMMENT SECTION -->
+                            <div class="add-comment-section">
+                                <!-- Reply Info Display (shown when replying) -->
+                                <div class="reply-info-display" id="reply-info-{{ post._id }}" style="display: none;">
+                                    <div class="reply-info-content">
+                                        <i class="fas fa-reply"></i>
+                                        <span class="reply-info-text">
+                                            Đang trả lời: <strong id="reply-to-name-{{ post._id }}"></strong>
+                                        </span>
+                                        <button type="button" class="btn btn-link btn-sm cancel-reply-btn" 
+                                                onclick="cancelReply('{{ post._id }}')">
+                                            <i class="fas fa-times"></i> Hủy
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area" id="comment-input-area-{{ post._id }}">
+                                    <!-- Current User Avatar -->
+                                    <div class="comment-avatar-container">
+                                        <img src="{{ current_user.avatar or url_for('static', filename='img/default-avatar.png') }}"
+                                             alt="Avatar của bạn"
+                                             class="comment-avatar-small"
+                                             onerror="this.src='/static/img/default-avatar.png'">
+                                    </div>
+                                    
+                                    <!-- Comment Input Form -->
+                                    <div class="comment-input-wrapper">
+                                        <textarea class="comment-input"
+                                                  id="comment-input-{{ post._id }}"
+                                                  data-post-id="{{ post._id }}"
+                                                  placeholder="Viết bình luận..."
+                                                  rows="1"
+                                                  oninput="autoResizeTextarea(this)"></textarea>
+                                        
+                                        <!-- Comment Actions -->
+                                        <div class="comment-input-actions">
+                                            <!-- Character Counter -->
+                                            <div class="char-counter" id="char-counter-{{ post._id }}"></div>
+                                            
+                                            <!-- Submit Button -->
+                                            <button type="button" 
+                                                    class="btn btn-primary btn-sm comment-submit-btn"
+                                                    id="submit-comment-{{ post._id }}"
+                                                    onclick="addComment('{{ post._id }}')">
+                                                <i class="fas fa-paper-plane"></i> 
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
-                        
-                        <div class="add-comment">
-                            <input type="text" id="comment-input-{{ post._id }}" class="comment-input" 
-                                placeholder="Viết bình luận..." data-post-id="{{ post._id }}">
-                            <button class="btn btn-primary btn-sm comment-submit-btn" data-post-id="{{ post._id }}">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                    </div>
                     </article>
-                    {% else %}
-                    <div class="no-posts">
-                        <i class="fas fa-feather"></i>
-                        <p>Chưa có bài viết nào được chia sẻ.</p>
-                        {% if profile_user._id|string == current_user_id %}
-                        <p class="no-posts-hint">Hãy bắt đầu chia sẻ khoảnh khắc đầu tiên của bạn!</p>
-                        {% endif %}
-                    </div>
                     {% endfor %}
-                </div>
-            </div>
-            <!-- Right Column - Sidebar -->
-            <aside class="sidebar-column">
-                <!-- Friends Card -->
-                <div class="sidebar-card">
-                    <div class="card-header">
-                        <div class="card-icon">
-                            <i class="fa-regular fa-user-group"></i>
-                        </div>
-                        <h3 class="card-title">Bạn bè</h3>
-                        <span class="friends-count" id="friends-count">
-                            {{ profile_user.friends|length if profile_user.friends else 0 }} người bạn
-                        </span>
-                    </div>
-                    
-                    <!-- CHỈ HIỂN THỊ CHO CHÍNH NGƯỜI DÙNG -->
+                {% else %}
+                <div class="no-posts">
+                    <i class="fas fa-feather"></i>
+                    <p>Chưa có bài viết nào được chia sẻ.</p>
                     {% if profile_user._id|string == current_user_id %}
-                    <div class="friends-grid" id="friends-grid">
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Đang tải bạn bè...</span>
-                        </div>
-                    </div>
-                    
-                    <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllFriends()" style="display: none;" id="view-all-friends-btn">
-                        <i class="fi fi-rr-search"></i> Xem tất cả bạn bè
-                    </button>
-                    {% else %}
-                    <!-- HIỂN THỊ THÔNG BÁO KHI XEM PROFILE NGƯỜI KHÁC -->
-                    <div class="friends-restricted">
-                        <div class="restricted-message">
-                            <i class="fas fa-lock"></i>
-                            <p>Bạn bè đã được bảo mật</p>
-                        </div>
-                    </div>
+                    <p class="no-posts-hint">Hãy bắt đầu chia sẻ khoảnh khắc đầu tiên của bạn!</p>
                     {% endif %}
                 </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Right Column - Sidebar -->
+        <aside class="sidebar-column">
+            <!-- Friends Card -->
+            <div class="sidebar-card">
+                <div class="card-header clickable" onclick="viewAllFriends()" style="cursor: pointer;">
+                    <div class="card-icon">
+                        <i class="fa-regular fa-user-group"></i>
+                    </div>
+                    <h3 class="card-title">Bạn bè</h3>
+                    <span class="friends-count" id="friends-count">
+                        {{ profile_user.friends|length if profile_user.friends else 0 }} người bạn
+                    </span>
+                </div>
+                
+                <!-- CHỈ HIỂN THỊ CHO CHÍNH NGƯỜI DÙNG -->
+                {% if profile_user._id|string == current_user_id %}
+                <div class="friends-grid" id="friends-grid">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Đang tải bạn bè...</span>
+                    </div>
+                </div>
+                
+                <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllFriends()" style="display: none;" id="view-all-friends-btn">
+                    <i class="fi fi-rr-search"></i> Xem tất cả bạn bè
+                </button>
+                {% else %}
+                <!-- HIỂN THỊ THÔNG BÁO KHI XEM PROFILE NGƯỜI KHÁC -->
+                <div class="friends-restricted">
+                    <div class="restricted-message">
+                        <i class="fas fa-lock"></i>
+                        <p>Bạn bè đã được bảo mật</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
 
-                <!-- Photos Card -->
-                <div class="sidebar-card">
-                    <div class="card-header">
-                        <div class="card-icon">
-                            <i class="fa-solid fa-images"></i>
-                        </div>
-                        <h3 class="card-title">Ảnh gần đây</h3>
-                        <span class="photos-count" id="photos-count">Đang tải...</span>
+            <!-- Photos Card -->
+            <div class="sidebar-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fa-solid fa-images"></i>
                     </div>
-                    
-                    <div class="photos-grid" id="photos-grid">
-                        <!-- Loading state sẽ được thay thế bằng JS -->
-                        <div class="loading-state">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Đang tải ảnh...</span>
-                        </div>
+                    <h3 class="card-title">Ảnh gần đây</h3>
+                    <span class="photos-count" id="photos-count">Đang tải...</span>
+                </div>
+                
+                <div class="photos-grid" id="photos-grid">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Đang tải ảnh...</span>
                     </div>
-                    
-                    <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllPhotos()" style="display: none;" id="view-all-photos-btn">
-                        <i class="fi fi-rr-gallery"></i> Xem tất cả ảnh
+                </div>
+                
+                <button class="btn btn-outline btn-sm view-all-btn" onclick="viewAllPhotos()" style="display: none;" id="view-all-photos-btn">
+                    <i class="fi fi-rr-gallery"></i> Xem tất cả ảnh
+                </button>
+            </div>
+        </aside>
+    </main>
+</div>
+
+<!-- Edit Post Modal -->
+<div id="edit-post-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Chỉnh sửa bài viết</h3>
+            <button class="close-btn" id="close-edit-post-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="edit-post-form">
+                <input type="hidden" id="edit-post-id">
+                <div class="form-group">
+                    <textarea id="edit-post-content" class="post-input" placeholder="Nội dung bài viết..." rows="5"></textarea>
+                </div>
+                <div id="edit-media-preview" class="media-preview"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="cancel-edit-post">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="submit-edit-post">
+                        <i class="fas fa-save"></i> Lưu thay đổi
                     </button>
                 </div>
-            </aside>
-        </main>
-    </div>
-
-    <!-- Edit Post Modal -->
-    <div id="edit-post-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Chỉnh sửa bài viết</h3>
-                <button class="close-btn" id="close-edit-post-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="edit-post-form">
-                    <input type="hidden" id="edit-post-id">
-                    <div class="form-group">
-                        <textarea id="edit-post-content" class="post-input" placeholder="Nội dung bài viết..." rows="5"></textarea>
-                    </div>
-                    <div id="edit-media-preview" class="media-preview"></div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-outline" id="cancel-edit-post">Hủy</button>
-                        <button type="submit" class="btn btn-primary" id="submit-edit-post">
-                            <i class="fas fa-save"></i> Lưu thay đổi
-                        </button>
-                    </div>
-                </form>
-            </div>
+            </form>
         </div>
     </div>
+</div>
 
-    <!-- Confirmation Modal -->
-    <div id="confirmation-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-body">
-                <div class="confirmation-dialog">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #e74c3c; margin-bottom: 16px;"></i>
-                    <h3>Xác nhận xóa</h3>
-                    <p>Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.</p>
-                    <div class="dialog-actions">
-                        <button type="button" class="btn btn-outline" id="cancel-delete">Hủy</button>
-                        <button type="button" class="btn btn-danger" id="confirm-delete">
-                            <i class="fas fa-trash"></i> Xóa
-                        </button>
-                    </div>
+<!-- Confirmation Modal -->
+<div id="confirmation-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-body">
+            <div class="confirmation-dialog">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #e74c3c; margin-bottom: 16px;"></i>
+                <h3>Xác nhận xóa</h3>
+                <p>Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.</p>
+                <div class="dialog-actions">
+                    <button type="button" class="btn btn-outline" id="cancel-delete">Hủy</button>
+                    <button type="button" class="btn btn-danger" id="confirm-delete">
+                        <i class="fas fa-trash"></i> Xóa
+                    </button>
                 </div>
             </div>
         </div>
     </div>
-    <!-- Edit Profile Modal -->
+</div>
+
+<!-- Edit Profile Modal -->
 <div id="edit-profile-modal" class="modal">
     <div class="modal-content profile-modal">
         <div class="modal-header">
@@ -521,13 +804,32 @@
                     </div>
                 </div>
 
-                <!-- Cover Photo Section -->
-                <div class="form-group">
-                    <label>Ảnh bìa</label>
-                    <button type="button" class="btn btn-outline btn-sm" id="change-cover-btn">
-                        <i class="fas fa-camera"></i> Đổi ảnh bìa
-                    </button>
-                    <input type="file" id="cover-upload" accept="image/*" style="display: none;">
+                <!-- Additional Profile Fields -->
+                <div class="form-grid" style="margin-top: 20px;">
+                    <div class="form-group full-width">
+                        <label for="edit-bio">Giới thiệu bản thân</label>
+                        <textarea id="edit-bio" class="form-input" rows="3" placeholder="Mô tả về bản thân..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-workplace">Nơi làm việc</label>
+                        <input type="text" id="edit-workplace" class="form-input" placeholder="Công ty/Trường học">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-location">Vị trí</label>
+                        <input type="text" id="edit-location" class="form-input" placeholder="Thành phố/Địa điểm">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-education">Học vấn</label>
+                        <input type="text" id="edit-education" class="form-input" placeholder="Trường học/Bằng cấp">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-interests">Sở thích</label>
+                        <input type="text" id="edit-interests" class="form-input" placeholder="Thể thao, Âm nhạc, Du lịch...">
+                    </div>
                 </div>
 
                 <div class="modal-actions">
@@ -540,6 +842,7 @@
         </div>
     </div>
 </div>
+
 <!-- Fullscreen Media Viewer Modal -->
 <div id="media-viewer-modal" class="media-viewer-modal">
     <div class="media-viewer-content">
@@ -582,131 +885,235 @@
         </div>
     </div>
 </div>
-    <!-- Load JavaScript trước -->
-    <script type="module" src="{{ url_for('static', filename='js/socket/profile.js') }}"></script>
-    <script>
-        // Biến toàn cục để kiểm tra đã khởi tạo chưa
-        let profileManagerInitialized = false;
+
+<!-- Load JavaScript -->
+<script type="module" src="{{ url_for('static', filename='js/shared/share_modal.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/shared/post_interactions.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/profile_likes.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/socket/profile.js') }}"></script>
+<script src="{{ url_for('static', filename='js/universal-chat.js') }}"></script>
+<script>
+    // Biến toàn cục để kiểm tra đã khởi tạo chưa
+    let profileManagerInitialized = false;
     
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            // CHỈ KHỞI TẠO MỘT LẦN
-            if (profileManagerInitialized) return;
-            profileManagerInitialized = true;
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // CHỈ KHỞI TẠO MỘT LẦN
+        if (profileManagerInitialized) return;
+        profileManagerInitialized = true;
+        
+        console.log('Initializing profile page from inline script...');
+        
+        // Ẩn tất cả comments sections
+        document.querySelectorAll('.comments-section').forEach(function(section) {
+            section.style.display = 'none';
+        });
+        
+        // Khởi tạo Profile Manager - CHỈ MỘT LẦN
+        if (typeof ProfileManager !== 'undefined' && !window.profileManager) {
+            window.profileManager = new ProfileManager();
+            console.log('ProfileManager initialized from inline script');
+        }
+        
+        // Khởi tạo Profile Editor nếu modal tồn tại
+        if (typeof ProfileEditor !== 'undefined' && document.getElementById('edit-profile-modal')) {
+            window.profileEditor = new ProfileEditor();
+            console.log('ProfileEditor initialized from inline script');
+        }
+        
+        console.log('Inline script initialization completed');
+    });
     
-            console.log('Initializing profile page from inline script...');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Đợi để đảm bảo tất cả comments đã được render
+        setTimeout(() => {
+            console.log('🔄 Initializing replies toggle from inline script...');
             
-            // Ẩn tất cả comments sections
-            document.querySelectorAll('.comments-section').forEach(function(section) {
-                section.style.display = 'none';
+            // Gọi hàm initializeRepliesToggle nếu nó tồn tại
+            if (typeof initializeRepliesToggle === 'function') {
+                initializeRepliesToggle();
+            } else {
+                console.warn('⚠️ initializeRepliesToggle function not found, trying fallback...');
+                // Fallback: tự khởi tạo
+                initRepliesToggleFallback();
+            }
+        }, 1000); // Đợi 1 giây để đảm bảo tất cả đã load
+    });
+    
+    // Fallback function nếu hàm chính không tồn tại
+    function initRepliesToggleFallback() {
+        console.log('🔧 Using fallback replies toggle initialization');
+        
+        document.querySelectorAll('.view-replies-btn').forEach(btn => {
+            const postId = btn.dataset.postId;
+            const commentId = btn.dataset.commentId;
+            
+            if (!postId || !commentId) {
+                console.warn('Button missing data attributes', btn);
+                return;
+            }
+            
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const repliesContainer = document.getElementById(`replies-${postId}-${commentId}`);
+                if (!repliesContainer) {
+                    console.warn('Replies container not found');
+                    return;
+                }
+                
+                if (repliesContainer.style.display === 'none' || repliesContainer.style.display === '') {
+                    repliesContainer.style.display = 'block';
+                    this.classList.add('expanded');
+                    const icon = this.querySelector('.toggle-icon');
+                    if (icon) icon.className = 'fas fa-chevron-up toggle-icon';
+                } else {
+                    repliesContainer.style.display = 'none';
+                    this.classList.remove('expanded');
+                    const icon = this.querySelector('.toggle-icon');
+                    if (icon) icon.className = 'fas fa-chevron-down toggle-icon';
+                }
             });
             
-            // Khởi tạo Profile Manager - CHỈ MỘT LẦN
-            if (typeof ProfileManager !== 'undefined' && !window.profileManager) {
-                window.profileManager = new ProfileManager();
-                console.log('ProfileManager initialized from inline script');
+            // Ẩn replies mặc định
+            const repliesContainer = document.getElementById(`replies-${postId}-${commentId}`);
+            if (repliesContainer) {
+                repliesContainer.style.display = 'none';
             }
-            
-            // Khởi tạo Profile Editor nếu modal tồn tại
-            if (typeof ProfileEditor !== 'undefined' && document.getElementById('edit-profile-modal')) {
-                window.profileEditor = new ProfileEditor();
-                console.log('ProfileEditor initialized from inline script');
-            }
-            
-            console.log('Inline script initialization completed');
         });
+        
+        console.log('✅ Fallback replies toggle initialized');
+    }
     
-        // Xử lý đổi ảnh bìa
-        document.addEventListener('DOMContentLoaded', function() {
-            const changeCoverBtn = document.getElementById('change-cover-btn');
-            
-            if (changeCoverBtn) {
-                changeCoverBtn.addEventListener('click', function() {
-                    // Kích hoạt input file ẩn từ ProfileManager
-                    if (window.profileManager && window.profileManager.coverUploadInput) {
-                        window.profileManager.coverUploadInput.click();
-                    } else {
-                        console.error('ProfileManager not initialized');
-                        alert('Hệ thống chưa sẵn sàng. Vui lòng thử lại sau.');
+    // Xử lý đổi ảnh bìa
+    document.addEventListener('DOMContentLoaded', function() {
+        const changeCoverBtn = document.getElementById('change-cover-btn');
+        
+        if (changeCoverBtn) {
+            changeCoverBtn.addEventListener('click', function() {
+                // Kích hoạt input file ẩn từ ProfileManager
+                if (window.profileManager && window.profileManager.coverUploadInput) {
+                    window.profileManager.coverUploadInput.click();
+                } else {
+                    console.error('ProfileManager not initialized');
+                    alert('Hệ thống chưa sẵn sàng. Vui lòng thử lại sau.');
+                }
+            });
+        } else {
+            console.warn('Change cover button not found');
+        }
+    });
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Đợi một chút để đảm bảo DOM đã render xong
+        setTimeout(function() {
+            // Lặp qua tất cả các bài viết
+            document.querySelectorAll('.post-card').forEach(function(postElement) {
+                const postId = postElement.dataset.postId;
+                if (postId) {
+                    // Gọi hàm updateCommentCount
+                    if (typeof updateCommentCount === 'function') {
+                        updateCommentCount(postId);
                     }
-                });
-            } else {
-                console.warn('Change cover button not found');
-            }
-        });
+                }
+            });
+        }, 500); // Đợi 500ms
+    });
     
-        // Carousel Functions - Simple implementation
-        function carouselPrev(postId) {
-            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
-            if (!carousel) return;
-            
-            const currentSlide = carousel.querySelector('.carousel-slide.active');
-            const slides = carousel.querySelectorAll('.carousel-slide');
-            const currentIndex = parseInt(currentSlide.dataset.index);
-            
-            let prevIndex = currentIndex - 1;
-            if (prevIndex < 0) {
-                prevIndex = slides.length - 1;
-            }
-            
-            goToSlide(carousel, prevIndex);
+    // Carousel Functions
+    function carouselPrev(postId, event) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
         }
+        
+        const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+        if (!carousel) return;
+        
+        const currentSlide = carousel.querySelector('.carousel-slide.active');
+        const slides = carousel.querySelectorAll('.carousel-slide');
+        const currentIndex = parseInt(currentSlide.dataset.index);
+        
+        let prevIndex = currentIndex - 1;
+        if (prevIndex < 0) {
+            prevIndex = slides.length - 1;
+        }
+        
+        goToSlide(carousel, prevIndex);
+    }
     
-        function carouselNext(postId) {
-            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
-            if (!carousel) return;
-            
-            const currentSlide = carousel.querySelector('.carousel-slide.active');
-            const slides = carousel.querySelectorAll('.carousel-slide');
-            const currentIndex = parseInt(currentSlide.dataset.index);
-            
-            let nextIndex = currentIndex + 1;
-            if (nextIndex >= slides.length) {
-                nextIndex = 0;
-            }
-            
-            goToSlide(carousel, nextIndex);
+    function carouselNext(postId, event) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
         }
+        
+        const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+        if (!carousel) return;
+        
+        const currentSlide = carousel.querySelector('.carousel-slide.active');
+        const slides = carousel.querySelectorAll('.carousel-slide');
+        const currentIndex = parseInt(currentSlide.dataset.index);
+        
+        let nextIndex = currentIndex + 1;
+        if (nextIndex >= slides.length) {
+            nextIndex = 0;
+        }
+        
+        goToSlide(carousel, nextIndex);
+    }
     
-        function carouselGoTo(postId, index) {
-            const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
-            if (!carousel) return;
-            
-            goToSlide(carousel, index);
+    function carouselGoTo(postId, index, event) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
         }
+        
+        const carousel = document.querySelector(`[data-post-id="${postId}"] .post-media-carousel`);
+        if (!carousel) return;
+        
+        goToSlide(carousel, index);
+    }
     
-        function goToSlide(carousel, newIndex) {
-            const slides = carousel.querySelectorAll('.carousel-slide');
-            const indicators = carousel.querySelectorAll('.carousel-indicator');
-            const counter = carousel.querySelector('.carousel-counter .current-slide');
-            
-            if (newIndex < 0 || newIndex >= slides.length) return;
-            
-            // Ẩn slide hiện tại
-            carousel.querySelector('.carousel-slide.active').classList.remove('active');
-            carousel.querySelector('.carousel-indicator.active').classList.remove('active');
-            
-            // Hiển thị slide mới
-            slides[newIndex].classList.add('active');
-            indicators[newIndex].classList.add('active');
-            
-            // Cập nhật counter
-            if (counter) {
-                counter.textContent = newIndex + 1;
-            }
+    function goToSlide(carousel, newIndex) {
+        const slides = carousel.querySelectorAll('.carousel-slide');
+        const indicators = carousel.querySelectorAll('.carousel-indicator');
+        const counter = carousel.querySelector('.carousel-counter .current-slide');
+        
+        if (newIndex < 0 || newIndex >= slides.length) return;
+        
+        // Ẩn slide hiện tại
+        carousel.querySelector('.carousel-slide.active').classList.remove('active');
+        carousel.querySelector('.carousel-indicator.active').classList.remove('active');
+        
+        // Hiển thị slide mới
+        slides[newIndex].classList.add('active');
+        indicators[newIndex].classList.add('active');
+        
+        // Cập nhật counter
+        if (counter) {
+            counter.textContent = newIndex + 1;
         }
-        function viewFriendRequests() {
-    window.location.href = '/friend_requests_page';
-}
-async function loadNotificationCount() {
+    }
+    
+    function viewFriendRequests() {
+        window.location.href = '/friend_requests_page';
+    }
+    
+    async function loadNotificationCount() {
         try {
             const response = await fetch('/api/notifications/count');
             const data = await response.json();
             
-            const badge = document.getElementById('notifications-nav-badge');
+            const badge = document.getElementById('notifications-badge');
             if (badge && data.count > 0) {
                 badge.textContent = data.count > 99 ? '99+' : data.count;
-                badge.style.display = 'inline';
+                badge.style.display = 'flex';
+                badge.classList.add('has-notifications');
+            } else if (badge) {
+                badge.style.display = 'none';
+                badge.classList.remove('has-notifications');
             }
         } catch (error) {
             console.error('Error loading notification count:', error);
@@ -719,10 +1126,14 @@ async function loadNotificationCount() {
             const response = await fetch('/friend_requests_count');
             const data = await response.json();
             
-            const badge = document.getElementById('friend-requests-nav-badge');
+            const badge = document.getElementById('friend-requests-badge');
             if (badge && data.count > 0) {
                 badge.textContent = data.count > 99 ? '99+' : data.count;
-                badge.style.display = 'inline';
+                badge.style.display = 'flex';
+                badge.classList.add('has-notifications');
+            } else if (badge) {
+                badge.style.display = 'none';
+                badge.classList.remove('has-notifications');
             }
         } catch (error) {
             console.error('Error loading friend requests count:', error);
@@ -751,9 +1162,16 @@ async function loadNotificationCount() {
         loadFriendRequestsCount();
         loadMessageCount();
         
-        // Set up real-time updates with Socket.IO
+        // Set up real-time updates with Socket.IO với cấu hình ngrok
         if (typeof io !== 'undefined') {
-            const socket = io();
+            const socket = io({
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 2000,
+                reconnectionDelayMax: 10000,
+                timeout: 60000,
+                transports: ['websocket', 'polling']
+            });
             
             // Listen for new notifications
             socket.on('new_notification', (data) => {
@@ -762,7 +1180,20 @@ async function loadNotificationCount() {
             
             // Listen for new friend requests
             socket.on('new_friend_request', (data) => {
+                // Cập nhật số lượng lời mời khi nhận được yêu cầu mới
                 loadFriendRequestsCount();
+            });
+            
+            // Cập nhật badge khi nhận thông báo mới qua socket
+            socket.on('new_notification', (data) => {
+                // Cập nhật số lượng thông báo khi nhận được thông báo mới
+                loadNotificationCount();
+            });
+            
+            // Cập nhật badge khi thông báo được đọc
+            socket.on('notification_read', (data) => {
+                // Cập nhật số lượng thông báo khi thông báo được đọc
+                loadNotificationCount();
             });
             
             // Listen for new messages
@@ -776,31 +1207,717 @@ async function loadNotificationCount() {
             });
         }
     });
-
-        // Cập nhật badge số lượng lời mời
-        function updateFriendRequestsBadge(count) {
-            const badge = document.getElementById('friend-requests-badge');
-            if (badge) {
-                if (count > 0) {
-                    badge.textContent = count;
-                    badge.style.display = 'inline';
-                } else {
-                    badge.style.display = 'none';
-                }
+    
+    // Cập nhật badge số lượng lời mời
+    function updateFriendRequestsBadge(count) {
+        const badge = document.getElementById('friend-requests-badge');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
             }
         }
-
-        // Gọi hàm này khi có lời mời mới
+    }
+    
+    // Gọi hàm này khi có lời mời mới
+    if (window.socket) {
+        window.socket.on('new_friend_request', (data) => {
+            // Cập nhật badge
+            updateFriendRequestsBadge(/* số lượng mới */);
+        });
+    }
+    
+    // Export functions to global scope
+    window.carouselPrev = carouselPrev;
+    window.carouselNext = carouselNext;
+    window.carouselGoTo = carouselGoTo;
+    window.goToSlide = goToSlide;
+    
+    // View All Friends function
+    window.viewAllFriends = function() {
+        window.location.href = '/friend_requests_page#friends';
+    };
+    
+    // ====== 🔥 FLOATING CHAT & NOTIFICATIONS (GIỐNG TIMELINE) ======
+    let currentFloatingChat = null;
+    
+    // Container thông báo
+    const notifContainer = document.createElement('div');
+    notifContainer.id = 'in-app-notifications-container';
+    notifContainer.style.cssText = `
+        position: fixed; top: 80px; right: 20px; z-index: 9998;
+        display: flex; flex-direction: column; gap: 10px; max-width: 350px;
+    `;
+    document.body.appendChild(notifContainer);
+    
+    // Floating chat widget
+    const floatingWidget = document.createElement('div');
+    floatingWidget.id = 'floating-chat-widget';
+    floatingWidget.style.cssText = `
+        display: none; position: fixed; bottom: 20px; right: 20px;
+        width: 380px; height: 500px; background: white; border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 9999;
+        flex-direction: column; overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    floatingWidget.innerHTML = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img id="floating-chat-avatar" src="" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3);">
+                <div>
+                    <div id="floating-chat-name" style="font-weight: 600; font-size: 15px;"></div>
+                    <div style="font-size: 12px; opacity: 0.8;">Đang hoạt động</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="startCallFromPage('audio')" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-phone"></i></button>
+                <button onclick="startCallFromPage('video')" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-video"></i></button>
+                <button onclick="closeFloatingChat()" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div id="floating-chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; background: #f8f9fa; display: flex; flex-direction: column; gap: 10px;">
+            <div style="text-align: center; color: #999; font-size: 13px; padding: 20px;">Chọn cuộc trò chuyện để bắt đầu</div>
+        </div>
+        <div style="padding: 15px; background: white; border-top: 1px solid #e0e0e0; display: flex; gap: 10px;">
+            <input type="text" id="floating-chat-input" placeholder="Nhập tin nhắn..." style="flex: 1; padding: 12px 15px; border: 1px solid #e0e0e0; border-radius: 20px; outline: none; font-size: 14px;" onkeypress="if(event.key==='Enter') sendFloatingMessage()">
+            <button onclick="sendFloatingMessage()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; width: 40px; height: 40px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    `;
+    document.body.appendChild(floatingWidget);
+    
+    // Thêm socket listeners cho thông báo
+    if (window.socket) {
+        window.socket.on('group_message', (data) => {
+            const myId = window.session?.user_id;
+            if (String(data.sender_id) === String(myId)) return;
+            showNotification({
+                title: data.group_name || 'Nhóm',
+                message: `${data.sender_name || 'Ai đó'}: ${data.content?.substring(0, 50) || 'Tin nhắn mới'}`,
+                avatar: data.sender_avatar,
+                conversationId: data.group_id,
+                conversationType: 'group'
+            });
+        });
+        
+        window.socket.on('receive_message', (data) => {
+            const myId = window.session?.user_id;
+            if (String(data.sender_id) === String(myId) || data.conversation_type === 'group') return;
+            showNotification({
+                title: data.sender_name || 'Tin nhắn mới',
+                message: data.content?.substring(0, 50) || 'Tin nhắn mới',
+                avatar: data.sender_avatar,
+                conversationId: data.conversation_id,
+                conversationType: 'private'
+            });
+        });
+        
+        window.socket.on('call:incoming_notification', (data) => {
+            showCallNotification(data);
+        });
+    }
+    
+    function showNotification({ title, message, avatar, conversationId, conversationType }) {
+        const container = document.getElementById('in-app-notifications-container');
+        const notif = document.createElement('div');
+        notif.style.cssText = `
+            background: white; border-radius: 12px; padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: flex; align-items: center; gap: 12px;
+            cursor: pointer; animation: slideInRight 0.3s ease;
+            border-left: 4px solid ${conversationType === 'group' ? '#667eea' : '#3eb489'};
+        `;
+        notif.innerHTML = `
+            <img src="${avatar || '/static/img/default-avatar.png'}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover;">
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 3px;">
+                    ${title}
+                    <span style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: ${conversationType === 'group' ? '#667eea' : '#3eb489'}; color: white; margin-left: 6px;">${conversationType === 'group' ? 'NHÓM' : 'CHAT'}</span>
+                </div>
+                <div style="color: #666; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${message}</div>
+            </div>
+            <button onclick="event.stopPropagation(); this.parentElement.remove()" style="background: none; border: none; color: #999; cursor: pointer;"><i class="fas fa-times"></i></button>
+        `;
+        notif.onclick = () => { openFloatingChat(conversationId, conversationType, title, avatar); notif.remove(); };
+        container.appendChild(notif);
+        setTimeout(() => notif.remove(), 5000);
+        while (container.children.length > 3) container.firstChild.remove();
+    }
+    
+    function showCallNotification(data) {
+        const container = document.getElementById('in-app-notifications-container');
+        const notif = document.createElement('div');
+        const isGroup = data.conversation_type === 'group';
+        notif.style.cssText = `
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px; padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: flex; align-items: center; gap: 12px;
+            color: white; animation: slideInRight 0.3s ease;
+        `;
+        const title = isGroup ? (data.room_name || 'Cuộc gọi nhóm') : (data.caller?.username || 'Cuộc gọi đến');
+        const message = isGroup ? `${data.caller?.username || 'Ai đó'} đang gọi nhóm...` : 'đang gọi cho bạn...';
+        notif.innerHTML = `
+            <div style="position: relative;">
+                <img src="${data.caller?.avatar || '/static/img/default-avatar.png'}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid white;">
+                <div style="position: absolute; bottom: -2px; right: -2px; background: #ff3b30; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="fas fa-phone" style="font-size: 8px;"></i></div>
+            </div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 15px; margin-bottom: 3px;">${title}</div>
+                <div style="font-size: 13px; opacity: 0.9;">${message}</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="event.stopPropagation(); declineCall('${data.conversation_id}')" style="background: rgba(255,255,255,0.2); border: none; width: 36px; height: 36px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-phone-slash"></i></button>
+                <button onclick="event.stopPropagation; acceptCall('${data.conversation_id}', '${data.conversation_type}', '${data.call_id}', '${data.call_mode}')" style="background: #3eb489; border: none; width: 36px; height: 36px; border-radius: 50%; color: white; cursor: pointer;"><i class="fas fa-phone"></i></button>
+            </div>
+        `;
+        container.appendChild(notif);
+        const ringtone = new Audio('/static/sounds/ringtone.mp3');
+        ringtone.loop = true;
+        ringtone.play().catch(() => {});
+        notif.ringtone = ringtone;
+        setTimeout(() => { if (notif.ringtone) notif.ringtone.pause(); notif.remove(); }, 30000);
+    }
+    
+    function openFloatingChat(conversationId, type, name, avatar) {
+        currentFloatingChat = { conversationId, type, name, avatar };
+        document.getElementById('floating-chat-widget').style.display = 'flex';
+        document.getElementById('floating-chat-name').textContent = name;
+        document.getElementById('floating-chat-avatar').src = avatar || '/static/img/default-avatar.png';
         if (window.socket) {
-            window.socket.on('new_friend_request', (data) => {
-                // Cập nhật badge
-                updateFriendRequestsBadge(/* số lượng mới */);
+            window.socket.emit(type === 'group' ? 'join_group' : 'join_conversation', 
+                type === 'group' ? { group_id: conversationId } : { conversation_id: conversationId });
+        }
+    }
+    
+    function closeFloatingChat() {
+        document.getElementById('floating-chat-widget').style.display = 'none';
+        if (currentFloatingChat && window.socket) {
+            window.socket.emit(currentFloatingChat.type === 'group' ? 'leave_group' : 'leave_conversation', {
+                [currentFloatingChat.type === 'group' ? 'group_id' : 'conversation_id']: currentFloatingChat.conversationId
             });
         }
-        // Export functions to global scope
-        window.carouselPrev = carouselPrev;
-        window.carouselNext = carouselNext;
-        window.carouselGoTo = carouselGoTo;
-    </script>
+        currentFloatingChat = null;
+    }
+    
+    function sendFloatingMessage() {
+        const input = document.getElementById('floating-chat-input');
+        const content = input.value.trim();
+        if (!content || !currentFloatingChat || !window.socket) return;
+        const { conversationId, type } = currentFloatingChat;
+        window.socket.emit(type === 'group' ? 'send_group_message' : 'send_message', 
+            type === 'group' ? { group_id: conversationId, content, message_type: 'text' } : { conversation_id: conversationId, content, message_type: 'text' });
+        input.value = '';
+    }
+    
+    function startCallFromPage(mode) {
+        if (!currentFloatingChat) { alert('Vui lòng mở cuộc trò chuyện trước'); return; }
+        const { conversationId, type, name } = currentFloatingChat;
+        if (type === 'group') {
+            window.socket.emit('call:invite_group', { conversation_id: conversationId, conversation_type: 'group', call_mode: mode });
+        } else {
+            fetch(`/api/conversation/${conversationId}`).then(r => r.json()).then(data => {
+                const myId = window.session?.user_id;
+                const recipient = data.participants?.find(p => String(p) !== String(myId));
+                if (recipient) {
+                    window.socket.emit('call:invite_private', { conversation_id: conversationId, recipient_id: recipient, conversation_type: 'private', call_mode: mode });
+                }
+            });
+        }
+        alert(`Đang gọi ${name}...`);
+    }
+    
+    function acceptCall(id, type, callId, mode) {
+        window.location.href = `/chat?call=${id}&type=${type}&call_id=${callId}&mode=${mode}`;
+    }
+    
+    function declineCall(id) {
+        if (window.socket) window.socket.emit('call:decline', { conversation_id: id });
+    }
+    
+    // Animation style
+    const animStyle = document.createElement('style');
+    animStyle.textContent = '@keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
+    document.head.appendChild(animStyle);
+    
+    // Thêm currentUser object cho share modal
+    window.currentUser = {
+        id: "{{ current_user._id|string }}",
+        username: "{{ current_user.username }}",
+        full_name: "{{ current_user.full_name or current_user.username }}",
+        avatar: "{{ current_user.avatar or '/static/img/default-avatar.png' }}"
+    };
+    
+    // ==================== FRIEND TAGGING FUNCTIONALITY ====================
+    
+    // Tagging state variables
+    window.taggedFriends = [];
+    window.taggedFriendsIds = [];
+    let currentTagSearch = '';
+    let tagSearchTimeout = null;
+    
+    // Handle tag input in textarea
+    function handleTagInput(textarea) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        
+        // Check if user is typing @
+        const atMatch = textBeforeCursor.match(/@(\w[\w\s]*)?$/);
+        if (atMatch) {
+            const searchTerm = atMatch[1] || '';
+            showFriendDropdown(searchTerm);
+        } else {
+            hideFriendDropdown();
+        }
+    }
+    
+    // Show friend dropdown
+    function showFriendDropdown(searchTerm) {
+        const dropdown = document.getElementById('friend-tag-dropdown');
+        if (!dropdown) return;
+        
+        dropdown.style.display = 'block';
+        
+        // Search friends
+        if (tagSearchTimeout) {
+            clearTimeout(tagSearchTimeout);
+        }
+        
+        tagSearchTimeout = setTimeout(() => {
+            searchFriends(searchTerm);
+        }, 300);
+    }
+    
+    // Hide friend dropdown
+    function hideFriendDropdown() {
+        const dropdown = document.getElementById('friend-tag-dropdown');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+    
+    // Search friends
+    function searchFriends(searchTerm) {
+        // Don't search if query is empty
+        if (!searchTerm.trim()) {
+            displayFriendSearchResults([]);
+            return;
+        }
+        
+        fetch(`/api/timeline/friends/search?q=${encodeURIComponent(searchTerm)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    displayFriendSearchResults(data.friends);
+                } else {
+                    displayFriendSearchResults([]);
+                }
+            })
+            .catch(err => {
+                console.error('Error searching friends:', err);
+                displayFriendSearchResults([]);
+            });
+    }
+    
+    // Display friend search results
+    function displayFriendSearchResults(friends) {
+        const resultsContainer = document.getElementById('friend-search-results');
+        if (!resultsContainer) return;
+        
+        if (friends.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">Không tìm thấy bạn bè</div>';
+            return;
+        }
+        
+        resultsContainer.innerHTML = friends.map(friend => `
+            <div class="friend-search-result" onclick="selectFriendToTag(event, '${friend._id}', '${friend.username}', '${friend.full_name || friend.username}', '${friend.avatar || '/static/img/default-avatar.png'}')">
+                <img src="${friend.avatar || '/static/img/default-avatar.png'}" alt="${friend.full_name || friend.username}" class="friend-search-avatar">
+                <div class="friend-search-info">
+                    <div class="friend-search-name">${friend.full_name || friend.username}</div>
+                    <div class="friend-search-username">@${friend.username}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Main tag friends function
+    function tagFriends() {
+        console.log('[TagFriends] Loading friends list...');
+        
+        // Hiển thị loading
+        const loadingModal = document.createElement('div');
+        loadingModal.id = 'tag-friends-loading';
+        loadingModal.className = 'modern-modal';
+        loadingModal.style.display = 'flex';
+        loadingModal.innerHTML = `
+            <div class="modern-modal-content">
+                <div class="modern-modal-header">
+                    <h3>Đang tải danh sách bạn bè...</h3>
+                </div>
+                <div style="padding: 40px; text-align: center;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--primary, #3eb489);"></i>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingModal);
+        
+        // Lấy danh sách bạn bè từ API
+        fetch('/api/timeline/friends/list')
+            .then(res => {
+                console.log('[TagFriends] API response status:', res.status);
+                return res.json();
+            })
+            .then(data => {
+                console.log('[TagFriends] API response data:', data);
+                
+                // Xóa loading modal
+                loadingModal.remove();
+                
+                if (data.success && data.friends && data.friends.length > 0) {
+                    console.log(`[TagFriends] Found ${data.friends.length} friends`);
+                    showFriendsPicker(data.friends);
+                } else {
+                    console.warn('[TagFriends] No friends found or API error:', data);
+                    alert('Bạn chưa có bạn bè nào để gắn thẻ! Hãy kết bạn trước.');
+                }
+            })
+            .catch(err => {
+                console.error('[TagFriends] Error loading friends:', err);
+                loadingModal.remove();
+                
+                // Fallback: cho phép nhập tên trực tiếp
+                const friendName = prompt('Nhập tên người bạn muốn gắn thẻ (có @ ở đầu):');
+                if (friendName && friendName.trim()) {
+                    tagFriendByName(friendName.trim().replace('@', ''));
+                }
+            });
+    }
+    
+    function showFriendsPicker(friends) {
+        console.log('[showFriendsPicker] Showing', friends.length, 'friends');
+        
+        let modal = document.getElementById('tag-friends-modal');
+        if (modal) {
+            modal.remove(); // Xóa modal cũ để tạo mới
+        }
+        
+        // Tạo modal mới
+        modal = document.createElement('div');
+        modal.id = 'tag-friends-modal';
+        modal.className = 'modern-modal';
+        modal.style.display = 'flex';
+        modal.style.zIndex = '9999';
+        
+        // Tạo HTML cho từng bạn bè
+        const createFriendItem = (f, isSelected) => `
+            <div class="friend-tag-item ${isSelected ? 'selected' : ''}" 
+                 data-friend-id="${f._id}"
+                 onclick="toggleFriendSelection('${f._id}', '${f.username.replace(/'/g, "\\'")}', '${(f.full_name || f.username).replace(/'/g, "\\'")}', '${(f.avatar || '/static/img/default-avatar.png').replace(/'/g, "\\'")}')"
+                 style="padding: 12px; cursor: pointer; display: flex; align-items: center; gap: 12px; border-radius: 8px; transition: all 0.2s; border: 2px solid ${isSelected ? 'var(--primary, #3eb489)' : 'transparent'}; background: ${isSelected ? 'var(--primary-light, #e3f2fd)' : 'transparent'}; margin-bottom: 8px;">
+                <img src="${f.avatar || '/static/img/default-avatar.png'}" 
+                     style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid ${isSelected ? 'var(--primary, #3eb489)' : '#e4e6eb'};">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 14px; color: var(--text-primary, #1c1e21);">${f.full_name || f.username}</div>
+                    ${f.full_name && f.full_name !== f.username ? `<div style="font-size: 12px; color: var(--text-secondary, #65676b);">@${f.username}</div>` : ''}
+                </div>
+                <div class="selection-indicator" style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${isSelected ? 'var(--primary, #3eb489)' : '#ccd0d5'}; background: ${isSelected ? 'var(--primary, #3eb489)' : 'white'}; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;">
+                    ${isSelected ? '<i class="fas fa-check"></i>' : ''}
+                </div>
+            </div>
+        `;
+        
+        // Kiểm tra bạn bè đã được chọn chưa
+        const isFriendSelected = (friendId) => window.taggedFriends.some(tf => tf.id === friendId);
+        
+        const friendsHtml = friends.map(f => createFriendItem(f, isFriendSelected(f._id))).join('');
+        
+        // HTML cho danh sách đã chọn
+        const selectedHtml = window.taggedFriends.length > 0 ? `
+            <div style="margin-bottom: 15px; padding: 12px; background: var(--primary-light, #e3f2fd); border-radius: 8px;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--primary, #3eb489); margin-bottom: 8px;">
+                    <i class="fas fa-check-circle"></i> Đã chọn ${window.taggedFriends.length} người
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${window.taggedFriends.map(tf => `
+                        <span style="padding: 4px 10px; background: white; color: var(--primary, #3eb489); border-radius: 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--primary, #3eb489);">
+                            @${tf.username}
+                            <button onclick="event.stopPropagation(); removeTaggedFriend('${tf.id}'); showFriendsPicker(currentFriendsData);" 
+                                    style="background: none; border: none; cursor: pointer; color: var(--primary, #3eb489); padding: 0; font-size: 10px;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        ` : '';
+        
+        modal.innerHTML = `
+            <div class="modern-modal-content" style="max-width: 450px; max-height: 600px; overflow: hidden; display: flex; flex-direction: column;">
+                <div class="modern-modal-header" style="flex-shrink: 0;">
+                    <h3><i class="fas fa-user-tag"></i> Gắn thẻ bạn bè</h3>
+                    <button class="modern-modal-close" onclick="closeTagFriendsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div style="flex: 1; overflow-y: auto; padding: 15px;">
+                    ${selectedHtml}
+                    
+                    <div style="margin-bottom: 15px;">
+                        <input type="text" 
+                               id="friend-search-input" 
+                               placeholder="Tìm kiếm bạn bè..." 
+                               oninput="filterFriendsList(this.value)"
+                               style="width: 100%; padding: 10px 12px; border: 1px solid var(--border, #e4e6eb); border-radius: 20px; outline: none; font-size: 14px;">
+                    </div>
+                    
+                    <div id="friends-list-items">
+                        ${friendsHtml}
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border, #e4e6eb);">
+                        <div style="font-size: 12px; color: var(--text-secondary, #65676b); margin-bottom: 10px;">Hoặc nhập tên người dùng:</div>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" 
+                                   id="manual-friend-tag" 
+                                   placeholder="@tên_người_dùng" 
+                                   value="@"
+                                   onfocus="this.select()"
+                                   style="flex: 1; padding: 10px 12px; border: 1px solid var(--border, #e4e6eb); border-radius: 20px; outline: none; font-size: 14px;">
+                            <button onclick="manualTagFriend()" 
+                                    class="modal-btn primary" 
+                                    style="padding: 10px 16px; border-radius: 20px; white-space: nowrap;">
+                                <i class="fas fa-plus"></i> Thêm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 15px; border-top: 1px solid var(--border, #e4e6eb); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                    <span style="font-size: 13px; color: var(--text-secondary, #65676b);">
+                        ${window.taggedFriends.length > 0 ? `Đã chọn ${window.taggedFriends.length} người` : 'Chưa chọn ai'}
+                    </span>
+                    <button onclick="closeTagFriendsModal()" class="modal-btn primary" style="padding: 8px 20px; border-radius: 20px;">
+                        <i class="fas fa-check"></i> Xong
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Lưu dữ liệu friends để dùng cho tìm kiếm
+        window.currentFriendsData = friends;
+        
+        // Focus vào ô tìm kiếm
+        setTimeout(() => {
+            document.getElementById('friend-search-input')?.focus();
+        }, 100);
+    }
+    
+    function filterFriendsList(searchTerm) {
+        const container = document.getElementById('friends-list-items');
+        if (!container || !window.currentFriendsData) return;
+        
+        const term = searchTerm.toLowerCase().trim();
+        const friends = window.currentFriendsData;
+        
+        const filtered = term ? friends.filter(f => 
+            f.username.toLowerCase().includes(term) || 
+            (f.full_name && f.full_name.toLowerCase().includes(term))
+        ) : friends;
+        
+        const isFriendSelected = (friendId) => window.taggedFriends.some(tf => tf.id === friendId);
+        
+        container.innerHTML = filtered.map(f => `
+            <div class="friend-tag-item ${isFriendSelected(f._id) ? 'selected' : ''}" 
+                 data-friend-id="${f._id}"
+                 onclick="toggleFriendSelection('${f._id}', '${f.username.replace(/'/g, "\\'")}', '${(f.full_name || f.username).replace(/'/g, "\\'")}', '${(f.avatar || '/static/img/default-avatar.png').replace(/'/g, "\\'")}')"
+                 style="padding: 12px; cursor: pointer; display: flex; align-items: center; gap: 12px; border-radius: 8px; transition: all 0.2s; border: 2px solid ${isFriendSelected(f._id) ? 'var(--primary, #3eb489)' : 'transparent'}; background: ${isFriendSelected(f._id) ? 'var(--primary-light, #e3f2fd)' : 'transparent'}; margin-bottom: 8px;">
+                <img src="${f.avatar || '/static/img/default-avatar.png'}" 
+                     style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid ${isFriendSelected(f._id) ? 'var(--primary, #3eb489)' : '#e4e6eb'};">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 14px; color: var(--text-primary, #1c1e21);">${f.full_name || f.username}</div>
+                    ${f.full_name && f.full_name !== f.username ? `<div style="font-size: 12px; color: var(--text-secondary, #65676b);">@${f.username}</div>` : ''}
+                </div>
+                <div class="selection-indicator" style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${isFriendSelected(f._id) ? 'var(--primary, #3eb489)' : '#ccd0d5'}; background: ${isFriendSelected(f._id) ? 'var(--primary, #3eb489)' : 'white'}; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;">
+                    ${isFriendSelected(f._id) ? '<i class="fas fa-check"></i>' : ''}
+                </div>
+            </div>
+        `).join('') || '<div style="text-align: center; padding: 20px; color: var(--text-secondary, #65676b);"><i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px;"></i><p>Không tìm thấy bạn bè nào</p></div>';
+    }
+    
+    function toggleFriendSelection(id, username, displayName, avatar) {
+        console.log('[toggleFriendSelection]', id, username, displayName);
+        
+        const existingIndex = window.taggedFriends.findIndex(tf => tf.id === id);
+        
+        if (existingIndex >= 0) {
+            // Bỏ chọn
+            window.taggedFriends.splice(existingIndex, 1);
+            window.taggedFriendsIds = window.taggedFriendsIds.filter(fId => fId !== id);
+        } else {
+            // Chọn
+            window.taggedFriends.push({ id, username, display_name: displayName, avatar });
+            window.taggedFriendsIds.push(id);
+        }
+        
+        // Cập nhật UI
+        updateTextareaWithTaggedFriends();
+        
+        // Refresh lại modal với dữ liệu mới
+        if (window.currentFriendsData) {
+            showFriendsPicker(window.currentFriendsData);
+        }
+    }
+    
+    function closeTagFriendsModal() {
+        const modal = document.getElementById('tag-friends-modal');
+        if (modal) modal.style.display = 'none';
+    }
+    
+    function selectFriendToTag(event, friendId, username, displayName, avatar) {
+        event.preventDefault();
+        event.stopPropagation();
+        // Check if already tagged
+        if (window.taggedFriendsIds.includes(friendId)) {
+            alert('Bạn đã gắn thẻ người này rồi!');
+            return;
+        }
+        
+        // Add to tagged friends
+        window.taggedFriendsIds.push(friendId);
+        window.taggedFriends.push({
+            id: friendId,
+            username: username,
+            display_name: displayName,
+            avatar: avatar
+        });
+        
+        // Update textarea content
+        const textarea = document.getElementById('post-content');
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        const textAfterCursor = text.substring(cursorPos);
+        
+        // Replace @ with @displayName (full name)
+        const atMatch = textBeforeCursor.match(/@(\w[\w\s]*)?$/);
+        if (atMatch) {
+            const newText = textBeforeCursor.replace(/@(\w[\w\s]*)?$/, `@${displayName}`) + textAfterCursor;
+            textarea.value = newText;
+        }
+        
+        hideFriendDropdown();
+        // Don't call updateTextareaWithTaggedFriends() here since friend is already inserted at cursor position
+    }
+    
+    function manualTagFriend() {
+        const input = document.getElementById('manual-friend-tag');
+        const username = input.value.trim().replace('@', '');
+        if (username) {
+            tagFriendByName(username);
+            input.value = '';
+        }
+    }
+    
+    function tagFriendByName(username) {
+        const id = 'manual_' + Date.now();
+        window.taggedFriends.push({ id, username, display_name: username, avatar: '/static/img/default-avatar.png' });
+        window.taggedFriendsIds.push(id);
+        updateTextareaWithTaggedFriends();
+        closeTagFriendsModal();
+    }
+    
+    function removeTaggedFriend(id) {
+        window.taggedFriends = window.taggedFriends.filter(tf => tf.id !== id);
+        window.taggedFriendsIds = window.taggedFriendsIds.filter(fId => fId !== id);
+        updateTextareaWithTaggedFriends();
+    }
+    
+    function updateTextareaWithTaggedFriends() {
+        const textarea = document.getElementById('post-content');
+        let content = textarea.value;
+        
+        // Xóa các tag cũ - improved regex to handle multiple tagged friends
+        content = content.replace(/\nVới @[^,\n]+(,\s*@[^,\n]+)*/g, '').replace(/Với @[^,\n]+(,\s*@[^,\n]+)*/g, '');
+        
+        // Thêm tag mới
+        if (window.taggedFriends.length > 0) {
+            const tagText = 'Với ' + window.taggedFriends.map(tf => `@${tf.display_name || tf.username}`).join(', ');
+            content = content.trim() + '\n' + tagText;
+        }
+        
+        textarea.value = content;
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('friend-tag-dropdown');
+        const textarea = document.getElementById('post-content');
+        
+        if (dropdown && !dropdown.contains(event.target) && event.target !== textarea) {
+            hideFriendDropdown();
+        }
+    });
+    
+    // Custom Privacy Dropdown Functions
+    function togglePrivacyDropdown() {
+        const menu = document.getElementById('privacy-dropdown-menu');
+        const trigger = document.querySelector('.privacy-dropdown-trigger');
+        
+        if (menu.classList.contains('show')) {
+            menu.classList.remove('show');
+            trigger.classList.remove('active');
+        } else {
+            menu.classList.add('show');
+            trigger.classList.add('active');
+        }
+    }
+    
+    function selectPrivacy(value) {
+        const privacyConfig = {
+            'public': { icon: 'fa-globe-asia', text: 'Công khai' },
+            'friends': { icon: 'fa-user-friends', text: 'Bạn bè' },
+            'private': { icon: 'fa-lock', text: 'Chỉ mình tôi' }
+        };
+        
+        const config = privacyConfig[value];
+        document.getElementById('selected-privacy-icon').innerHTML = `<i class="fas ${config.icon}"></i>`;
+        document.getElementById('selected-privacy-text').textContent = config.text;
+        document.getElementById('profile-post-privacy').value = value;
+        
+        // Update selected state in menu
+        document.querySelectorAll('.privacy-option').forEach(option => {
+            option.classList.remove('selected');
+            if (option.dataset.value === value) {
+                option.classList.add('selected');
+            }
+        });
+        
+        // Close dropdown
+        togglePrivacyDropdown();
+    }
+    
+    // Close privacy dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('privacy-dropdown');
+        const menu = document.getElementById('privacy-dropdown-menu');
+        const trigger = document.querySelector('.privacy-dropdown-trigger');
+        
+        if (dropdown && !dropdown.contains(event.target)) {
+            menu.classList.remove('show');
+            trigger.classList.remove('active');
+        }
+    });
+</script>
+
+<!-- Session Security Management -->
+<script src="{{ url_for('static', filename='js/session_security.js') }}"></script>
+
+<!-- Connection Manager -->
+<script src="{{ url_for('static', filename='js/connection-manager.js') }}"></script>
+
 </body>
 </html>

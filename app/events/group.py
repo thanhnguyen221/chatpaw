@@ -1,9 +1,13 @@
+# --- Thêm import json vào dòng đầu tiên ---
+import re
+import json
 from flask import request, session, url_for
 from bson import ObjectId
 from datetime import datetime
 from app.utils.time_utils import get_vietnam_time, format_timestamp_for_client
 from flask_socketio import join_room, leave_room, emit
 import pytz
+from app.message_encryption import encrypt_message, decrypt_message
 
 
 def register_group_events(socketio, mongo):
@@ -155,7 +159,8 @@ def register_group_events(socketio, mongo):
 
             ts = msg.get('timestamp')
             if isinstance(ts, datetime):
-                ts_str = ts.isoformat()
+                # Dùng format_timestamp_for_client để xử lý timezone đúng
+                ts_str = format_timestamp_for_client(ts)
             else:
                 ts_str = str(ts)
 
@@ -256,8 +261,8 @@ def register_group_events(socketio, mongo):
         # Sử dụng giờ Việt Nam
         now = get_vietnam_time()
 
-        sender = users_col.find_one({'_id': user_oid})
-        sender_name = sender.get('username', 'Unknown') if sender else 'Unknown'
+        sender = users_col.find_one({'_id': user_oid}, {'username': 1, 'full_name': 1, 'avatar': 1})
+        sender_name = sender.get('full_name') or sender.get('username', 'Unknown') if sender else 'Unknown'
         sender_avatar = sender.get('avatar') if sender and sender.get('avatar') else url_for('static', filename='img/default-avatar.png')
 
         # Build reply_context nếu có reply_to_id
@@ -269,11 +274,20 @@ def register_group_events(socketio, mongo):
                 original_msg = messages_col.find_one({'_id': reply_to_oid})
                 if original_msg:
                     ori_sender_info = get_user_info(original_msg['sender_id'])
+                    # Lấy full_name nếu có, fallback về username
+                    ori_sender_full = users_col.find_one({'_id': original_msg['sender_id']}, {'username': 1, 'full_name': 1})
+                    ori_sender_name = ori_sender_full.get('full_name') or ori_sender_full.get('username', 'Unknown') if ori_sender_full else ori_sender_info.get('username', 'Unknown')
+                    
+                    # Decrypt original message content if encrypted
+                    orig_content = original_msg.get('content', '')
+                    if original_msg.get('encrypted') or original_msg.get('message_type') == 'text':
+                        orig_content = decrypt_message(orig_content)
+                    
                     reply_context = {
                         'message_id': str(original_msg['_id']),
                         'sender_id': str(original_msg['sender_id']),
-                        'sender_name': ori_sender_info['username'],
-                        'content': original_msg.get('content', ''),
+                        'sender_name': ori_sender_name,
+                        'content': orig_content,
                         'message_type': original_msg.get('message_type', 'text')
                     }
             except Exception as e:
@@ -281,16 +295,20 @@ def register_group_events(socketio, mongo):
                 reply_to_oid = None
                 reply_context = None
 
+        # Encrypt message content before saving
+        encrypted_content = encrypt_message(content) if message_type == 'text' else content
+
         # Tạo message object
         message = {
             'group_id': group_oid,
             'sender_id': user_oid,
-            'content': content,
+            'content': encrypted_content,
             'message_type': message_type,
             'timestamp': now,
             'read_by': [user_oid],
             # [MỚI] Lưu gift_style vào DB
-            'gift_style': gift_style 
+            'gift_style': gift_style,
+            'encrypted': message_type == 'text'  # Đánh dấu tin nhắn đã mã hóa
         }
 
         if reply_to_oid:
@@ -300,7 +318,64 @@ def register_group_events(socketio, mongo):
         inserted = messages_col.insert_one(message)
         message_id = inserted.inserted_id
         print(f"[DEBUG] Message inserted with ID: {message_id}")
+        
+       # ============================================================
+        # 3. XỬ LÝ TAG TÊN (@MENTION) - DÁN VÀO SAU KHI LƯU DB
+        # ============================================================
+        try:
+            if message_type == 'text':
+                content_text = content
+                # Tìm tất cả các từ bắt đầu bằng @
+                mentioned_usernames = re.findall(r'@(\w+)', content_text)
+                
+                if mentioned_usernames:
+                    unique_names = list(set(mentioned_usernames))
+                    notifications_col = mongo.db.notifications
+                    
+                    # Lấy thông tin nhóm và người gửi
+                    group_info = groups_col.find_one({'_id': group_oid})
+                    group_name = group_info.get('name', 'Nhóm') if group_info else 'Nhóm'
+                    
+                    sender = users_col.find_one({'_id': user_oid}, {'username': 1, 'full_name': 1})
+                    sender_name = sender.get('full_name') or sender.get('username', 'Ai đó') if sender else 'Ai đó'
 
+                    # === TRƯỜNG HỢP 1: CÓ TAG @all ===
+                    if 'all' in unique_names:
+                        print(f"[Group] Detected @all tag in group {group_id}")
+                        # Lấy tất cả thành viên trong nhóm
+                        all_members = group_members_col.find({'group_id': group_oid})
+                        
+                        for member in all_members:
+                            recipient_id = str(member['user_id'])
+                            # Không gửi thông báo cho chính người gửi
+                            if recipient_id != str(user_id):
+                                create_and_emit_notification(
+                                    recipient_id, user_id, sender_name,
+                                    f"đã nhắc đến mọi người trong nhóm {group_name}: \"{content_text[:40]}...\"",
+                                    group_id, str(message_id), notifications_col
+                                )
+
+                    # === TRƯỜNG HỢP 2: TAG CÁ NHÂN (Khi không dùng @all) ===
+                    else:
+                        for username in unique_names:
+                            target_user = users_col.find_one({'username': username})
+                            # Nếu tìm thấy user và không phải tự tag mình
+                            if target_user and str(target_user['_id']) != str(user_id):
+                                recipient_id = str(target_user['_id'])
+                                create_and_emit_notification(
+                                    recipient_id, user_id, sender_name,
+                                    f"đã nhắc đến bạn trong nhóm {group_name}: \"{content_text[:40]}...\"",
+                                    group_id, str(message_id), notifications_col
+                                )
+                                print(f"[Group] Tagged user: {username}")
+
+        except Exception as e_mention:
+            print(f"[Group] Mention Error: {e_mention}")
+
+
+
+
+            
         # ================== [MỚI] CẬP NHẬT LAST_MESSAGE + UNREAD_COUNTS ==================
         try:
             # Preview đẹp cho sidebar nhóm
@@ -389,6 +464,12 @@ def register_group_events(socketio, mongo):
         
         print(f"[DEBUG] Emitting group_message: {emit_data}")
         emit('group_message', emit_data, room=f"group_{group_id}")
+        
+        # [MỚI] Emit đến từng thành viên để họ nhận thông báo dù không mở group
+        for m in members:
+            uid_str = str(m['user_id'])
+            emit('group_message', emit_data, room=uid_str)
+        
 
 
     # ------------------ UPDATE GROUP NAME ------------------
@@ -648,11 +729,14 @@ def register_group_events(socketio, mongo):
             return
 
         user_info = get_user_info(user_id)
+        # Lấy full_name cho typing indicator
+        user_full = users_col.find_one({'_id': ObjectId(user_id)}, {'username': 1, 'full_name': 1})
+        display_name = user_full.get('full_name') or user_full.get('username', 'Unknown') if user_full else user_info.get('username', 'Unknown')
         emit('group_typing', {
             'group_id': group_id,
-            'conversation_id': group_id,  # [MỚI] cho đồng bộ với FE nếu cần
+            'conversation_id': group_id,
             'user_id': user_id,
-            'username': user_info['username']
+            'username': display_name
         }, room=f"group_{group_id}", include_self=False)
 
     @socketio.on('group_stop_typing')
@@ -667,3 +751,150 @@ def register_group_events(socketio, mongo):
             'conversation_id': group_id,  # [MỚI]
             'user_id': user_id
         }, room=f"group_{group_id}", include_self=False)
+
+
+# ============================================================
+    # XỬ LÝ BÌNH CHỌN (CÓ THÔNG BÁO & LƯU DB)
+    # ============================================================
+    @socketio.on('vote_poll')
+    def handle_vote_poll(data):
+        if 'user_id' not in session:
+            return
+        
+        user_id = session['user_id']
+        message_id = data.get('message_id')
+        option_id = int(data.get('option_id'))
+        group_id = data.get('group_id')
+
+        try:
+            # 1. Tìm tin nhắn
+            msg = messages_col.find_one({'_id': ObjectId(message_id)})
+            if not msg or msg.get('message_type') != 'poll':
+                return
+
+            # 2. Parse nội dung
+            content = msg.get('content')
+            if isinstance(content, str):
+                poll_data = json.loads(content)
+            else:
+                poll_data = content
+
+            options = poll_data.get('options', [])
+            
+            # 3. Logic Vote (Single Choice)
+            updated = False
+            voted_option_text = "" # Lưu lại tên lựa chọn để thông báo
+            
+            for opt in options:
+                if 'voters' not in opt: opt['voters'] = []
+                
+                # Nếu chọn đúng option này
+                if int(opt['id']) == option_id:
+                    if user_id in opt['voters']:
+                        opt['voters'].remove(user_id) # Unvote
+                    else:
+                        opt['voters'].append(user_id) # Vote
+                        voted_option_text = opt['text'] # Ghi nhớ text
+                    updated = True
+                else:
+                    # Xóa vote ở các option khác (để đảm bảo chỉ chọn 1)
+                    if user_id in opt['voters']:
+                        opt['voters'].remove(user_id)
+                        updated = True
+
+            if updated:
+                # 4. Lưu DB
+                if isinstance(msg.get('content'), str):
+                    new_content = json.dumps(poll_data, ensure_ascii=False)
+                else:
+                    new_content = poll_data
+                
+                messages_col.update_one({'_id': ObjectId(message_id)}, {'$set': {'content': new_content}})
+
+                # 5. Gửi cập nhật UI Poll
+                emit('poll_updated', {'message_id': message_id, 'new_content': poll_data}, room=f"group_{group_id}")
+                
+                # 6. [MỚI] TẠO THÔNG BÁO (Notification)
+                # Chỉ thông báo khi người khác vote (không phải chính mình tự vote)
+                # Và phải là hành động Vote (có text), không phải Unvote
+                sender_id = msg.get('sender_id')
+                if voted_option_text and str(sender_id) != user_id:
+                    try:
+                        # Lấy tên người vote
+                        voter = users_col.find_one({'_id': ObjectId(user_id)}, {'username': 1, 'full_name': 1})
+                        voter_name = voter.get('full_name') or voter.get('username', 'Ai đó') if voter else 'Ai đó'
+                        
+                        # Nội dung thông báo
+                        notif_content = f"đã bình chọn '{voted_option_text}' trong cuộc thăm dò của bạn"
+                        
+                        # Tạo data thông báo
+                        notif_data = {
+                            'recipient_id': ObjectId(sender_id),
+                            'sender_id': ObjectId(user_id),
+                            'sender_name': voter_name,
+                            'type': 'poll_vote',
+                            'content': notif_content,
+                            'data': {
+                                'group_id': group_id,
+                                'message_id': str(message_id)
+                            },
+                            'read': False,
+                            'created_at': get_vietnam_time()
+                        }
+                        
+                        # Lưu vào DB notification (Nếu bạn có collection này)
+                        mongo.db.notifications.insert_one(notif_data)
+                        
+                        # Gửi socket cho người tạo poll (để hiện chuông thông báo)
+                        # Convert ObjectId sang string trước khi emit
+                        socket_notif = notif_data.copy()
+                        socket_notif['recipient_id'] = str(socket_notif['recipient_id'])
+                        socket_notif['sender_id'] = str(socket_notif['sender_id'])
+                        socket_notif['_id'] = str(socket_notif.get('_id', ''))
+                        if hasattr(socket_notif['created_at'], 'isoformat'):
+                            socket_notif['created_at'] = socket_notif['created_at'].isoformat()
+
+                        emit('new_notification', socket_notif, room=str(sender_id))
+                        
+                    except Exception as ex:
+                        print(f"Lỗi tạo thông báo poll: {ex}")
+
+        except Exception as e:
+            print(f"[Poll Error] {str(e)}")
+
+
+
+def create_and_emit_notification(recipient_id, sender_id, sender_name, content, group_id, message_id, notif_col):
+    try:
+        # 1. Tạo dữ liệu thông báo
+        notif_data = {
+            'recipient_id': ObjectId(recipient_id),
+            'sender_id': ObjectId(sender_id),
+            'sender_name': sender_name,
+            'type': 'mention',  # Loại: nhắc tên
+            'content': content,
+            'data': {
+                'group_id': str(group_id),
+                'message_id': str(message_id)
+            },
+            'read': False,
+            'created_at': datetime.now()
+        }
+        
+        # 2. Lưu vào Database
+        notif_col.insert_one(notif_data)
+        
+        # 3. Chuẩn bị dữ liệu gửi qua Socket (Convert sang String)
+        socket_data = notif_data.copy()
+        socket_data['_id'] = str(socket_data['_id'])
+        socket_data['recipient_id'] = str(socket_data['recipient_id'])
+        socket_data['sender_id'] = str(socket_data['sender_id'])
+        
+        if isinstance(socket_data['created_at'], datetime):
+            socket_data['created_at'] = socket_data['created_at'].isoformat()
+
+        # 4. Gửi realtime đến người nhận
+        emit('new_notification', socket_data, room=str(recipient_id))
+        
+    except Exception as e:
+        print(f"Error creating notification: {e}")

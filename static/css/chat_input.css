@@ -2,104 +2,283 @@
    1. FILE & MEDIA MESSAGES
    ========================================= */
 
-/* File message styles */
+/* File message styles - MODERN REDESIGN */
 .file-message {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 16px;
   margin: 5px 0;
-  max-width: 300px;
+  max-width: 320px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.file-message:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .file-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .file-icon {
-  font-size: 24px;
-  color: #3eb489;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+.file-icon i {
+  font-size: 20px;
 }
 
 .file-details {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .file-name {
   font-weight: 600;
-  color: #333;
+  color: #2d3748;
   word-break: break-word;
   font-size: 14px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .file-size {
   font-size: 12px;
-  color: #666;
+  color: #718096;
+  font-weight: 500;
 }
 
 .file-download {
-  padding: 6px 12px;
-  background: #3eb489;
+  padding: 10px 14px;
+  background: #4CAF50;
   color: #fff;
-  border-radius: 8px;
+  border-radius: 10px;
   text-decoration: none;
   font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
-  transition: background-color 0.2s ease, transform 0.1s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
 }
 
 .file-download:hover {
-  background: #36a078;
-  transform: translateY(-1px);
+  background: #388E3C;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 
-/* Image message styles */
+.file-download::before {
+  content: '\f019';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 11px;
+}
+
+/* File actions container for multiple buttons */
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* View button for PDF files */
+.file-view {
+  padding: 10px 14px;
+  background: #4a90e2;
+  color: #fff;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(74, 144, 226, 0.3);
+}
+
+.file-view:hover {
+  background: #357abd;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+}
+
+.file-view::before {
+  content: '\f06e';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 11px;
+}
+
+/* PDF file icon styling */
+.file-icon .fa-file-pdf {
+  font-size: 22px;
+}
+
+/* Image message styles - MODERN REDESIGN */
 .image-message {
   display: flex;
   flex-direction: column;
+  gap: 0;
+  max-width: 320px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 18px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: none;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+
+.image-message:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.image-info {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  max-width: 300px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  padding: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 13px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.image-info i {
+  color: #4CAF50;
+  font-size: 14px;
 }
 
 .uploaded-image {
-  max-width: 100%;
-  max-height: 300px;
-  border-radius: 8px;
+  width: 100%;
+  max-height: 450px;
+  object-fit: contain;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.3s ease;
+  display: block;
+  border-radius: 0;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
 .uploaded-image:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: scale(1.01);
 }
 
 .image-actions {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .view-original {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: #3eb489;
+  font-weight: 500;
+  color: #4CAF50;
   text-decoration: none;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background-color 0.2s ease, text-decoration 0.2s ease;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(76, 175, 80, 0.1);
+  transition: all 0.2s ease;
 }
 
 .view-original:hover {
-  text-decoration: underline;
-  background: rgba(62, 180, 137, 0.1);
+  background: #4CAF50;
+  color: white;
+  transform: scale(1.05);
+}
+
+.view-original::before {
+  content: '\f35d';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 10px;
+}
+
+/* Audio/Voice message styles - MODERN */
+.audio-message {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 16px;
+  max-width: 300px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.audio-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.audio-info i {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+}
+
+.voice-audio {
+  width: 100%;
+  height: 40px;
+  border-radius: 20px;
+  outline: none;
+}
+
+.voice-audio::-webkit-media-controls-panel {
+  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+  border-radius: 20px;
 }
 
 /* Sticker message styles */
@@ -134,39 +313,118 @@
   position: absolute;
   bottom: 80px;
   left: 65px;
-  width: 260px;
+  width: 300px;
   padding: 16px;
   display: none;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: 16px;
+  border-radius: 20px;
   border: 1px solid rgba(62, 180, 137, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .sticker-header {
-  display: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(62, 180, 137, 0.2);
+}
+
+.sticker-header::before {
+  content: 'Sticker động';
+  font-weight: 600;
+  font-size: 14px;
+  color: #3eb489;
+}
+
+.close-stickers {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-stickers:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 .sticker-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  font-size: 32px;
+  gap: 8px;
 }
 
 .sticker-panel .sticker {
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.15s ease;
-  border-radius: 8px;
-  padding: 4px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(248, 249, 250, 0.8);
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
 }
 
 .sticker-panel .sticker:hover {
-  transform: scale(1.2);
-  background: rgba(62, 180, 137, 0.1);
+  transform: scale(1.15);
+  background: rgba(62, 180, 137, 0.15);
+  border-color: rgba(62, 180, 137, 0.4);
+  box-shadow: 0 4px 12px rgba(62, 180, 137, 0.2);
+  z-index: 10;
+}
+
+.sticker-panel .sticker:active {
+  transform: scale(1.05);
+}
+
+/* Lottie player in sticker panel */
+.sticker-panel .sticker lottie-player {
+  width: 50px !important;
+  height: 50px !important;
+  pointer-events: none;
+}
+
+/* Sticker message styles - Enhanced for animated stickers */
+.sticker-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  min-width: 80px;
+  min-height: 80px;
+}
+
+.sticker-message lottie-player {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+/* Sticker display in chat bubbles */
+.sticker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.sticker:hover {
+  transform: scale(1.1);
 }
 
 /* Image modal */
@@ -538,16 +796,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid rgba(62, 180, 137, 0.2);
-  border-bottom: 1px solid rgba(62, 180, 137, 0.1);
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f8fafb 0%, #f1f5f9 100%);
+  border-top: 2px solid #3eb489;
+  border-bottom: 1px solid rgba(62, 180, 137, 0.15);
   margin-bottom: -5px;
   position: relative;
   z-index: 90;
   backdrop-filter: blur(10px);
-  border-radius: 12px 12px 0 0;
-  animation: slideUp 0.2s ease-out;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -2px 8px rgba(62, 180, 137, 0.1);
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes slideUp {
@@ -561,6 +820,16 @@
   }
 }
 
+/* Icon reply */
+.reply-preview::before {
+  content: '\f293';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  color: #3eb489;
+  margin-right: 8px;
+  font-size: 14px;
+}
+
 .reply-preview.hidden {
   display: none;
 }
@@ -570,15 +839,27 @@
   align-items: center;
   overflow: hidden;
   flex: 1;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(62, 180, 137, 0.2);
+  transition: all 0.2s ease;
+}
+
+.reply-content-wrapper:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(62, 180, 137, 0.3);
+  transform: translateY(-1px);
 }
 
 .reply-decoration {
-  width: 4px;
-  height: 32px;
-  background-color: #3eb489;
-  border-radius: 2px;
+  width: 3px;
+  height: 36px;
+  background: linear-gradient(180deg, #3eb489 0%, #2d8f6f 100%);
+  border-radius: 3px;
   margin-right: 12px;
   flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(62, 180, 137, 0.3);
 }
 
 .reply-info {
@@ -591,57 +872,114 @@
 .reply-username {
   font-weight: 700;
   font-size: 13px;
-  color: #3eb489;
-  margin-bottom: 2px;
+  color: #2d8f6f;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reply-username::after {
+  content: 'đang trả lời';
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 .reply-text {
   font-size: 12px;
-  color: #666;
+  color: #475569;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.4;
+  font-weight: 400;
 }
 
 .close-reply-btn {
-  background: transparent;
+  background: rgba(239, 68, 68, 0.1);
   border: none;
-  font-size: 16px;
-  color: #999;
+  font-size: 14px;
+  color: #ef4444;
   cursor: pointer;
-  padding: 5px;
-  margin-left: 10px;
+  padding: 6px 8px;
+  margin-left: 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
 .close-reply-btn:hover {
-  color: #ff4757;
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  transform: scale(1.05);
 }
 
 /* Khung quote trong tin nhắn */
 .message-reply-quote {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-bottom: 6px;
+  background: linear-gradient(135deg, #f8fafb 0%, #f1f5f9 100%);
+  padding: 10px 12px;
+  border-radius: 12px;
+  margin-bottom: 8px;
   position: relative;
   border-left: 3px solid #3eb489;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  transition: background-color 0.2s;
+  flex-direction: row;
+  align-items: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.85rem;
-  min-width: 150px;
+  min-width: 180px;
+  box-shadow: 0 2px 8px rgba(62, 180, 137, 0.08);
+  border: 1px solid rgba(62, 180, 137, 0.15);
 }
 
 .message-reply-quote:hover {
-  background-color: rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafb 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(62, 180, 137, 0.15);
+  border-color: rgba(62, 180, 137, 0.25);
+}
+
+.message-reply-quote .reply-decoration {
+  width: 3px;
+  height: 40px;
+  background: linear-gradient(180deg, #3eb489 0%, #2d8f6f 100%);
+  border-radius: 3px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(62, 180, 137, 0.4);
+}
+
+.message-reply-quote .reply-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  flex: 1;
 }
 
 .reply-sender {
   font-weight: 600;
   font-size: 12px;
+  color: #2d8f6f;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reply-sender::before {
+  content: '\f007';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 10px;
   color: #3eb489;
-  margin-bottom: 2px;
 }
 
 .reply-text-short {
@@ -649,25 +987,29 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
-  color: #555;
+  max-width: 220px;
+  color: #475569;
+  line-height: 1.4;
+  font-weight: 400;
 }
 
 /* Style riêng cho tin nhắn của mình */
 .message.me .message-reply-quote,
 .message.sent .message-reply-quote {
-  background-color: rgba(0, 0, 0, 0.1);
-  border-left-color: rgba(255, 255, 255, 0.8);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 251, 0.9) 100%);
+  border-left-color: #3eb489;
+  border-color: rgba(62, 180, 137, 0.3);
 }
 
 .message.me .message-reply-quote .reply-sender,
 .message.sent .message-reply-quote .reply-sender {
-  color: #fff;
+  color: #2d8f6f;
+  font-weight: 600;
 }
 
 .message.me .message-reply-quote .reply-text-short,
 .message.sent .message-reply-quote .reply-text-short {
-  color: rgba(255, 255, 255, 0.95);
+  color: #333;
 }
 
 /* =========================================
@@ -1059,7 +1401,7 @@ html, body {
     display: flex; 
     align-items: flex-end; /* Căn đáy để thẳng hàng */
     
-    padding: 10px 15px;
+    padding: 14px 15px;
     background: #fff;
     border-top: 1px solid #eee;
     position: relative; 
@@ -1178,6 +1520,11 @@ html, body {
     background: #E8F5E9;
 }
 
+/* Fix cho nút sticker - đảm bảo icon không chặn sự kiện click */
+#show-stickers i {
+    pointer-events: none;
+}
+
 
 /* --- 4. CANVAS VẼ (DRAWING STYLES) --- */
 .drawing-canvas-overlay {
@@ -1228,4 +1575,370 @@ html, body {
 .chat-drawing-toolbar button:hover {
     color: #4CAF50; /* 🌿 */
     background: #E8F5E9; /* 🌿 */
+}
+
+
+
+
+/*tao vote*/
+/* --- POLL MODAL (STYLE INSTAGRAM) --- */
+.poll-modal-content {
+    max-width: 380px;
+    border-radius: 16px;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.poll-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.poll-body .form-group {
+    margin-bottom: 16px;
+}
+
+.poll-body label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #262626;
+}
+
+#poll-question, .poll-option-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #dbdbdb;
+    border-radius: 12px;
+    font-size: 14px;
+    background: #fafafa;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border 0.2s;
+    box-sizing: border-box; /* Quan trọng để không bị tràn */
+}
+
+#poll-question:focus, .poll-option-input:focus {
+    border-color: #a8a8a8;
+}
+
+#btn-add-poll-option {
+    background: none;
+    border: none;
+    color: #4CAF50;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 5px 0;
+}
+
+.btn-primary-full {
+    width: 100%;
+    padding: 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary-full:hover {
+    background-color: #4CAF50;
+}
+
+/* --- POLL BUBBLE (TIN NHẮN BÌNH CHỌN) --- */
+.poll-bubble {
+    min-width: 260px;
+    max-width: 300px;
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #efefef;
+    overflow: hidden;
+}
+
+.poll-question-text {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: #000;
+    line-height: 1.4;
+}
+
+.poll-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.poll-option-item {
+    position: relative;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid #dbdbdb;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.poll-option-item:hover {
+    background-color: #fafafa;
+}
+
+/* Thanh phần trăm (nằm chìm) */
+.poll-progress-bar {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background-color: rgba(0, 149, 246, 0.15); /* Màu xanh nhạt */
+    width: 0%;
+    transition: width 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+    z-index: 1;
+}
+
+/* Nội dung option */
+.poll-option-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    padding: 0 15px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #262626;
+}
+
+/* Khi đã vote */
+.poll-option-item.voted {
+    border-color: #4CAF50;
+}
+.poll-option-item.voted .poll-progress-bar {
+    background-color: rgba(0, 149, 246, 0.3); /* Đậm hơn chút */
+}
+.poll-check-icon {
+    display: none;
+    color: #4CAF50;
+    margin-right: 5px;
+}
+.poll-option-item.voted .poll-check-icon {
+    display: inline-block;
+}
+
+.poll-meta {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #8e8e8e;
+    text-align: center;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 8px;
+}
+/* --- KHUNG GỢI Ý --- */
+#mention-suggestions {
+    position: absolute;
+    /* Neo ngay phía trên ô input */
+    bottom: 100%; 
+    left: 0; /* Căn sát lề trái của khung nhập liệu */
+    
+    width: 250px; /* Độ rộng vừa phải */
+    max-height: 220px;
+    margin-bottom: 10px; /* Cách ô input 10px */
+    
+    background: #ffffff;
+    border-radius: 12px;
+    
+    /* Đổ bóng giúp nổi bật trên nền chat */
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15), 
+                0 0 2px rgba(0,0,0,0.1);
+    
+    overflow-y: auto;
+    z-index: 10000; /* Đảm bảo nằm trên mọi thứ */
+    display: none;
+    
+    /* Hiệu ứng hiện ra */
+    animation: popUp 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+/* Từng dòng trong bảng gợi ý */
+.suggestion-item {
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border-bottom: 1px solid #f5f5f5;
+    transition: all 0.2s ease;
+    color: #333; /* Màu chữ mặc định */
+}
+
+/* 🔥 [MỚI] Hiệu ứng Hover: Nền xanh nhạt, Chữ xanh đậm, Đẩy sang phải */
+.suggestion-item:hover {
+    background-color: #e3f2fd; /* Nền xanh dương rất nhạt */
+    padding-left: 20px;        /* Hiệu ứng trượt nhẹ */
+}
+
+/* Khi hover thì đổi màu chữ bên trong span */
+.suggestion-item:hover span {
+    color: #1976d2; /* Màu xanh đậm cho tên */
+    font-weight: 700;
+}
+
+/* Avatar */
+.suggestion-item img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+    border: 1px solid #eee;
+    transition: transform 0.2s;
+}
+
+/* Khi hover thì avatar phóng to xíu */
+.suggestion-item:hover img {
+    transform: scale(1.1);
+    border-color: #1976d2;
+}
+
+/* Style riêng cho nút @all */
+.suggestion-item.item-all {
+    background-color: #fff8e1; /* Nền vàng nhạt */
+}
+.suggestion-item.item-all span {
+    color: #f57f17; /* Chữ cam */
+    font-weight: bold;
+}
+.suggestion-item.item-all:hover {
+    background-color: #ffecb3; /* Nền vàng đậm hơn khi hover */
+}
+
+/* --- STYLE CHO CHỮ ĐÃ TAG TRONG TIN NHẮN --- */
+
+/* 1. Tag người dùng thường (@Ten) */
+.mention-text {
+    color: #0095f6;          /* Chữ xanh dương đậm */
+    background-color: rgba(0, 149, 246, 0.1); /* Nền xanh nhạt */
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+    line-height: 1.2;
+}
+
+.mention-text:hover {
+    background-color: #0095f6;
+    color: white;
+    text-decoration: none;
+}
+
+/* 2. Tag tất cả (@all) - Màu vàng cam nổi bật */
+.mention-all {
+    color: #d97706;          /* Chữ cam đậm */
+    background-color: #fffbeb; /* Nền vàng nhạt */
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+}
+
+.mention-all:hover {
+    background-color: #f59e0b;
+    color: white;
+    box-shadow: 0 2px 5px rgba(245, 158, 11, 0.3);
+}
+
+/* =========================================
+   STICKER ANIMATIONS (Like Zalo)
+   ========================================= */
+
+/* Sticker emoji base styles */
+.sticker-emoji {
+  font-size: 36px;
+  line-height: 1;
+  display: block;
+}
+
+/* CSS Animations for stickers */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes tada {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(-5deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.9; }
+}
+
+@keyframes party {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-10deg) scale(1.05); }
+  75% { transform: rotate(10deg) scale(1.05); }
+}
+
+@keyframes swing {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(8deg); }
+  75% { transform: rotate(-8deg); }
+}
+
+@keyframes flame {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.08); filter: brightness(1.2); }
+}
+
+/* Animation classes */
+.bounce { animation: bounce 1s ease-in-out infinite; }
+.shake { animation: shake 0.6s ease-in-out infinite; }
+.heartbeat { animation: heartbeat 0.8s ease-in-out infinite; }
+.wobble { animation: wobble 0.5s ease-in-out infinite; }
+.tada { animation: tada 0.8s ease-in-out infinite; }
+.pulse { animation: pulse 1s ease-in-out infinite; }
+.party { animation: party 0.6s ease-in-out infinite; }
+.swing { animation: swing 0.7s ease-in-out infinite; }
+.flame { animation: flame 0.5s ease-in-out infinite; }
+
+/* Sticker message display */
+.sticker-message .sticker-emoji {
+  font-size: 64px;
+}
+
+/* Remove lottie-player styles since we use CSS animations now */
+.sticker-panel .sticker lottie-player,
+.sticker-message lottie-player {
+  display: none;
 }

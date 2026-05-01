@@ -1,0 +1,106 @@
+/* VIDEO MESSAGE STYLES - Modern & Beautiful */
+
+.video-message {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 320px;
+  overflow: hidden;
+}
+
+.video-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.video-info i {
+  color: #ff6b6b;
+  font-size: 1rem;
+}
+
+.video-container {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.video-player {
+  width: 100%;
+  max-height: 240px;
+  border-radius: 12px;
+  display: block;
+  object-fit: cover;
+}
+
+.video-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding: 0 4px;
+}
+
+.video-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4ecdc4;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(78, 205, 196, 0.15);
+  border: 1px solid rgba(78, 205, 196, 0.3);
+  transition: all 0.3s ease;
+}
+
+.video-download:hover {
+  background: rgba(78, 205, 196, 0.25);
+  color: #6ee7de;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+}
+
+.video-download i {
+  font-size: 0.9rem;
+}
+
+/* Responsive video player */
+@media (max-width: 768px) {
+  .video-message {
+    max-width: 100%;
+    padding: 8px;
+  }
+  
+  .video-player {
+    max-height: 200px;
+  }
+}
+
+/* Animation for video message appearance */
+@keyframes videoAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.video-message {
+  animation: videoAppear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}

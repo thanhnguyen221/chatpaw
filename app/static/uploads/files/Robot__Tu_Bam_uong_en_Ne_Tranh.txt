@@ -1,0 +1,179 @@
+﻿nếu mà nói về robot cho người mới bắt đầu ấy thì con robot giò live
+
+chắc chắn là một trong những bay tấp kinh điển nhất rồi đúng không ạ?
+
+nhiệm vụ của nó thì nghe qua cực kỳ đơn giản thôi, cứ bám theo một cái vạch đen là được,
+
+tưởng là dễ, nhưng mà đây lại chính là nền tảng
+
+cho những hệ thống phức tạp hơn rất nhiều sau này,
+
+nhưng mà cuộc sống thực tế thì đâu có đơn giản như một vạch kẻ sắn,
+
+sẽ ra sao nếu trên đường đi của con robot này bỗng dưng lại xuất hiện một vật cạn,
+
+liệu nó có đủ thong miêng để mà xử lý tình hoáng hay không?
+
+về cơ bản nhá, nhiệm vụ cốt lõi của nó chỉ là bám theo vạch đen thôi,
+
+nó dùng mấy cái cảm biến hồng ngoại.
+
+để liên tục kiểm tra xem mình có đang đi trạch hướng hay không,
+
+vách đen thì phản xanh sáng kém hơn nền trắng và robot chỉ cần dựa vào sự khác
+
+biệt đó để tự điều chỉnh lại tay lái của mình và đây tính là lúc vấn đề xuất hiện,
+
+khi mà gặp bật cản toàn bộ cái logic đơn giản của nó sụp đổ,
+
+nó không được lập trình để xử lý tình huống này,
+
+thế nên là nó chỉ biết đứng im một chỗ hoàn toàn bối dỗi không biết phải làm gì tiếp theo.
+
+Vậy thì làm thế nào để nâng cấp cho một con robot từ ngơ ngác trở nên thông minh hơn.
+
+Hãy cùng xem cách mà một nhóm sinh viên tại
+
+trường đại học Kiên Giang đã giải quết bài toán.
+
+này nhé, họ đã biến một con robot dò lai hết sức bình thường
+
+thành một cỗ máy có khả năng tự né vật cản một cách cực kỳ ấn tượng,
+
+nào, bây giờ hãy cùng mổ xẻ xem bên trong con robot này có những gì,
+
+trung tâm đầu não của nó chính là một bom mạch arino uno,
+
+để nhìn được vật cản, nó có đôi mắt là cảm biến siêu âm HCSR04,
+
+cơ bắp L298N thì giúp điều khiển động cơ,
+
+còn bộ cảm biến hồng ngoại năm kênh thì đóng vai trò như một người dẫn đường cần mẫn,
+
+à và tất nhiên rồi, không thể thiếu module bluetooth để kết nốa không dây, vậy đi.
+
+nâng cấp đầu tiên nằm ở đâu, chính là ở cách nó di chuyển,
+
+thay vì những cú rẽ rất là giật cục,
+
+con robot này lướt trên vạch kẻ một cách mướt ma đến đáng kinh ngạc, bí mật là gì?
+
+cứ nhìn vào so sánh này là thấy ngay sự khác biệt,
+
+bên trái là kiểu điều khiển bật tắt truyền thống,
+
+nó cứ rẽ trái rẽ phải một cách đột ngột, trông rất loạng choạng và vũng về,
+
+còn bên phải, với tật toán điều khiển PID,
+
+robot di chuyển uyển chuyển và chính xác như một vũ công vậy,
+
+vậy điều khiển PD này hoạn động như thế nào?
+
+cứ tưởng tượng như lúc chúng ta lái xe thôi, ta không chỉ bẻ lái khi...
+
+đã đi trệch làn đường, đó là pi, tức là tỉ lệ,
+
+mà chúng ta còn nhìn về phía trước và dự đoán xem chiếc xe
+
+có xu hướng trệch đi đâu để mà điều chỉnh tay lái sớm hơn một chút,
+
+đó chính là d, tức là vi phân.
+
+sự kết hợp này giúp robot không chỉ phản ứng mà còn biết cách dự đoán nữa.
+
+và bây giờ chúng ta đến với phần hấp dẫn nhất, phần bộ não thực sự của còn robot này,
+
+đó chính là chiến lược né tránh vật cản thông minh của nó.
+
+ngượng an toàn được đặt ra là 15 cm.
+
+ngay khi đôi mắt siêu âm phát hiện có bất cừ thứ gì lọt vào vùng này, toàn bộ quy trình.
+
+Nhé tránh sẽ được kích hoạt ngay lập tức.
+
+Đây chính là toàn bộ dòng suy nghĩ của robot được thể hiện quả sáu bước cực kỳ logic:
+
+đầu tiên nó nhận diện vật cản và lùi lại một chút để giữ khoảng cách toàn,
+
+sau đó nó sẽ quay cái đầu cảm biến để quét không
+
+gian hai bên y như chúng ta ngoáy đầu nhìn đường vậy,
+
+dựa trên dữ liệu quét được, nó sẽ quyết định xem hướng nào thoáng hơn để rẽ ra ngoài,
+
+nó sẽ đi song song với vật càn một đoạn và cuối cùng
+
+nó chủ động quay ngược vào trong để tim lại vạch kẻ ban đầu,
+
+và đây mới chính là điểm ăn tiền một con...
+
+robot đơn giản có thể chỉ né sang một bên rồi
+
+đi thẳng luôn và thế là lạc mất đường ban đầu,
+
+nhưng con robot này thì khác, nó luôn ghi nhớ nhiệm vụ chính của mình,
+
+sau khi né xong, mục tiêu của nó là phải tìm mọi cách để quay trở lại đúng con đường cũ,
+
+đảm bảo hoàn thành mục tiêu.
+
+Robot đã rất thông minh rồi, nhưng sẽ ra sao nếu chúng ta cần can thiệp đột xuất,
+
+đó là lúc tính năng cuối cùng cũng là một lớp toàn cực kỳ quan trọng, phát huy tác dụng.
+
+Ngay trong chính mã nguồn, các bạn lập trình viên đã để lại một dòng ghi trú thế này,
+
+hàm này cực quan trọng, tại sao nó lại quan trọng?
+
+vậy à, bởi vì đây chính là cái công tác khẩn cấp,
+
+nó cho phép người điều khiện có thể danh lại quên
+
+kiểm soát robot bất cứ lúc nào thông qua bluetooth,
+
+ngay cả khi nó đang thực hiện một cú né phức tạp.
+
+Đây không chỉ là một chiếc điều khiển từ xa bình thường đâu nhá,
+
+khi cái lệnh ngắt này được gửi đi, nó có quyền ưu tiên cao nhất,
+
+mọi hành động tự động đang diễn ra sẽ bị hủy bỏ ngay lập tức,
+
+bộ nhớ lệnh cũng được xoa sách để tránh xung đột
+
+và robot ngay lập tức chuyển sa chế độ điều khiển thủ công.
+
+Đây là một tính năng toàn vô giá, đặc biệt là trong giai đoạn thử nghiệm v.
+
+gỡ lỗi, vậy sau khi phân tích tất cả chúng ta học được gì từ dự án này,
+
+rõ ràng nó không chỉ là một con robot dò lài đơn thuẩn nữa rồi,
+
+bài học lớn nhất ở đây là con robot này chính là một minh họa
+
+hoàn hảo trong nguyên tắc cốd lõi của mọi hệ thống thông minh,
+
+đó là vòng lập ba bước: cảm nhận, quyết định và hành động,
+
+nó dùng cảm biến để cảm nhận thông tin từ môi trường,
+
+dùng bộ náo adoino để xử lý và quyết định và cuối cùng là dùng động
+
+cơ để thực thi hành động và điều này dẫn chúng ta đến một câu hỏi lớn hơn,
+
+hãy thử nghĩ mà xem có bao nhiêu thiết?
+
+xung quanh chúng ta đang hoạt động theo đúng nguyên tắc này,
+
+từ chiếc máy điều hòa tự điều chỉnh nhiệt độ con robot vút
+
+bụi trong nhà cho đến hệ thống phanh ibs phức tạp trên ô tô,
+
+tất cả đều bắt nguồn từ chính cái vòng lập cơ bản đó,
+
+cảm nhận, quyết định và hành động và dự án này là một
+
+minh chứng tuyệt vời cho thấy từ những linh kiện rất đơn giản,
+
+chúng ta hoàn toàn có thể tạo ra những hệ thống thông minh đến không ngờ.

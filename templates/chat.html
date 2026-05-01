@@ -13,6 +13,8 @@
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_input.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/mac-file-preview.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/video-styles.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/video-call.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
 
@@ -188,10 +190,13 @@
       to   { opacity: 1; transform: translate(-50%, -50%); }
     }
 
+    /* 10/12/2025 */
     .profile-card .banner {
       height: 120px;
       background-color: var(--mini-accent-banner);
       position: relative;
+      background-position: center;
+      background-size: cover;
     }
 
     .profile-card .banner-actions {
@@ -219,6 +224,48 @@
 
     .profile-card .circle-btn:hover { background-color: rgba(0, 0, 0, 0.6); }
     .profile-card .btn-add:hover { background-color: var(--mini-btn-green); }
+
+    /* 10/12/2025 - Mini profile three-dots menu */
+    .mini-profile-menu {
+      position: absolute;
+      top: 40px;
+      right: 12px;
+      background-color: #1e1f22;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+      padding: 4px 0;
+      min-width: 180px;
+      z-index: 3100;
+      display: none;
+    }
+
+    .mini-profile-menu.active {
+      display: block;
+    }
+
+    .mini-profile-menu-item {
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--mini-text-sub);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mini-profile-menu-item i {
+      width: 16px;
+      text-align: center;
+    }
+
+    .mini-profile-menu-item:hover {
+      background-color: var(--mini-btn-gray-hover);
+      color: var(--mini-text-main);
+    }
+
+    .mini-profile-menu-item.danger {
+      color: #f04747;
+    }
 
     .profile-card .user-header { position: relative; padding: 0 16px; }
 
@@ -311,7 +358,48 @@
       background-color: var(--mini-bg-status-hover);
     }
 
+    /* 10/12/2025 - Status actions hover + mini react buttons */
     .profile-card .status-actions {
+      display: none;
+      position: absolute;
+      top: -12px;
+      right: -6px;
+      gap: 2px;
+      background-color: var(--mini-bg-body);
+      padding: 3px;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+      z-index: 200;
+    }
+
+    .profile-card .status-wrapper:hover .status-actions {
+      display: flex;
+    }
+
+    .profile-card .mini-btn {
+      background: transparent;
+      border: none;
+      color: #b5bac1;
+      cursor: pointer;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.2s;
+    }
+
+    .profile-card .mini-btn:hover {
+      background: #404249;
+      color: #fff;
+    }
+
+    /* 10/12/2025 - Reaction count cho cảm nghĩ mini profile */
+    .profile-card .status-reaction-count {
+      margin-left: 6px;
+      font-size: 11px;
+      color: var(--mini-text-sub);
       display: none;
     }
 
@@ -408,62 +496,65 @@
 </head>
 <body>
   <div class="chat-app">
-    <nav class="mini-sidebar">
-      <button data-tab="requests" title="Yêu cầu kết bạn"><i class="fi fi-rr-following"></i></button>
-      <button data-tab="search" title="Tìm bạn"><i class="fi fi-rr-search-heart"></i></button>
-      <button data-tab="contacts" title="Bạn bè"><i class="fi fi-rr-address-book"></i></button>
-      <button data-tab="conversations" title="Hội thoại"><i class="fi fi-rr-comment-alt-dots"></i></button>
-      <button data-tab="groups" title="Nhóm"><i class="fi fi-rr-users-alt"></i></button>
-      <a href="{{ url_for('main.logout') }}" class="mini-logout" title="Đăng xuất"><i class="fi fi-rr-power"></i></a>
-    </nav>
-
-    <aside class="main-sidebar">
-      <div class="sidebar-header">
-        <h1>PAW TALK</h1>
-        <div class="user-avatar" data-user-id="{{ user_id }}">
-          <img src="{{ user_avatar }}" alt="{{ username }}">
-          <span class="username">{{ username }}</span>
+    <!-- Single Sidebar with Tabs -->
+    <aside class="modern-sidebar">
+      <!-- Brand Header -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <i class="fi fi-rr-paw"></i>
         </div>
+        <span class="brand-text">PAW TALK</span>
       </div>
-      
-      <div class="sidebar-content">
-        <section id="tab-requests" class="tab-section">
-          <h2>Yêu cầu kết bạn</h2>
-          <div id="friend-requests"></div>
-        </section>
 
-        <section id="tab-search" class="tab-section">
-          <h2>Tìm bạn mới</h2>
-          <input id="search-friends" type="text" placeholder="Tên hoặc email...">
-          <div id="search-results"></div>
-        </section>
-
-        <section id="tab-contacts" class="tab-section">
-          <h2>Danh sách bạn bè</h2>
-          <div id="contacts">
-            {% for friend in friends %}
-              <div class="contact-item" data-user-id="{{ friend._id }}">
-                <img src="{{ friend.avatar | get_avatar_url }}" alt="{{ friend.username }}" class="contact-avatar">
-                <div class="contact-info">
-                  <div class="contact-name">{{ friend.username }}</div>
-                </div>
-                <div class="contact-status">
-                  {% if friend.online %}<span class="online-dot"></span>{% endif %}
-                </div>
-              </div>
-            {% endfor %}
+      <!-- User Profile -->
+      <a href="/profile_by_id/{{ user_id }}" class="sidebar-profile">
+        <img src="{{ user_avatar }}" alt="{{ full_name or username }}" class="profile-avatar">
+        <div class="profile-info">
+          <div class="profile-name">{{ full_name or username }}</div>
+          <div class="profile-status">
+            <span class="status-dot-online"></span>
+            <span>Đang hoạt động</span>
           </div>
-        </section>
+        </div>
+      </a>
 
-        <section id="tab-conversations" class="tab-section">
-          <h2>Hội thoại</h2>
+      <!-- Tab Navigation -->
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="conversations">
+          <i class="fi fi-rr-comment-alt-dots"></i>
+          <span>Tin nhắn</span>
+          <span class="tab-badge" id="msg-badge" style="display: none;">0</span>
+        </button>
+        <button class="tab-btn" data-tab="contacts">
+          <i class="fi fi-rr-address-book"></i>
+          <span>Bạn bè</span>
+        </button>
+        <button class="tab-btn" data-tab="groups">
+          <i class="fi fi-rr-users-alt"></i>
+          <span>Nhóm</span>
+        </button>
+        <button class="tab-btn" data-tab="search">
+          <i class="fi fi-rr-search"></i>
+          <span>Tìm</span>
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="sidebar-content">
+        <!-- Conversations -->
+        <div id="tab-conversations" class="panel-section active">
           <div id="conversations">
             {% for conv in conversations %}
-            <div class="conversation-item" data-id="{{ conv._id }}" data-friend-id="{{ conv.friend_id }}"
+            <div class="conversation-item{% if conv.is_muted %} is-muted{% endif %}" data-id="{{ conv._id }}" data-friend-id="{{ conv.friend_id }}"
                 data-last-message="{{ conv.last_message|tojson|forceescape }}"
                 data-last-message-type="{{ conv.last_message_type }}"
-                data-last-message-sender="{{ conv.last_message_sender or '' }}">
-              <img src="{{ conv.friend_avatar }}" class="conversation-avatar" alt="{{ conv.friend_name }}">
+                data-last-message-sender="{{ conv.last_message_sender or '' }}"
+                data-muted="{{ '1' if conv.is_muted else '0' }}"
+                data-theme="{{ conv.theme }}">
+              <div class="conversation-avatar-wrapper">
+                <img src="{{ conv.friend_avatar }}" class="conversation-avatar" alt="{{ conv.friend_name }}">
+                <span class="online-status-indicator {% if conv.is_online %}online{% endif %}"></span>
+              </div>
               <div class="conversation-info">
                 <div class="conversation-name">{{ conv.friend_name }}</div>
                 <div class="conversation-preview">
@@ -472,27 +563,71 @@
                 </div>
               </div>
               <div class="conversation-status">
-                <div class="conversation-time" data-time="{{ (conv.last_message_time or conv.created_at)|to_iso_string }}">
+                <div class="conversation-time" data-time="{{ (conv.last_message_time or conv.created_at)|to_iso_string }}" data-timestamp="{{ (conv.last_message_time or conv.created_at)|timestamp }}">
                   {{ conv.last_message_time|format_time if conv.last_message_time else conv.created_at|format_time }}
                 </div> 
                 {% if conv.unread_count > 0 %}
                   <div class="unread-count">{{ conv.unread_count }}</div>
                 {% endif %}
+                {% if conv.is_muted %}
+                  <div class="conversation-muted-icon" title="Đã tắt thông báo">
+                    <i class="fas fa-bell-slash"></i>
+                  </div>
+                {% endif %}
               </div>
             </div>
             {% endfor %}
           </div>
-        </section>
+        </div>
 
-        <section id="tab-groups" class="tab-section">
-          <div class="groups-header">
+        <!-- Contacts -->
+        <div id="tab-contacts" class="panel-section">
+          <div id="contacts">
+            {% for friend in friends %}
+              <div class="contact-item" data-user-id="{{ friend._id }}">
+                <img src="{{ friend.avatar | get_avatar_url }}" alt="{{ friend.full_name or friend.username }}" class="contact-avatar">
+                <div class="contact-info">
+                  <div class="contact-name">{{ friend.full_name or friend.username }}</div>
+                </div>
+                <div class="contact-status">
+                  {% if friend.online %}<span class="online-dot"></span>{% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Groups -->
+        <div id="tab-groups" class="panel-section">
+          <div class="panel-header">
             <h2>Danh sách nhóm</h2>
             <button id="create-group-btn" title="Tạo nhóm mới">
               <i class="fi fi-rr-add"></i>
             </button>
           </div>
           <div id="groups-list"></div>
-        </section>
+        </div>
+
+        <!-- Search -->
+        <div id="tab-search" class="panel-section">
+          <div class="panel-header">
+            <h2>Tìm bạn mới</h2>
+          </div>
+          <input id="search-friends" type="text" placeholder="Tên hoặc email...">
+          <div id="search-results"></div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <a href="{{ url_for('main.timeline') }}" class="footer-link">
+          <i class="fi fi-rr-clock"></i>
+          <span>Timeline</span>
+        </a>
+        <a href="{{ url_for('main.logout') }}" class="footer-link">
+          <i class="fi fi-rr-power"></i>
+          <span>Đăng xuất</span>
+        </a>
       </div>
     </aside>
 
@@ -548,48 +683,28 @@
         </div>
       </div>
 
-      <div class="message-input hidden">
+     <div class="message-input hidden">
+    <button id="btn-toggle-actions" title="Thao tác khác" class="btn-icon">
+        <i class="fas fa-plus"></i> 
+    </button>
+
+    <div id="action-buttons-menu" class="action-menu">
+        <button id="attach-file" title="Đính kèm file"><i class="fi fi-rr-folder-open"></i></button>
+        <button id="attach-image" title="Gửi hình ảnh"><i class="fi fi-rr-picture"></i></button>
+        <button id="show-stickers" title="Gửi sticker"><i class="fi fi-rr-smile"></i></button>
+        <button id="btn-gift" title="Gửi hộp quà"><i class="fi fi-rr-gift"></i></button>
+        <button id="record-voice" title="Ghi âm tin nhắn"><i class="fas fa-microphone"></i></button>
+        <button id="btn-share-location" title="Chia sẻ vị trí hiện tại"><i class="fas fa-location-arrow"></i></button>
+        <button id="btn-drawing-tool" title="Vẽ chú thích màn hình"><i class="fas fa-palette"></i></button>
         
-        <button id="btn-toggle-actions" title="Thao tác khác" class="btn-icon">
-            <i class="fas fa-plus"></i> 
+        <button id="btn-create-poll" title="Tạo bình chọn">
+            <i class="fas fa-poll"></i> 
         </button>
+    </div>
 
-        <div id="action-buttons-menu" class="action-menu">
-    <button id="attach-file" title="Đính kèm file">
-        <i class="fi fi-rr-folder-open"></i>
-    </button>
-
-    <button id="attach-image" title="Gửi hình ảnh">
-        <i class="fi fi-rr-picture"></i>
-    </button>
-
-    <button id="show-stickers" title="Gửi sticker">
-        <i class="fi fi-rr-smile"></i>
-    </button>
-
-    <button id="btn-gift" title="Gửi hộp quà">
-        <i class="fi fi-rr-gift"></i>
-    </button>
-
-    <button id="record-voice" title="Ghi âm tin nhắn">
-        <i class="fas fa-microphone"></i>
-    </button>
-
-    <!-- 🔥 NÚT CHIA SẺ VỊ TRÍ MỚI -->
-    <button id="btn-share-location" title="Chia sẻ vị trí hiện tại">
-        <i class="fas fa-location-arrow"></i>
-    </button>
-
-    <button id="btn-drawing-tool" title="Vẽ chú thích màn hình">
-        <i class="fas fa-palette"></i>
-    </button>
+    <input type="text" id="message" placeholder="Nhập tin nhắn..." autocomplete="off">
+    <button id="send" class="btn-icon"><i class="fas fa-paper-plane"></i></button>
 </div>
-
-        
-        <input id="message" type="text" placeholder="Nhập tin nhắn...">
-        <button id="send"><i class="fi fi-br-paper-plane"></i></button>
-      </div>
-
       <div id="recording-indicator" class="recording-indicator hidden">
         <i class="fas fa-dot-circle"></i> <span>Đang ghi âm... nhấn lại icon micro để dừng & gửi</span>
       </div>
@@ -600,12 +715,43 @@
       <div id="sticker-panel" class="sticker-panel" style="display:none;">
         <div class="sticker-header"><button id="close-stickers" class="close-stickers">&times;</button></div>
         <div class="sticker-grid">
-          <div class="sticker" data-sticker="sticker1">😀</div>
-          <div class="sticker" data-sticker="sticker2">😂</div>
-          <div class="sticker" data-sticker="sticker3">😍</div>
-          <div class="sticker" data-sticker="sticker4">🤔</div>
-          <div class="sticker" data-sticker="sticker5">👍</div>
-          <div class="sticker" data-sticker="sticker6">❤️</div>
+          <!-- Animated Stickers with CSS -->
+          <div class="sticker" data-sticker="sticker1" data-emoji="😀" title="Vui vẻ">
+            <span class="sticker-emoji bounce">😀</span>
+          </div>
+          <div class="sticker" data-sticker="sticker2" data-emoji="😂" title="Cười lăn">
+            <span class="sticker-emoji shake">😂</span>
+          </div>
+          <div class="sticker" data-sticker="sticker3" data-emoji="😍" title="Yêu thích">
+            <span class="sticker-emoji heartbeat">😍</span>
+          </div>
+          <div class="sticker" data-sticker="sticker4" data-emoji="🤔" title="Suy nghĩ">
+            <span class="sticker-emoji wobble">🤔</span>
+          </div>
+          <div class="sticker" data-sticker="sticker5" data-emoji="👍" title="Like">
+            <span class="sticker-emoji tada">👍</span>
+          </div>
+          <div class="sticker" data-sticker="sticker6" data-emoji="❤️" title="Trái tim">
+            <span class="sticker-emoji pulse">❤️</span>
+          </div>
+          <div class="sticker" data-sticker="sticker7" data-emoji="🎉" title="Chúc mừng">
+            <span class="sticker-emoji party">🎉</span>
+          </div>
+          <div class="sticker" data-sticker="sticker8" data-emoji="😎" title="Ngầu">
+            <span class="sticker-emoji swing">😎</span>
+          </div>
+          <div class="sticker" data-sticker="sticker9" data-emoji="🥰" title="Thương yêu">
+            <span class="sticker-emoji pulse">🥰</span>
+          </div>
+          <div class="sticker" data-sticker="sticker10" data-emoji="😭" title="Khóc">
+            <span class="sticker-emoji shake">😭</span>
+          </div>
+          <div class="sticker" data-sticker="sticker11" data-emoji="🔥" title="Fire">
+            <span class="sticker-emoji flame">🔥</span>
+          </div>
+          <div class="sticker" data-sticker="sticker12" data-emoji="💯" title="100">
+            <span class="sticker-emoji bounce">💯</span>
+          </div>
         </div>
       </div>
     </main>
@@ -722,6 +868,32 @@
   <div class="overlay" id="sidebar-overlay"></div>
 
   <div id="call-overlay" class="call-overlay" style="display: none;">
+    <!-- Mac Style Header -->
+    <div class="call-header" id="call-header">
+        <img src="/static/img/default-avatar.png" class="avatar" id="call-avatar" alt="">
+        <div class="info">
+            <div class="name" id="call-name">Cuộc gọi</div>
+            <div class="status">
+                <span class="status-dot"></span>
+                <span class="call-timer" id="call-duration">00:00</span>
+            </div>
+        </div>
+        <div class="audio-visualizer" id="audio-visualizer">
+            <div class="audio-bar" style="height: 4px;"></div>
+            <div class="audio-bar" style="height: 8px;"></div>
+            <div class="audio-bar" style="height: 6px;"></div>
+            <div class="audio-bar" style="height: 12px;"></div>
+            <div class="audio-bar" style="height: 6px;"></div>
+            <div class="audio-bar" style="height: 8px;"></div>
+            <div class="audio-bar" style="height: 4px;"></div>
+        </div>
+    </div>
+
+    <!-- Expand Button (chỉ hiện khi minimized) -->
+    <button class="btn-expand" id="btn-expand" onclick="toggleMinimize()" title="Phóng to">
+        <i class="fas fa-expand"></i>
+    </button>
+
     <div id="video-grid">
         <div class="video-box" id="local-box">
             <video id="local-video" autoplay playsinline muted></video>
@@ -793,6 +965,11 @@
             <i class="fas fa-sync-alt"></i>
         </button>
 
+        <!-- Nút thu gọn -->
+        <button class="btn-control btn-minimize" id="btn-minimize" onclick="toggleMinimize()" title="Thu gọn">
+            <i class="fas fa-compress"></i>
+        </button>
+
         <button class="btn-control btn-danger" onclick="endCall()" title="Kết thúc">
             <i class="fas fa-phone-slash"></i>
         </button>
@@ -806,7 +983,7 @@
             <div class="pulse-ring"></div>
         </div>
         <h3 id="incoming-name">Người dùng...</h3>
-        <p>Đang gọi cho nhóm...</p>
+        <p id="incoming-desc">Đang gọi...</p>
         <div class="incoming-actions">
             <button class="btn-accept" id="btn-accept-call">
                 <i class="fas fa-phone"></i> Trả lời
@@ -834,6 +1011,18 @@
           <i class="fas fa-ellipsis-h"></i>
         </button>
       </div>
+      <!-- 10/12/2025: Menu 3 chấm cho mini profile -->
+      <div class="mini-profile-menu" id="mini-profile-menu">
+        <div class="mini-profile-menu-item" data-action="view-profile">
+          <i class="fas fa-user"></i><span>Xem hồ sơ</span>
+        </div>
+        <div class="mini-profile-menu-item" data-action="unfriend">
+          <i class="fas fa-user-times"></i><span>Xóa kết bạn</span>
+        </div>
+        <div class="mini-profile-menu-item danger" data-action="block">
+          <i class="fas fa-ban"></i><span>Chặn</span>
+        </div>
+      </div>
     </div>
 
     <div class="user-header">
@@ -848,6 +1037,8 @@
 
         <div class="custom-status-bubble">
           <span id="mini-profile-status-text"></span>
+          <!-- 10/12/2025 - Hiển thị tổng số react cho cảm nghĩ -->
+          <span id="mini-profile-status-reaction-count" class="status-reaction-count"></span>
           <div class="status-actions">
             <button class="mini-btn" title="Thả cảm xúc"><i class="fas fa-smile"></i></button>
             <button class="mini-btn" title="Trả lời"><i class="fas fa-reply"></i></button>
@@ -939,13 +1130,131 @@
       const inputEl = document.getElementById('mini-profile-input');
       const mutualEl = document.getElementById('mini-profile-mutual');
       const mutualTextEl = document.getElementById('mini-profile-mutual-text');
+      const statusReactionCountEl = document.getElementById('mini-profile-status-reaction-count');
+
+      const moreBtn = document.getElementById('mini-profile-more-btn');
+      const miniProfileMenuEl = document.getElementById('mini-profile-menu');
+      const statusBubbleEl = popup.querySelector('.custom-status-bubble');
+      const statusActionsEl = popup.querySelector('.status-actions');
 
       let currentMiniProfileUserId = null;
+      let currentMiniProfileData = null;
+      let miniStatusReacted = false; // 10/12/2025 - trạng thái react cục bộ
+
+      // 10/12/2025 - Helper: áp dụng trạng thái reaction lên UI
+      function applyStatusReactionState(total, reactedByMe) {
+        miniStatusReacted = !!reactedByMe;
+
+        if (statusActionsEl) {
+          const reactBtn = statusActionsEl.querySelector('.mini-btn:nth-child(1)');
+          if (reactBtn) {
+            const icon = reactBtn.querySelector('i');
+            if (icon) {
+              icon.style.color = miniStatusReacted ? '#ffcc4d' : '';
+            }
+          }
+        }
+
+        if (statusReactionCountEl) {
+          if (total > 0) {
+            statusReactionCountEl.textContent = `❤️ ${total}`;
+            statusReactionCountEl.style.display = 'inline-flex';
+          } else {
+            statusReactionCountEl.textContent = '';
+            statusReactionCountEl.style.display = 'none';
+          }
+        }
+      }
+
+      // 10/12/2025 - Cập nhật cảm nghĩ cho bản thân từ mini profile (phiên bản ngoài, tránh lỗi scope)
+      async function updateSelfStatus(newStatus) {
+        try {
+          const res = await fetch('/set_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus || '' })
+          });
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          const result = await res.json();
+          if (!result.success) {
+            alert(result.error || 'Không thể cập nhật cảm nghĩ');
+            return;
+          }
+          if (!currentMiniProfileData) {
+            currentMiniProfileData = {};
+          }
+          currentMiniProfileData.custom_status = result.status || '';
+          fillMiniProfile(currentMiniProfileData);
+        } catch (err) {
+          console.error('Mini profile set status error:', err);
+          alert('Lỗi kết nối khi cập nhật cảm nghĩ');
+        }
+      }
+
+      // 10/12/2025 - Xử lý click lên bong bóng cảm nghĩ (self)
+      function handleStatusBubbleClick() {
+        if (!currentMiniProfileData) return;
+        if (currentMiniProfileData.friend_status !== 'self') return;
+
+        const currentStatus = (currentMiniProfileData.custom_status || '').trim();
+        const promptText = 'Nhập cảm nghĩ của bạn (để trống để xoá):';
+        const newText = window.prompt(promptText, currentStatus);
+        if (newText === null) return; // Huỷ
+        const trimmed = newText.trim();
+        updateSelfStatus(trimmed);
+      }
+
+      // 10/12/2025 - React cảm nghĩ, lưu server
+      async function toggleStatusReaction(emoji = '❤️') {
+        if (!currentMiniProfileUserId) return;
+        try {
+          const res = await fetch('/status/react', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              target_user_id: currentMiniProfileUserId,
+              emoji: emoji
+            })
+          });
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          const result = await res.json();
+          if (!result.success) {
+            alert(result.error || 'Không thể thả cảm xúc');
+            return;
+          }
+          const total = typeof result.count === 'number' ? result.count : 0;
+          const reactedByMe = !!result.reacted_by_me;
+          applyStatusReactionState(total, reactedByMe);
+        } catch (err) {
+          console.error('Mini profile status react error:', err);
+          alert('Lỗi kết nối khi thả cảm xúc');
+        }
+      }
 
       function fillMiniProfile(data) {
         if (!data) return;
 
         currentMiniProfileUserId = data.user_id || null;
+        currentMiniProfileData = data;
+
+        const banner = document.querySelector('#mini-profile-popup .banner');
+        if (banner) {
+            if (data.cover_photo) {
+                banner.style.backgroundImage = `url(${data.cover_photo})`;
+            } else {
+                banner.style.backgroundImage = 'none';
+                banner.style.backgroundColor = 'var(--mini-accent-banner)';
+            }
+
+        // 10/12/2025 - Áp dụng trạng thái reaction từ API
+        const initialReactionTotal = data.status_reaction_total || 0;
+        const initialReactionByMe = !!data.status_reaction_by_me;
+        applyStatusReactionState(initialReactionTotal, initialReactionByMe);
+        }
 
         const fullName = data.full_name && data.full_name.trim() ? data.full_name.trim() : '';
         const username = data.username || '';
@@ -961,12 +1270,6 @@
         }
 
         const statusText = (data.custom_status || '').trim();
-        if (statusTextEl) {
-          statusTextEl.textContent = statusText;
-        }
-        if (statusWrapper) {
-          statusWrapper.style.display = statusText ? 'block' : 'none';
-        }
 
         if (inputEl) {
           inputEl.placeholder = username ? `Nhắn tin cho @${username}` : 'Nhắn tin';
@@ -986,9 +1289,9 @@
             samples.slice(0, 3).forEach(fr => {
               const img = document.createElement('img');
               img.src = fr.avatar;
-              img.alt = fr.username;
+              img.alt = fr.full_name || fr.username;
               img.className = 'mutual-avatar';
-              img.title = fr.username;
+              img.title = fr.full_name || fr.username;
               Object.assign(img.style, {
                 width: '16px',
                 height: '16px',
@@ -1013,21 +1316,104 @@
         const friendStatus = data.friend_status;
         const addFriendBtn = document.getElementById('mini-profile-add-friend-btn');
 
-        if (addFriendBtn) {
-            if (friendStatus === 'self' || friendStatus === 'accepted' || friendStatus === 'received') {
-                addFriendBtn.style.display = 'none';
-            } else if (friendStatus === 'sent') {
-                addFriendBtn.style.display = 'block';
-                addFriendBtn.disabled = true;
-                addFriendBtn.innerHTML = '<i class="fas fa-check"></i>';
-                addFriendBtn.title = 'Đã gửi lời mời';
-            } else { // 'none'
-                addFriendBtn.style.display = 'block';
-                addFriendBtn.disabled = false;
-                addFriendBtn.innerHTML = '<i class="fas fa-user-plus"></i>';
-                addFriendBtn.title = 'Gửi lời mời kết bạn';
+        // 10/12/2025 - Xử lý hiển thị cảm nghĩ cho chính bản thân (inline editable)
+        if (statusWrapper && statusTextEl) {
+          if (friendStatus === 'self') {
+            if (statusText) {
+              statusTextEl.textContent = statusText;
+              statusTextEl.dataset.placeholder = '0';
+            } else {
+              statusTextEl.textContent = 'Thêm cảm nghĩ của bạn...';
+              statusTextEl.dataset.placeholder = '1';
             }
+            statusWrapper.style.display = 'block';
+            statusTextEl.setAttribute('contenteditable', 'true');
+          } else {
+            statusTextEl.textContent = statusText;
+            if (statusTextEl.dataset) {
+              statusTextEl.dataset.placeholder = statusText ? '0' : '';
+            }
+            statusWrapper.style.display = statusText ? 'block' : 'none';
+            statusTextEl.removeAttribute('contenteditable');
+          }
         }
+
+        if (addFriendBtn) {
+          if (friendStatus === 'self' || friendStatus === 'received') {
+            addFriendBtn.style.display = 'none';
+          } else if (friendStatus === 'accepted') {
+            // 10/12/2025: Khi là bạn bè, hiển thị nút dấu tích
+            addFriendBtn.style.display = 'block';
+            addFriendBtn.disabled = true;
+            addFriendBtn.innerHTML = '<i class="fas fa-check"></i>';
+            addFriendBtn.title = 'Đã là bạn bè';
+          } else if (friendStatus === 'sent') {
+            addFriendBtn.style.display = 'block';
+            addFriendBtn.disabled = true;
+            addFriendBtn.innerHTML = '<i class="fas fa-check"></i>';
+            addFriendBtn.title = 'Đã gửi lời mời';
+          } else { // 'none' hoặc trạng thái khác
+            addFriendBtn.style.display = 'block';
+            addFriendBtn.disabled = false;
+            addFriendBtn.innerHTML = '<i class="fas fa-user-plus"></i>';
+            addFriendBtn.title = 'Gửi lời mời kết bạn';
+          }
+        }
+
+        // 10/12/2025: Cập nhật hiển thị menu 3 chấm theo trạng thái bạn bè
+        if (miniProfileMenuEl) {
+          const unfriendItem = miniProfileMenuEl.querySelector('[data-action="unfriend"]');
+          if (unfriendItem) {
+            unfriendItem.style.display = friendStatus === 'accepted' ? 'flex' : 'none';
+          }
+        }
+      }
+
+      // 10/12/2025: Hủy kết bạn từ mini profile
+      async function handleMiniProfileUnfriend(userId) {
+        if (!userId) return;
+        if (!confirm('Bạn có chắc chắn muốn hủy kết bạn với người này?')) {
+          return;
+        }
+        try {
+          const res = await fetch('/unfriend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ friend_id: userId })
+          });
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          const result = await res.json();
+          if (result.success) {
+            if (currentMiniProfileData) {
+              const updated = Object.assign({}, currentMiniProfileData, { friend_status: 'none' });
+              fillMiniProfile(updated);
+            }
+          } else {
+            alert(result.error || 'Lỗi khi hủy kết bạn');
+          }
+        } catch (err) {
+          console.error('Mini profile unfriend error:', err);
+          alert('Lỗi kết nối khi hủy kết bạn');
+        }
+      }
+
+      // 10/12/2025: Xử lý chặn từ mini profile (placeholder)
+      function handleMiniProfileBlock(userId) {
+        if (!userId) return;
+        alert('Tính năng chặn sẽ được bổ sung sau.');
+      }
+
+      function closeMiniProfileMenu() {
+        if (miniProfileMenuEl) {
+          miniProfileMenuEl.classList.remove('active');
+        }
+      }
+
+      function toggleMiniProfileMenu() {
+        if (!miniProfileMenuEl) return;
+        miniProfileMenuEl.classList.toggle('active');
       }
 
       function openMiniProfileInternal(userId) {
@@ -1035,6 +1421,7 @@
           console.warn('[MiniProfile] openMiniProfileInternal called without userId');
           return;
         }
+        closeMiniProfileMenu();
         console.log('[MiniProfile] Fetching for userId:', userId);
         fetch('/user_mini_profile/' + encodeURIComponent(userId))
           .then(res => {
@@ -1070,9 +1457,107 @@
         });
       }
 
+      // 10/12/2025 - Gắn sự kiện cho bong bóng cảm nghĩ
+      if (statusBubbleEl) {
+        statusBubbleEl.addEventListener('click', (e) => {
+          // Bỏ qua click trên nút react/reply
+          if (e.target.closest('.status-actions')) return;
+          // Nếu là bản thân -> focus để nhập trực tiếp
+          if (currentMiniProfileData && currentMiniProfileData.friend_status === 'self' && statusTextEl) {
+            statusTextEl.focus();
+            return;
+          }
+        });
+      }
+
+      // 10/12/2025 - Cho phép nhập trực tiếp cảm nghĩ trên span (chỉ self)
+      if (statusTextEl) {
+        statusTextEl.addEventListener('focus', () => {
+          if (!currentMiniProfileData || currentMiniProfileData.friend_status !== 'self') {
+            // Không cho sửa cảm nghĩ của người khác
+            statusTextEl.blur();
+            return;
+          }
+          if (statusTextEl.dataset && statusTextEl.dataset.placeholder === '1') {
+            statusTextEl.textContent = '';
+          }
+        });
+
+        statusTextEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            statusTextEl.blur(); // Triggers blur handler để lưu
+          }
+        });
+
+        statusTextEl.addEventListener('blur', () => {
+          if (!currentMiniProfileData || currentMiniProfileData.friend_status !== 'self') return;
+          const newText = (statusTextEl.textContent || '').trim();
+          if (!newText) {
+            updateSelfStatus('');
+          } else {
+            updateSelfStatus(newText);
+          }
+        });
+      }
+
+      // 10/12/2025 - Chức năng react & reply cho cảm nghĩ trong status-actions
+      if (statusActionsEl) {
+        const reactBtn = statusActionsEl.querySelector('.mini-btn:nth-child(1)');
+        const replyBtn = statusActionsEl.querySelector('.mini-btn:nth-child(2)');
+
+        if (reactBtn) {
+          reactBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleStatusReaction('❤️');
+          });
+        }
+
+        if (replyBtn) {
+          replyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!inputEl) return;
+            inputEl.focus();
+            if (!inputEl.value) {
+              const uname = currentMiniProfileData && currentMiniProfileData.username ? '@' + currentMiniProfileData.username + ' ' : '';
+              inputEl.value = uname;
+            }
+            // Đưa con trỏ về cuối
+            try {
+              const len = inputEl.value.length;
+              inputEl.setSelectionRange(len, len);
+            } catch (e) {}
+          });
+        }
+      }
+
+      if (moreBtn && miniProfileMenuEl) {
+        // 10/12/2025: Gắn menu 3 chấm mini profile
+        moreBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleMiniProfileMenu();
+        });
+
+        miniProfileMenuEl.addEventListener('click', (e) => {
+          const item = e.target.closest('.mini-profile-menu-item');
+          if (!item) return;
+          const action = item.dataset.action;
+          if (!currentMiniProfileUserId) return;
+
+          if (action === 'view-profile') {
+            window.open('/profile_by_id/' + encodeURIComponent(currentMiniProfileUserId), '_blank');
+          } else if (action === 'unfriend') {
+            handleMiniProfileUnfriend(currentMiniProfileUserId);
+          } else if (action === 'block') {
+            handleMiniProfileBlock(currentMiniProfileUserId);
+          }
+        });
+      }
+
       window.openMiniProfile = openMiniProfileInternal;
       window.closeMiniProfile = function() {
         popup.classList.remove('active');
+        closeMiniProfileMenu();
       };
 
       // Đóng khi click ra ngoài
@@ -1080,6 +1565,7 @@
         if (!popup.classList.contains('active')) return;
         if (popup.contains(e.target)) return;
         popup.classList.remove('active');
+        closeMiniProfileMenu();
       });
 
       // Ngăn chặn bubbling bên trong popup
@@ -1191,6 +1677,535 @@
       }
     })();
   </script>
+
+  <!-- ===== FLOATING QUICK CALL BUTTON - GỌI NGAY KHI VÀO WEB ===== -->
+  <div id="quick-call-fab" style="
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  ">
+    <!-- Menu mở rộng -->
+    <div id="quick-call-menu" style="
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+    ">
+      <button onclick="showQuickCallDialog('video')" style="
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+      " title="Gọi video nhanh">
+        <i class="fas fa-video"></i>
+      </button>
+      <button onclick="showQuickCallDialog('audio')" style="
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #2196F3;
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+      " title="Gọi thoại nhanh">
+        <i class="fas fa-phone"></i>
+      </button>
+      <button onclick="showGroupCallDialog()" style="
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #FF9800;
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+      " title="Gọi nhóm nhanh">
+        <i class="fas fa-users"></i>
+      </button>
+    </div>
+    
+    <!-- Nút chính -->
+    <button id="quick-call-toggle" style="
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+      color: white;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(62, 180, 137, 0.4);
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    " title="Gọi nhanh">
+      <i class="fas fa-phone-alt"></i>
+    </button>
+  </div>
+
+  <!-- Dialog gọi nhanh - Cải tiến với tìm kiếm gợi ý -->
+  <div id="quick-call-dialog" style="
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 0;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    z-index: 10000;
+    min-width: 360px;
+    max-width: 90%;
+    overflow: hidden;
+  ">
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%); padding: 20px 25px; color: white;">
+      <h3 style="margin: 0; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+        <i class="fas fa-phone"></i>
+        <span id="quick-call-title">Gọi nhanh</span>
+      </h3>
+      <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">Tìm kiếm bạn bè hoặc nhóm để gọi</p>
+    </div>
+
+    <!-- Search Input -->
+    <div style="padding: 20px 25px;">
+      <div style="position: relative;">
+        <i class="fas fa-search" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+        <input type="text" id="quick-call-input" placeholder="Nhập tên hoặc ID..." style="
+          width: 100%;
+          padding: 12px 15px 12px 45px;
+          border: 2px solid #e0e0e0;
+          border-radius: 25px;
+          font-size: 15px;
+          box-sizing: border-box;
+          outline: none;
+          transition: border-color 0.2s;
+        " oninput="searchQuickCallSuggestions(this.value)">
+      </div>
+
+      <!-- Suggestions Dropdown -->
+      <div id="quick-call-suggestions" style="
+        display: none;
+        margin-top: 10px;
+        max-height: 250px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        background: white;
+      ">
+        <!-- Suggestions will be populated here -->
+      </div>
+
+      <!-- Call Mode Selection -->
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button id="btn-video-mode" onclick="setCallMode('video')" style="
+          flex: 1;
+          padding: 12px;
+          background: #3eb489;
+          color: white;
+          border: 2px solid #3eb489;
+          border-radius: 10px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        ">
+          <i class="fas fa-video"></i> Video
+        </button>
+        <button id="btn-audio-mode" onclick="setCallMode('audio')" style="
+          flex: 1;
+          padding: 12px;
+          background: white;
+          color: #666;
+          border: 2px solid #e0e0e0;
+          border-radius: 10px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        ">
+          <i class="fas fa-phone"></i> Thoại
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer Buttons -->
+    <div style="display: flex; gap: 0; border-top: 1px solid #e0e0e0;">
+      <button onclick="closeQuickCallDialog()" style="
+        flex: 1;
+        padding: 15px;
+        background: white;
+        color: #666;
+        border: none;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 500;
+      ">
+        Huỷ
+      </button>
+      <button onclick="executeQuickCall()" style="
+        flex: 1;
+        padding: 15px;
+        background: linear-gradient(135deg, #3eb489 0%, #2d9cdb 100%);
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      ">
+        <i class="fas fa-phone"></i> Gọi ngay
+      </button>
+    </div>
+  </div>
+
+  <!-- Overlay cho dialog -->
+  <div id="quick-call-overlay" style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+  " onclick="closeQuickCallDialog()"></div>
+
+  <script>
+    // ===== QUICK CALL ANYWHERE FUNCTIONALITY =====
+    let currentQuickCallMode = 'video';
+    let currentQuickCallType = 'private'; // 'private' or 'group'
+    let selectedQuickCallTarget = null; // Store selected target info
+
+    // Toggle menu
+    document.getElementById('quick-call-toggle')?.addEventListener('click', function() {
+      const menu = document.getElementById('quick-call-menu');
+      if (menu.style.display === 'flex') {
+        menu.style.display = 'none';
+        this.style.transform = 'rotate(0deg)';
+      } else {
+        menu.style.display = 'flex';
+        this.style.transform = 'rotate(90deg)';
+      }
+    });
+
+    // Set call mode
+    function setCallMode(mode) {
+      currentQuickCallMode = mode;
+      const btnVideo = document.getElementById('btn-video-mode');
+      const btnAudio = document.getElementById('btn-audio-mode');
+      
+      if (mode === 'video') {
+        btnVideo.style.background = '#3eb489';
+        btnVideo.style.color = 'white';
+        btnVideo.style.borderColor = '#3eb489';
+        btnAudio.style.background = 'white';
+        btnAudio.style.color = '#666';
+        btnAudio.style.borderColor = '#e0e0e0';
+      } else {
+        btnAudio.style.background = '#3eb489';
+        btnAudio.style.color = 'white';
+        btnAudio.style.borderColor = '#3eb489';
+        btnVideo.style.background = 'white';
+        btnVideo.style.color = '#666';
+        btnVideo.style.borderColor = '#e0e0e0';
+      }
+    }
+
+    // Search suggestions
+    function searchQuickCallSuggestions(query) {
+      const suggestionsDiv = document.getElementById('quick-call-suggestions');
+      
+      if (!query || query.trim().length < 1) {
+        suggestionsDiv.style.display = 'none';
+        return;
+      }
+
+      query = query.toLowerCase().trim();
+      let suggestions = [];
+
+      // Search in friends list - CHỈ tìm conversation-item để tránh trùng lặp
+      const friends = document.querySelectorAll('.conversation-item');
+      const addedIds = new Set(); // Track đã thêm
+      
+      friends.forEach(el => {
+        const nameEl = el.querySelector('.conversation-name');
+        const id = el.dataset.id || el.dataset.userId;
+        const avatar = el.querySelector('.conversation-avatar')?.src || '/static/img/default-avatar.png';
+        
+        if (nameEl && id && !addedIds.has(id)) { // Chỉ thêm nếu chưa có
+          const name = nameEl.textContent.trim();
+          if (name.toLowerCase().includes(query)) {
+            suggestions.push({
+              type: 'private',
+              id: id,
+              name: name,
+              avatar: avatar,
+              el: el
+            });
+            addedIds.add(id); // Đánh dấu đã thêm
+          }
+        }
+      });
+
+      // Search in groups list
+      const groups = document.querySelectorAll('.group-item');
+      groups.forEach(el => {
+        const nameEl = el.querySelector('.group-name');
+        const id = el.dataset.id; // 🔥 FIX: Dùng dataset.id thay vì dataset.groupId
+        const avatarEl = el.querySelector('.group-avatar img, .group-avatar');
+        const avatar = avatarEl?.src || '/static/img/default-group.png';
+        
+        if (nameEl && id) {
+          const name = nameEl.textContent.trim();
+          if (name.toLowerCase().includes(query)) {
+            suggestions.push({
+              type: 'group',
+              id: id,
+              name: name + ' (Nhóm)',
+              avatar: avatar,
+              el: el
+            });
+          }
+        }
+      });
+
+      // Limit to 5 suggestions
+      suggestions = suggestions.slice(0, 5);
+
+      if (suggestions.length > 0) {
+        suggestionsDiv.innerHTML = suggestions.map(s => `
+          <div onclick="selectQuickCallTarget('${s.type}', '${s.id}', '${s.name.replace(/'/g, "\\'")}', '${s.avatar}')" style="
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+          " onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+            <img src="${s.avatar}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: #333; font-size: 14px;">${s.name}</div>
+              <div style="font-size: 12px; color: #999;">${s.type === 'group' ? 'Nhóm' : 'Bạn bè'}</div>
+            </div>
+            <i class="fas fa-phone" style="color: #3eb489;"></i>
+          </div>
+        `).join('');
+        suggestionsDiv.style.display = 'block';
+      } else {
+        suggestionsDiv.innerHTML = `
+          <div style="padding: 15px; text-align: center; color: #999;">
+            <i class="fas fa-search" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+            Không tìm thấy kết quả
+          </div>
+        `;
+        suggestionsDiv.style.display = 'block';
+      }
+    }
+
+    // Select target from suggestion
+    function selectQuickCallTarget(type, id, name, avatar) {
+      selectedQuickCallTarget = { type, id, name, avatar };
+      document.getElementById('quick-call-input').value = name;
+      document.getElementById('quick-call-suggestions').style.display = 'none';
+      currentQuickCallType = type;
+      
+      // Update title
+      const title = type === 'group' ? 'Gọi nhóm: ' + name : 'Gọi: ' + name;
+      document.getElementById('quick-call-title').textContent = title;
+    }
+
+    // Show dialog for private call
+    function showQuickCallDialog(mode) {
+      currentQuickCallMode = mode;
+      currentQuickCallType = 'private';
+      selectedQuickCallTarget = null;
+      
+      document.getElementById('quick-call-title').textContent = 'Gọi nhanh';
+      document.getElementById('quick-call-input').value = '';
+      document.getElementById('quick-call-suggestions').style.display = 'none';
+      
+      // Set mode button styles
+      setCallMode(mode);
+      
+      document.getElementById('quick-call-dialog').style.display = 'block';
+      document.getElementById('quick-call-overlay').style.display = 'block';
+      document.getElementById('quick-call-input').focus();
+      
+      // Đóng menu
+      document.getElementById('quick-call-menu').style.display = 'none';
+      document.getElementById('quick-call-toggle').style.transform = 'rotate(0deg)';
+    }
+
+    // Show dialog for group call
+    function showGroupCallDialog() {
+      currentQuickCallMode = 'video';
+      currentQuickCallType = 'group';
+      selectedQuickCallTarget = null;
+      
+      document.getElementById('quick-call-title').textContent = 'Gọi nhóm nhanh';
+      document.getElementById('quick-call-input').value = '';
+      document.getElementById('quick-call-suggestions').style.display = 'none';
+      
+      setCallMode('video');
+      
+      document.getElementById('quick-call-dialog').style.display = 'block';
+      document.getElementById('quick-call-overlay').style.display = 'block';
+      document.getElementById('quick-call-input').focus();
+      
+      // Đóng menu
+      document.getElementById('quick-call-menu').style.display = 'none';
+      document.getElementById('quick-call-toggle').style.transform = 'rotate(0deg)';
+    }
+
+    // Close dialog
+    function closeQuickCallDialog() {
+      document.getElementById('quick-call-dialog').style.display = 'none';
+      document.getElementById('quick-call-overlay').style.display = 'none';
+      document.getElementById('quick-call-input').value = '';
+      document.getElementById('quick-call-suggestions').style.display = 'none';
+      selectedQuickCallTarget = null;
+    }
+
+    // Execute quick call
+    async function executeQuickCall() {
+      // Use selected target if available, otherwise use input
+      let target = selectedQuickCallTarget;
+      
+      if (!target) {
+        const input = document.getElementById('quick-call-input').value.trim();
+        if (!input) {
+          alert('Vui lòng chọn hoặc nhập tên/ID để gọi');
+          return;
+        }
+        
+        // Kiểm tra nếu là ID (24 ký tự hex)
+        const isId = /^[a-f0-9]{24}$/i.test(input);
+        if (isId) {
+          target = { type: currentQuickCallType, id: input };
+        } else {
+          alert('Vui lòng chọn từ danh sách gợi ý hoặc nhập ID đúng định dạng (24 ký tự)');
+          return;
+        }
+      }
+
+      closeQuickCallDialog();
+
+      if (target.type === 'private' || currentQuickCallType === 'private') {
+        // Gọi 1v1
+        if (window.startPrivateCallAnywhere) {
+          await window.startPrivateCallAnywhere(target.id, currentQuickCallMode);
+        } else {
+          alert('Chức năng gọi chưa sẵn sàng. Vui lòng thử lại sau.');
+        }
+      } else {
+        // Gọi nhóm
+        if (window.startGroupCallAnywhere) {
+          window.startGroupCallAnywhere(target.id, currentQuickCallMode);
+        } else {
+          alert('Chức năng gọi nhóm chưa sẵn sàng.');
+        }
+      }
+    }
+
+    // Enter key to submit
+    document.getElementById('quick-call-input')?.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        if (selectedQuickCallTarget) {
+          executeQuickCall();
+        }
+      }
+    });
+
+    // Hide FAB when clicking on conversation items
+    function hideQuickCallFAB() {
+      const fab = document.getElementById('quick-call-fab');
+      if (fab) {
+        fab.style.display = 'none';
+      }
+    }
+
+    // Show FAB when appropriate
+    function showQuickCallFAB() {
+      const fab = document.getElementById('quick-call-fab');
+      if (fab) {
+        fab.style.display = 'flex';
+      }
+    }
+
+    // Listen for conversation clicks to hide FAB
+    document.addEventListener('DOMContentLoaded', function() {
+      // Hide FAB when clicking conversation items
+      document.getElementById('conversations')?.addEventListener('click', function(e) {
+        if (e.target.closest('.conversation-item')) {
+          hideQuickCallFAB();
+        }
+      });
+
+      // Hide FAB when clicking group items
+      document.getElementById('groups-list')?.addEventListener('click', function(e) {
+        if (e.target.closest('.group-item')) {
+          hideQuickCallFAB();
+        }
+      });
+
+      // Show FAB when clicking back to main view or closing chat
+      document.querySelector('.sidebar')?.addEventListener('click', function(e) {
+        // Check if we're going back to main view
+        if (e.target.closest('.tab-btn') || e.target.closest('.logo')) {
+          showQuickCallFAB();
+        }
+      });
+    });
+
+    // Export functions
+    window.showQuickCallDialog = showQuickCallDialog;
+    window.showGroupCallDialog = showGroupCallDialog;
+    window.closeQuickCallDialog = closeQuickCallDialog;
+    window.executeQuickCall = executeQuickCall;
+    window.setCallMode = setCallMode;
+    window.searchQuickCallSuggestions = searchQuickCallSuggestions;
+    window.selectQuickCallTarget = selectQuickCallTarget;
+    window.hideQuickCallFAB = hideQuickCallFAB;
+    window.showQuickCallFAB = showQuickCallFAB;
+  </script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>
@@ -1199,12 +2214,12 @@
   <script src="{{ url_for('static', filename='js/socket/notifications.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='js/chat_input.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/chat.js') }}?v=18"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/friends.js') }}?v=18"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/group.js') }}?v=18"></script>
 
-  <script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/socket/screenShare.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/call.js') }}?v=19"></script>
+  <script type="module" src="{{ url_for('static', filename='js/socket/screenShare.js') }}?v=19"></script>
 
   
   <script type="module" src="{{ url_for('static', filename='js/socket/user.js') }}"></script>
@@ -1222,5 +2237,75 @@
       console.warn('Moment-timezone not loaded properly');
     }
   </script>
+  <div id="ai-summary-modal" style="display: none;">
+    <div id="ai-summary-result"></div>
+</div>
+<div id="poll-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 20px; border-radius: 12px; width: 400px; max-width: 90%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; color: #333;">Tạo bình chọn</h3>
+            <span class="close-poll-modal" style="cursor: pointer; font-size: 24px; font-weight: bold; color: #888;">&times;</span>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Câu hỏi bình chọn</label>
+            <input type="text" id="poll-question" placeholder="Ví dụ: Trưa nay ăn gì?" style="width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 14px;">
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Các lựa chọn</label>
+            <div id="poll-options-list" style="display: flex; flex-direction: column; gap: 8px;">
+                </div>
+            <button id="btn-add-poll-option" style="margin-top: 10px; padding: 8px 12px; background: #f0f2f5; color: #333; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                <i class="fas fa-plus"></i> Thêm lựa chọn
+            </button>
+        </div>
+
+        <div style="text-align: right; margin-top: 20px;">
+            <button id="btn-submit-poll" style="padding: 10px 20px; background: #3eb489; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                Tạo bình chọn
+            </button>
+        </div>
+    </div>
+</div>
+  <script>
+    // 🔥 Xử lý auto-join call khi redirect từ timeline/profile
+    document.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const callId = urlParams.get('call');
+      const callType = urlParams.get('type');
+      const callIdDb = urlParams.get('call_id');
+      const callMode = urlParams.get('mode') || 'video';
+      
+      if (callId && callType) {
+        console.log('[AutoJoin] Detected call params:', { callId, callType, callIdDb, callMode });
+        
+        // Đợi socket và call.js load xong
+        setTimeout(() => {
+          if (typeof window.startGroupCall === 'function') {
+            console.log('[AutoJoin] Auto joining call...');
+            window.startGroupCall(callId, callType, {
+              isInitiator: false,
+              ignoreDecline: true,
+              call_id: callIdDb,
+              callMode: callMode
+            });
+            
+            // Xóa params khỏi URL để tránh reload lại
+            window.history.replaceState({}, document.title, '/chat');
+          } else {
+            console.error('[AutoJoin] startGroupCall function not available');
+          }
+        }, 1500); // Đợi 1.5s cho scripts load
+      }
+    });
+  </script>
+  
+  <!-- Session Security Management -->
+  <script src="{{ url_for('static', filename='js/session_security.js') }}"></script>
+  
+  <!-- Connection Manager -->
+  <script src="{{ url_for('static', filename='js/connection-manager.js') }}"></script>
 </body>
 </html>

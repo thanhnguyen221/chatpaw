@@ -6,82 +6,76 @@
     <title>Lời mời kết bạn - PAW TALK</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/friend_requests.css') }}">
     <!-- Load socket.io từ CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
-<body>
-    <!-- Side Navigation -->
-    <button class="nav-toggle" id="nav-toggle">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div class="nav-overlay" id="nav-overlay"></div>
-
-    <aside class="side-nav" id="side-nav">
-        <div class="nav-header">
-            <div class="nav-logo">PT</div>
-            <div class="nav-title">PAW TALK</div>
+<body class="modern-timeline">
+    <!-- Modern Navigation -->
+    <nav class="modern-nav">
+        <div class="nav-brand">
+            <div class="nav-logo-circle">
+                <i class="fas fa-paw"></i>
+            </div>
+            <span class="nav-brand-text">PAW TALK</span>
         </div>
         
-        <nav class="nav-menu">
-            <a href="/chat" class="nav-item">
-                <div class="nav-icon">
-                    <i class="fas fa-home"></i>
+       <div class="nav-main">
+            <a href="/chat" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                <i class="fas fa-comment"></i>
                 </div>
-                <span class="nav-text">Trang chủ</span>
+                <span class="nav-text-modern">Tin nhắn</span>
             </a>
             
-            <a href="/profile/{{ current_user.username }}" class="nav-item">
-                <div class="nav-icon">
+            <a href="/profile/{{ current_user.username }}" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-user"></i>
                 </div>
-                <span class="nav-text">Trang cá nhân</span>
+                <span class="nav-text-modern">{{ current_user.full_name or current_user.username }}</span>
             </a>
             
-            <a href="/friend_requests_page" class="nav-item active">
-                <div class="nav-icon">
+            <a href="/timeline" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-stream"></i>
+                </div>
+                <span class="nav-text-modern">Dòng thời gian</span>
+            </a>
+            
+            <a href="/friend_requests_page" class="nav-item-modern active">
+                <div class="nav-icon-circle">
                     <i class="fas fa-user-friends"></i>
                 </div>
-                <span class="nav-text">Lời mời kết bạn</span>
-                <span class="nav-badge" id="friend-requests-nav-badge">0</span>
+                <span class="nav-text-modern">Bạn bè</span>
+                <span class="modern-badge" id="friend-requests-badge">0</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <a href="/messages" class="nav-item">
-                <div class="nav-icon">
-                    <i class="fas fa-comments"></i>
-                </div>
-                <span class="nav-text">Tin nhắn</span>
-                <span class="nav-badge">5</span>
-            </a>
-            
-            <a href="/notifications" class="nav-item">
-                <div class="nav-icon">
+            <a href="/notifications" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-bell"></i>
                 </div>
-                <span class="nav-text">Thông báo</span>
-                <span class="nav-badge">12</span>
+                <span class="nav-text-modern">Thông báo</span>
+                <span class="modern-badge" id="notifications-badge">0</span>
             </a>
-            
-            <div class="nav-divider"></div>
-            
-            <a href="/settings" class="nav-item">
-                <div class="nav-icon">
+        </div>
+        
+        <div class="nav-bottom">
+            <a href="/settings" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-cog"></i>
                 </div>
-                <span class="nav-text">Cài đặt</span>
+                <span class="nav-text-modern">Cài đặt</span>
             </a>
             
-            <a href="/logout" class="nav-item">
-                <div class="nav-icon">
+            <a href="/logout" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-sign-out-alt"></i>
                 </div>
-                <span class="nav-text">Đăng xuất</span>
+                <span class="nav-text-modern">Đăng xuất</span>
             </a>
-        </nav>
-    </aside>
+        </div>
+    </nav>
 
     <div class="friend-requests-container">
         <!-- Header -->
@@ -105,7 +99,7 @@
                 </div>
 
                 <!-- TIÊU ĐỀ Ở GIỮA -->
-                <h1>Lời mời kết bạn</h1>
+                <h1 id="page-title">Lời mời kết bạn</h1>
 
                 <!-- HEADER ACTIONS - NÚT BÊN PHẢI -->
                 <div class="header-actions">
@@ -116,6 +110,16 @@
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
+            </div>
+            
+            <!-- TABS -->
+            <div class="page-tabs">
+                <button class="tab-btn active" onclick="switchTab('requests')" id="tab-requests">
+                    <i class="fas fa-user-plus"></i> Lời mời
+                </button>
+                <button class="tab-btn" onclick="switchTab('friends')" id="tab-friends">
+                    <i class="fas fa-users"></i> Bạn bè <span id="friends-count-badge" class="tab-badge"></span>
+                </button>
             </div>
         </header>
 
@@ -129,8 +133,6 @@
 
             <!-- Empty State -->
             <div id="empty-state" class="empty-state" style="display: none;">
-                <div class="empty-icon">
-                </div>
                 <h3>Không có lời mời nào</h3>
             </div>
 
@@ -148,6 +150,23 @@
 
             <!-- Requests List -->
             <div id="requests-list" class="requests-list" style="display: none;"></div>
+            
+            <!-- Friends List (All Friends) -->
+            <div id="friends-list-container" class="friends-list-container" style="display: none;">
+                <div id="friends-loading" class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Đang tải danh sách bạn bè...</span>
+                </div>
+                
+                <div id="friends-empty" class="empty-state" style="display: none;">
+                    <h3>Chưa có bạn bè</h3>
+                    <button class="btn btn-primary" onclick="window.location.href='/find_friends'">
+                        <i class="fas fa-search"></i> Tìm bạn bè
+                    </button>
+                </div>
+                
+                <div id="friends-list" class="friends-grid"></div>
+            </div>
         </main>
 
         <!-- Notification Toast -->
@@ -162,10 +181,17 @@
         let friendRequests = [];
         let searchTimeout = null;
 
-        // Khởi tạo socket khi trang load
+        // Khởi tạo socket khi trang load với cấu hình ngrok
         function initializeSocket() {
             try {
-                socket = io();
+                socket = io({
+                    reconnection: true,
+                    reconnectionAttempts: 10,
+                    reconnectionDelay: 2000,
+                    reconnectionDelayMax: 10000,
+                    timeout: 60000,
+                    transports: ['websocket', 'polling']
+                });
                 setupSocketEvents();
                 console.log('Socket initialized for friend requests page');
             } catch (error) {
@@ -179,8 +205,9 @@
 
             socket.on('connect', () => {
                 console.log('Connected to server for friend requests');
-                // Load số lượng lời mời khi kết nối
+                // Load số lượng lời mời và thông báo khi kết nối
                 updateFriendRequestsBadge();
+                updateNotificationsBadge();
             });
 
             socket.on('new_friend_request', (data) => {
@@ -207,10 +234,65 @@
             socket.on('friend_error', (data) => {
                 showNotification(data.message, 'error');
             });
+            
+            // Lắng nghe sự kiện thông báo mới
+            socket.on('new_notification', (data) => {
+                updateNotificationsBadge();
+            });
+            
+            // Lắng nghe sự kiện thông báo đã đọc
+            socket.on('notification_read', (data) => {
+                updateNotificationsBadge();
+            });
+
+            // Listen for user status changes (online/offline) - from events/__init__.py
+            socket.on('user_status', (data) => {
+                console.log('User status update:', data);
+                updateFriendOnlineStatus(data.userId, data.online);
+            });
+
+            // Listen for friend_online_status from chat.py
+            socket.on('friend_online_status', (data) => {
+                console.log('Friend online status update:', data);
+                updateFriendOnlineStatus(data.user_id, data.is_online);
+            });
+
+            // Listen for bulk online status update from chat.py
+            socket.on('online_status_update', (data) => {
+                console.log('Bulk online status update:', data);
+                // data is an object with friend_id as keys
+                Object.keys(data).forEach(friendId => {
+                    const friendData = data[friendId];
+                    updateFriendOnlineStatus(friendId, friendData.online);
+                });
+            });
 
             socket.on('disconnect', () => {
                 console.log('Disconnected from server');
             });
+        }
+
+        // Update friend online status in the UI
+        function updateFriendOnlineStatus(userId, isOnline) {
+            // Find the friend card by user ID
+            const friendCard = document.querySelector(`.friend-card img[onclick="viewFriendProfile('${userId}')"]`)?.closest('.friend-card');
+            if (!friendCard) return;
+
+            const statusDot = friendCard.querySelector('.status-dot');
+            const statusText = friendCard.querySelector('.friend-card-status span:last-child');
+
+            if (statusDot && statusText) {
+                if (isOnline) {
+                    statusDot.classList.remove('offline');
+                    statusDot.classList.add('online');
+                    statusText.textContent = 'Đang hoạt động';
+                } else {
+                    statusDot.classList.remove('online');
+                    statusDot.classList.add('offline');
+                    statusText.textContent = 'Không hoạt động';
+                }
+                console.log(`Updated ${userId} status to ${isOnline ? 'online' : 'offline'}`);
+            }
         }
 
         // Cập nhật badge số lượng lời mời kết bạn
@@ -219,13 +301,15 @@
                 const response = await fetch('/friend_requests_count');
                 if (response.ok) {
                     const data = await response.json();
-                    const badge = document.getElementById('friend-requests-nav-badge');
+                    const badge = document.getElementById('friend-requests-badge');
                     if (badge) {
                         if (data.count > 0) {
-                            badge.textContent = data.count;
+                            badge.textContent = data.count > 99 ? '99+' : data.count;
                             badge.style.display = 'flex';
+                            badge.classList.add('has-notifications');
                         } else {
                             badge.style.display = 'none';
+                            badge.classList.remove('has-notifications');
                         }
                     }
                 }
@@ -233,6 +317,29 @@
                 console.error('Error updating friend requests badge:', error);
             }
         }
+// Cập nhật badge số lượng thông báo
+        async function updateNotificationsBadge() {
+            try {
+                const response = await fetch('/api/notifications/count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('notifications-badge');
+                    if (badge) {
+                        if (data.count > 0) {
+                            badge.textContent = data.count > 99 ? '99+' : data.count;
+                            badge.style.display = 'flex';
+                            badge.classList.add('has-notifications');
+                        } else {
+                            badge.style.display = 'none';
+                            badge.classList.remove('has-notifications');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating notifications badge:', error);
+            }
+        }
+
 // Cập nhật hàm initializeSideNavigation
 function initializeSideNavigation() {
     const sideNav = document.getElementById('side-nav');
@@ -368,16 +475,17 @@ function initializeSideNavigation() {
         function createRequestElement(request) {
         const div = document.createElement('div');
         div.className = 'request-item';
+        div.setAttribute('data-request-id', request.request_id);  // THÊM: data attribute để dễ tìm
         
         const avatarSrc = request.avatar || '/static/img/default-avatar.png';
         
         div.innerHTML = `
             <div class="request-avatar-container" onclick="viewSenderProfile('${request.sender_id}')" style="cursor: pointer;">
-                <img src="${avatarSrc}" alt="${request.username}" class="request-avatar"
+                <img src="${avatarSrc}" alt="${request.full_name || request.username}" class="request-avatar"
                      onerror="this.src='/static/img/default-avatar.png'">
             </div>
             <div class="request-info" onclick="viewSenderProfile('${request.sender_id}')" style="cursor: pointer;">
-                <div class="request-name">${escapeHtml(request.username)}</div>
+                <div class="request-name">${escapeHtml(request.full_name || request.username)}</div>
                 <div class="request-meta">${request.email || 'Người dùng PAW TALK'}</div>
             </div>
             <div class="request-actions">
@@ -558,10 +666,10 @@ function createSearchResultElement(user) {
     const isCurrentUser = user._id === '{{ session.user_id }}';
 
     div.innerHTML = `
-        <img src="${avatarSrc}" alt="${user.username}" class="search-result-avatar"
+        <img src="${avatarSrc}" alt="${user.full_name || user.username}" class="search-result-avatar"
              onerror="this.src='/static/img/default-avatar.png'">
         <div class="search-result-info">
-            <div class="search-result-name">${escapeHtml(user.username)}</div>
+            <div class="search-result-name">${escapeHtml(user.full_name || user.username)}</div>
             <div class="search-result-email">${user.email || 'Người dùng PAW TALK'}</div>
         </div>
         <div class="search-result-actions">
@@ -641,36 +749,42 @@ function createSearchResultElement(user) {
 
         function acceptRequest(requestId, senderId) {
             try {
-                if (socket) {
+                // Chỉ dùng socket nếu connected
+                if (socket && socket.connected) {
                     socket.emit('accept_friend_request', {
                         request_id: requestId,
                         sender_id: senderId
                     });
+                    updateRequestUI(requestId, 'accepted');
+                    showNotification('Đã chấp nhận lời mời kết bạn', 'success');
+                    updateFriendRequestsBadge();
                 } else {
-                    // Fallback: sử dụng fetch API nếu socket không khả dụng
-                    fetch('/accept_friend_request', {
+                    // Dùng HTTP API nếu socket không connected
+                    fetch(`/api/friend_requests/${requestId}/accept`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            request_id: requestId,
-                            sender_id: senderId
-                        })
-                    }).then(response => {
-                        if (response.ok) {
-                            showNotification('Đã chấp nhận lời mời kết bạn', 'success');
-                            updateRequestUI(requestId, 'accepted');
-                            updateFriendRequestsBadge(); // Cập nhật badge
                         }
+                    }).then(async response => {
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.success) {
+                                showNotification('Đã chấp nhận lời mời kết bạn', 'success');
+                                updateRequestUI(requestId, 'accepted');
+                                updateFriendRequestsBadge();
+                            } else {
+                                showNotification(data.error || 'Lỗi khi chấp nhận', 'error');
+                                loadFriendRequests();
+                            }
+                        } else {
+                            showNotification('Lỗi khi chấp nhận lời mời', 'error');
+                            loadFriendRequests();
+                        }
+                    }).catch(err => {
+                        console.error('Error accepting request:', err);
+                        showNotification('Lỗi kết nối server', 'error');
                     });
-                    return;
                 }
-                
-                updateRequestUI(requestId, 'accepted');
-                showNotification('Đã chấp nhận lời mời kết bạn', 'success');
-                updateFriendRequestsBadge(); // Cập nhật badge
-                
             } catch (error) {
                 console.error('Error accepting request:', error);
                 showNotification('Lỗi khi chấp nhận lời mời', 'error');
@@ -679,34 +793,41 @@ function createSearchResultElement(user) {
 
         function declineRequest(requestId) {
             try {
-                if (socket) {
+                // Chỉ dùng socket nếu connected
+                if (socket && socket.connected) {
                     socket.emit('decline_friend_request', {
                         request_id: requestId
                     });
+                    updateRequestUI(requestId, 'declined');
+                    showNotification('Đã từ chối lời mời', 'info');
+                    updateFriendRequestsBadge();
                 } else {
-                    // Fallback: sử dụng fetch API
-                    fetch('/decline_friend_request', {
+                    // Dùng HTTP API nếu socket không connected
+                    fetch(`/api/friend_requests/${requestId}/decline`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            request_id: requestId
-                        })
-                    }).then(response => {
-                        if (response.ok) {
-                            showNotification('Đã từ chối lời mời', 'info');
-                            updateRequestUI(requestId, 'declined');
-                            updateFriendRequestsBadge(); // Cập nhật badge
                         }
+                    }).then(async response => {
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.success) {
+                                showNotification('Đã từ chối lời mời', 'info');
+                                updateRequestUI(requestId, 'declined');
+                                updateFriendRequestsBadge();
+                            } else {
+                                showNotification(data.error || 'Lỗi khi từ chối', 'error');
+                                loadFriendRequests();
+                            }
+                        } else {
+                            showNotification('Lỗi khi từ chối lời mời', 'error');
+                            loadFriendRequests();
+                        }
+                    }).catch(err => {
+                        console.error('Error declining request:', err);
+                        showNotification('Lỗi kết nối server', 'error');
                     });
-                    return;
                 }
-                
-                updateRequestUI(requestId, 'declined');
-                showNotification('Đã từ chối lời mời', 'info');
-                updateFriendRequestsBadge(); // Cập nhật badge
-                
             } catch (error) {
                 console.error('Error declining request:', error);
                 showNotification('Lỗi khi từ chối lời mời', 'error');
@@ -736,24 +857,41 @@ function createSearchResultElement(user) {
         }
 
         function updateRequestUI(requestId, status) {
-            const requestElement = document.querySelector(`[onclick*="${requestId}"]`)?.closest('.request-item');
+            // Tìm element bằng data attribute thay vì onclick selector
+            const requestElement = document.querySelector(`[data-request-id="${requestId}"]`);
             if (requestElement) {
-                if (status === 'accepted') {
-                    requestElement.className = 'request-item request-accepted';
-                    requestElement.innerHTML = `
-                        <div class="request-accepted-content">
-                            <i class="fas fa-check-circle"></i>
-                            <div>Đã chấp nhận lời mời</div>
-                        </div>
-                    `;
-                    setTimeout(() => {
-                        requestElement.remove();
-                        checkEmptyList();
-                    }, 2000);
-                } else {
+                // Lưu vị trí và kích thước trước khi remove
+                const rect = requestElement.getBoundingClientRect();
+                const parent = requestElement.parentElement;
+                
+                // Tạo placeholder giữ chỗ
+                const placeholder = document.createElement('div');
+                placeholder.style.width = rect.width + 'px';
+                placeholder.style.height = rect.height + 'px';
+                placeholder.style.visibility = 'hidden';
+                placeholder.className = requestElement.className;
+                
+                // Thay thế element bằng placeholder
+                parent.replaceChild(placeholder, requestElement);
+                
+                // Fade out nhẹ trên element đã được lấy ra
+                requestElement.style.position = 'fixed';
+                requestElement.style.left = rect.left + 'px';
+                requestElement.style.top = rect.top + 'px';
+                requestElement.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                requestElement.style.opacity = '0';
+                requestElement.style.transform = 'scale(0.95)';
+                requestElement.style.pointerEvents = 'none';
+                
+                // Thêm lại vào body để animation
+                document.body.appendChild(requestElement);
+                
+                // Remove sau animation
+                setTimeout(() => {
                     requestElement.remove();
+                    placeholder.remove();
                     checkEmptyList();
-                }
+                }, 500);
             }
         }
 
@@ -767,6 +905,190 @@ function createSearchResultElement(user) {
             }
         }
 
+        // Tab Switching Functions
+        let currentTab = 'requests';
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Add body class to track active tab for CSS styling
+            document.body.classList.remove('tab-requests', 'tab-friends');
+            document.body.classList.add(`tab-${tab}`);
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            
+            // Update page title
+            const pageTitle = document.getElementById('page-title');
+            
+            // Get all content elements
+            const requestsList = document.getElementById('requests-list');
+            const friendsContainer = document.getElementById('friends-list-container');
+            const loadingState = document.getElementById('loading-state');
+            const emptyState = document.getElementById('empty-state');
+            const errorState = document.getElementById('error-state');
+            const searchResults = document.getElementById('search-results');
+            
+            // Show/hide content based on tab
+            if (tab === 'requests') {
+                pageTitle.textContent = 'Lời mời kết bạn';
+                
+                // Show requests elements
+                requestsList.style.display = 'block';
+                
+                // Hide friends elements
+                friendsContainer.style.display = 'none';
+                
+                // Close any open search results
+                if (searchResults) searchResults.style.display = 'none';
+                
+                loadFriendRequests();
+            } else {
+                pageTitle.textContent = 'Danh sách bạn bè';
+                
+                // COMPLETELY hide ALL requests-related elements
+                requestsList.style.display = 'none';
+                loadingState.style.display = 'none';
+                emptyState.style.display = 'none';
+                errorState.style.display = 'none';
+                if (searchResults) searchResults.style.display = 'none';
+                
+                // Clear any existing content in requests list to prevent leakage
+                requestsList.innerHTML = '';
+                
+                // Show friends container
+                friendsContainer.style.display = 'block';
+                
+                loadFriendsList();
+            }
+        }
+        
+        // Load Friends List
+        async function loadFriendsList() {
+            const loadingDiv = document.getElementById('friends-loading');
+            const emptyDiv = document.getElementById('friends-empty');
+            const listDiv = document.getElementById('friends-list');
+            const badge = document.getElementById('friends-count-badge');
+            const container = document.getElementById('friends-list-container');
+            
+            // Reset all states
+            loadingDiv.style.display = 'block';
+            emptyDiv.style.display = 'none';
+            listDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/get_friends');
+                
+                if (!response.ok) {
+                    throw new Error('Không thể tải danh sách bạn bè');
+                }
+                
+                const data = await response.json();
+                const friends = data.friends || [];
+                
+                // DEBUG: Log the friends data
+                console.log('DEBUG - Friends data:', friends);
+                console.log('DEBUG - Number of friends:', friends.length);
+                
+                // Update badge
+                if (badge) {
+                    badge.textContent = friends.length;
+                    badge.style.display = friends.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Hide loading first
+                loadingDiv.style.display = 'none';
+                
+                if (friends.length === 0) {
+                    emptyDiv.style.display = 'block';
+                    listDiv.style.display = 'none';
+                    return;
+                }
+                
+                // Render friends
+                listDiv.innerHTML = '';
+                friends.forEach((friend, index) => {
+                    console.log(`DEBUG - Friend ${index}:`, friend.username, friend._id);
+                    const friendCard = createFriendCard(friend);
+                    listDiv.appendChild(friendCard);
+                });
+                
+                // Request latest online status from server
+                if (socket && socket.connected) {
+                    console.log('Requesting online status update...');
+                    socket.emit('get_online_status');
+                }
+                
+                emptyDiv.style.display = 'none';
+                listDiv.style.display = 'grid';
+                
+            } catch (error) {
+                console.error('Error loading friends:', error);
+                loadingDiv.style.display = 'none';
+                emptyDiv.style.display = 'block';
+                showNotification('Không thể tải danh sách bạn bè', 'error');
+            }
+        }
+        
+        // Create Friend Card
+        function createFriendCard(friend) {
+            const div = document.createElement('div');
+            div.className = 'friend-card';
+            
+            const avatarSrc = friend.avatar || '/static/img/default-avatar.png';
+            const isOnline = friend.online || false;
+            const statusText = isOnline ? 'Đang hoạt động' : 'Không hoạt động';
+            const statusClass = isOnline ? 'online' : 'offline';
+            
+            div.innerHTML = `
+                <img src="${avatarSrc}" alt="${friend.full_name || friend.username}" class="friend-card-avatar"
+                     onerror="this.src='/static/img/default-avatar.png'"
+                     onclick="viewFriendProfile('${friend._id}')">
+                <div class="friend-card-name" onclick="viewFriendProfile('${friend._id}')">${escapeHtml(friend.full_name || friend.username)}</div>
+                <div class="friend-card-status">
+                    <span class="status-dot ${statusClass}"></span>
+                    <span>${statusText}</span>
+                </div>
+                <div class="friend-card-actions">
+                    <button class="friend-btn friend-btn-primary" onclick="startChat('${friend._id}')">
+                        <i class="fas fa-comment"></i> Nhắn tin
+                    </button>
+                    <button class="friend-btn friend-btn-outline" onclick="viewFriendProfile('${friend._id}')">
+                        <i class="fas fa-user"></i> Xem profile
+                    </button>
+                </div>
+            `;
+            
+            return div;
+        }
+        
+        // View Friend Profile
+        function viewFriendProfile(friendId) {
+            window.location.href = `/profile_by_id/${friendId}`;
+        }
+        
+        // Start Chat with Friend
+        async function startChat(friendId) {
+            try {
+                showNotification('Đang mở cuộc trò chuyện...', 'info');
+                
+                const response = await fetch(`/get_or_create_conversation/${friendId}`);
+                const data = await response.json();
+                
+                if (data.conversation_id) {
+                    window.location.href = `/chat?conversation=${data.conversation_id}`;
+                } else {
+                    showNotification('Không thể tạo cuộc trò chuyện', 'error');
+                }
+            } catch (error) {
+                console.error('Error starting chat:', error);
+                showNotification('Lỗi khi mở cuộc trò chuyện', 'error');
+            }
+        }
+
         // Utility Functions
         function escapeHtml(str) {
             if (!str) return '';
@@ -776,7 +1098,12 @@ function createSearchResultElement(user) {
         }
 
         function goBack() {
-            window.history.back();
+            // If we're on the friends tab, go back to requests tab instead of browser back
+            if (currentTab === 'friends') {
+                switchTab('requests');
+            } else {
+                window.history.back();
+            }
         }
 
         // Initialize
@@ -784,10 +1111,20 @@ function createSearchResultElement(user) {
             initializeSocket();
             initializeSideNavigation();
             setupSearch();
-            loadFriendRequests();
+            
+            // Load based on URL hash or default to requests
+            const hash = window.location.hash;
+            if (hash === '#friends') {
+                document.body.classList.add('tab-friends');
+                switchTab('friends');
+            } else {
+                document.body.classList.add('tab-requests');
+                switchTab('requests');
+            }
             
             // Load badge ngay khi trang được tải
             updateFriendRequestsBadge();
+            updateNotificationsBadge();
         });
 
         // Thêm CSS animation cho kết quả tìm kiếm
@@ -805,8 +1142,187 @@ function createSearchResultElement(user) {
                     transform: translateX(0);
                 }
             }
+            
+            /* Page Tabs Styles */
+            .page-tabs {
+                display: flex;
+                gap: 10px;
+                padding: 10px 20px;
+                background: #f8f9fa;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            
+            .tab-btn {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 20px;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 20px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                color: #666;
+                transition: all 0.3s ease;
+            }
+            
+            .tab-btn:hover {
+                background: #f0f0f0;
+                border-color: #ccc;
+            }
+            
+            .tab-btn.active {
+                background: #3eb489;
+                color: white;
+                border-color: #3eb489;
+            }
+            
+            .tab-badge {
+                background: #e74c3c;
+                color: white;
+                font-size: 11px;
+                padding: 2px 6px;
+                border-radius: 10px;
+                min-width: 18px;
+                text-align: center;
+            }
+            
+            /* Force hide requests list when in friends tab */
+            body.tab-friends #requests-list,
+            body.tab-friends .requests-list {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                overflow: hidden !important;
+            }
+            
+            /* Friends Grid Styles */
+            .friends-list-container {
+                padding: 20px;
+                min-height: 0;
+            }
+            
+            .friends-list-container .loading-state,
+            .friends-list-container .empty-state {
+                margin: 0;
+                padding: 20px;
+            }
+            
+            .friends-list-container .loading-state[style*="display: none"],
+            .friends-list-container .empty-state[style*="display: none"] {
+                display: none !important;
+                height: 0;
+                padding: 0;
+                margin: 0;
+                overflow: hidden;
+            }
+            
+            .friends-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 20px;
+            }
+            
+            .friend-card {
+                background: white;
+                border-radius: 12px;
+                padding: 15px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+                cursor: pointer;
+                position: relative;
+            }
+            
+            .friend-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }
+            
+            .friend-card-avatar {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                object-fit: cover;
+                margin: 0 auto 10px;
+                display: block;
+                border: 3px solid #f0f0f0;
+            }
+            
+            .friend-card-name {
+                text-align: center;
+                font-weight: 600;
+                font-size: 16px;
+                color: #333;
+                margin-bottom: 5px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .friend-card-status {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+                font-size: 13px;
+                color: #666;
+                margin-bottom: 10px;
+            }
+            
+            .status-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #ccc;
+            }
+            
+            .status-dot.online {
+                background: #3eb489;
+                box-shadow: 0 0 5px #3eb489;
+            }
+            
+            .status-dot.offline {
+                background: #ccc;
+            }
+            
+            .friend-card-actions {
+                display: flex;
+                gap: 8px;
+                justify-content: center;
+            }
+            
+            .friend-btn {
+                padding: 6px 12px;
+                border: none;
+                border-radius: 15px;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .friend-btn-primary {
+                background: #3eb489;
+                color: white;
+            }
+            
+            .friend-btn-primary:hover {
+                background: #2d9a71;
+            }
+            
+            .friend-btn-outline {
+                background: white;
+                color: #666;
+                border: 1px solid #ddd;
+            }
+            
+            .friend-btn-outline:hover {
+                background: #f5f5f5;
+            }
         `;
         document.head.appendChild(style);
     </script>
+    <script src="{{ url_for('static', filename='js/universal-chat.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/connection-manager.js') }}"></script>
 </body>
 </html>

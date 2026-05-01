@@ -7,135 +7,275 @@
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css">
     
     <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_page.css') }}">
     
     <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
-<body>
-    <!-- Navigation Sidebar (giống các trang khác) -->
-    <button class="nav-toggle" id="nav-toggle">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div class="nav-overlay" id="nav-overlay"></div>
-
-    <aside class="side-nav" id="side-nav">
-        <div class="nav-header">
-            <div class="nav-logo">PT</div>
-            <div class="nav-title">PAW TALK</div>
+<body class="modern-timeline">
+    <!-- Modern Navigation -->
+    <nav class="modern-nav">
+        <div class="nav-brand">
+            <div class="nav-logo-circle">
+                <i class="fas fa-paw"></i>
+            </div>
+            <span class="nav-brand-text">PAW TALK</span>
         </div>
         
-        <nav class="nav-menu">
-            <a href="/chat" class="nav-item">
-                <div class="nav-icon">
-                    <i class="fas fa-home"></i>
+          <div class="nav-main">
+            <a href="/chat" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                <i class="fas fa-comment"></i>
                 </div>
-                <span class="nav-text">Trang chủ</span>
+                <span class="nav-text-modern">Tin nhắn</span>
             </a>
             
-            <a href="{{ url_for('main.get_my_profile_url') }}" class="nav-item">
-                <div class="nav-icon">
+            <a href="{{ url_for('main.get_my_profile_url') }}" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-user"></i>
                 </div>
-                <span class="nav-text">Trang cá nhân</span>
+                <span class="nav-text-modern">Trang cá nhân</span>
             </a>
             
-            <a href="/friend_requests_page" class="nav-item">
-                <div class="nav-icon">
+            <a href="/timeline" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-stream"></i>
+                </div>
+                <span class="nav-text-modern">Dòng thời gian</span>
+            </a>
+            
+            <a href="/friend_requests_page" class="nav-item-modern">
+                <div class="nav-icon-circle">
                     <i class="fas fa-user-friends"></i>
                 </div>
-                <span class="nav-text">Lời mời kết bạn</span>
-                <span class="nav-badge" id="friend-requests-badge" style="display: none;">0</span>
+                <span class="nav-text-modern">Bạn bè</span>
+                <span class="modern-badge" id="friend-requests-badge">0</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <a href="/notifications" class="nav-item active">
-                <div class="nav-icon">
+            <a href="/notifications" class="nav-item-modern active">
+                <div class="nav-icon-circle">
                     <i class="fas fa-bell"></i>
                 </div>
-                <span class="nav-text">Thông báo</span>
-                <span class="nav-badge" id="notifications-badge" style="display: none;">0</span>
+                <span class="nav-text-modern">Thông báo</span>
+                <span class="modern-badge" id="notifications-badge">0</span>
             </a>
-            
-            <div class="nav-divider"></div>
-            
-            <a href="/settings" class="nav-item">
-                <div class="nav-icon">
-                    <i class="fas fa-cog"></i>
-                </div>
-                <span class="nav-text">Cài đặt</span>
-            </a>
-            
-            <a href="/logout" class="nav-item">
-                <div class="nav-icon">
-                    <i class="fas fa-sign-out-alt"></i>
-                </div>
-                <span class="nav-text">Đăng xuất</span>
-            </a>
-        </nav>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="notifications-container">
-        <!-- Header -->
-        <div class="notifications-header">
-            <div class="header-left">
-                <h1>Thông báo</h1>
-                <p>Cập nhật các hoạt động mới nhất liên quan đến bạn</p>
-            </div>
-        </div>
-
-        <!-- SỬA LẠI: Thêm data-filter attribute -->
-        <div class="filter-tabs minimal">
-            <button class="tab-btn minimal active" data-filter="all">Tất cả</button>
-            <button class="tab-btn minimal" data-filter="unread">Chưa đọc</button>
-            <button class="tab-btn minimal" data-filter="read">Đã đọc</button>
         </div>
         
-        <!-- Actions -->
-        <div class="notification-actions">
-            <div class="actions-left">
-                <button class="mark-all-btn" id="mark-all-read-btn">
-                    <i class="fas fa-check-double"></i> Đánh dấu đã đọc tất cả
-                </button>
-            </div>
-            <div class="actions-right">
-                <select class="filter-select" id="filter-select">
-                    <option value="newest">Mới nhất</option>
-                    <option value="oldest">Cũ nhất</option>
-                </select>
-            </div>
+        <div class="nav-bottom">
+            <a href="/settings" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span class="nav-text-modern">Cài đặt</span>
+            </a>
+            
+            <a href="/logout" class="nav-item-modern">
+                <div class="nav-icon-circle">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <span class="nav-text-modern">Đăng xuất</span>
+            </a>
         </div>
+    </nav>
 
-        <!-- Notifications List -->
-        <div class="notifications-list" id="notifications-list">
-            <!-- Notifications will be loaded here by JavaScript -->
-        </div>
+    <!-- Main Content - Full Width Layout -->
+    <div class="single-column-container">
+        <div class="notifications-layout">
+            <!-- Left Stats Sidebar -->
+            <aside class="notifications-sidebar-left">
+                <!-- User Mini Profile -->
+                <div class="user-mini-card glass-effect">
+                    <div class="mini-card-header">
+                        <img src="{{ user_avatar or '/static/img/default-avatar.png' }}" alt="Avatar" class="mini-avatar">
+                        <div class="mini-user-info">
+                            <h4>{{ current_user.full_name or current_user.username }}</h4>
+                            <span class="user-status"><i class="fas fa-circle"></i> Online</span>
+                        </div>
+                    </div>
+                    <div class="mini-stats-row">
+                        <div class="mini-stat">
+                            <span class="mini-stat-number" id="total-notifications">0</span>
+                            <span class="mini-stat-label">Tổng</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-number" id="unread-count">0</span>
+                            <span class="mini-stat-label">Chưa đọc</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-number" id="read-count">0</span>
+                            <span class="mini-stat-label">Đã đọc</span>
+                        </div>
+                    </div>
+                </div>
 
-        <!-- Empty State -->
-        <div class="empty-state" id="empty-state" style="display: none;">
-            <i class="far fa-bell-slash"></i>
-            <h3>Không có thông báo nào</h3>
-            <p>Bạn chưa có thông báo nào. Hoạt động mới sẽ xuất hiện ở đây.</p>
-            <button class="refresh-btn" id="refresh-btn">
-                <i class="fas fa-sync-alt"></i> Làm mới
-            </button>
-        </div>
+                <!-- Quick Actions -->
+                <div class="quick-actions-card glass-effect">
+                    <h4><i class="fas fa-bolt"></i> Hành động nhanh</h4>
+                    <button class="quick-action-item" onclick="markAllRead()">
+                        <i class="fas fa-check-double"></i>
+                        <span>Đánh dấu tất cả đã đọc</span>
+                    </button>
+                    <button class="quick-action-item" onclick="deleteAllRead()">
+                        <i class="fas fa-trash-alt"></i>
+                        <span>Xóa thông báo đã đọc</span>
+                    </button>
+                    <button class="quick-action-item" onclick="openNotifSettings()">
+                        <i class="fas fa-cog"></i>
+                        <span>Cài đặt thông báo</span>
+                    </button>
+                </div>
 
-        <!-- Load More -->
-        <div class="load-more-container">
-            <button class="load-more-btn" id="load-more-btn" disabled>
-                Đang tải...
-            </button>
+                <!-- Notification Types -->
+                <div class="notif-types-card glass-effect">
+                    <h4><i class="fas fa-filter"></i> Loại thông báo</h4>
+                    <div class="type-list">
+                        <div class="type-item">
+                            <div class="type-icon like"><i class="fas fa-heart"></i></div>
+                            <span>Lượt thích</span>
+                            <span class="type-count" id="like-count">0</span>
+                        </div>
+                        <div class="type-item">
+                            <div class="type-icon comment"><i class="fas fa-comment"></i></div>
+                            <span>Bình luận</span>
+                            <span class="type-count" id="comment-count">0</span>
+                        </div>
+                        <div class="type-item">
+                            <div class="type-icon friend"><i class="fas fa-user-plus"></i></div>
+                            <span>Kết bạn</span>
+                            <span class="type-count" id="friend-count">0</span>
+                        </div>
+                        <div class="type-item">
+                            <div class="type-icon mention"><i class="fas fa-at"></i></div>
+                            <span>Nhắc đến</span>
+                            <span class="type-count" id="mention-count">0</span>
+                        </div>
+                        <div class="type-item">
+                            <div class="type-icon share"><i class="fas fa-share"></i></div>
+                            <span>Chia sẻ</span>
+                            <span class="type-count" id="share-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Notifications Content -->
+            <main class="notifications-content">
+                <!-- Header -->
+                <div class="page-header-modern glass-effect">
+                    <div class="header-content">
+                        <div class="header-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div class="header-text">
+                            <h1>Thông báo</h1>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Floating Actions -->
+                <div class="floating-actions">
+                    <button class="floating-action-btn" onclick="markAllRead()" title="Đánh dấu tất cả đã đọc">
+                        <i class="fas fa-check-double"></i>
+                    </button>
+                    <div class="dropdown-actions">
+                        <button class="floating-action-btn dropdown-toggle" onclick="toggleDeleteDropdown(event)" title="Xóa thông báo">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                        <div class="dropdown-menu-actions" id="delete-dropdown">
+                            <button class="dropdown-item-action" onclick="deleteAllRead()">
+                                <i class="fas fa-broom"></i> Xóa đã đọc
+                            </button>
+                            <button class="dropdown-item-action danger" onclick="deleteAllNotifications()">
+                                <i class="fas fa-exclamation-triangle"></i> Xóa tất cả
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications List -->
+                <div class="notifications-list-modern" id="notifications-list">
+                    <!-- Notifications will be loaded here by JavaScript -->
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state-modern" id="empty-state" style="display: none;">
+                    <h3>Không có thông báo</h3>
+                    <p>Các hoạt động mới sẽ xuất hiện tại đây</p>
+                </div>
+            </main>
+
+            <!-- Right Sidebar -->
+            <aside class="notifications-sidebar-right">
+                <!-- Activity Summary -->
+                <div class="activity-card glass-effect">
+                    <h4><i class="fas fa-chart-pie"></i> Hoạt động 7 ngày</h4>
+                    <div class="activity-chart">
+                        <div class="chart-bar-container">
+                            <div class="chart-bar" style="height: 0%" data-day="T2"></div>
+                            <div class="chart-bar" style="height: 0%" data-day="T3"></div>
+                            <div class="chart-bar" style="height: 0%" data-day="T4"></div>
+                            <div class="chart-bar" style="height: 0%" data-day="T5"></div>
+                            <div class="chart-bar" style="height: 0%" data-day="T6"></div>
+                            <div class="chart-bar" style="height: 0%" data-day="T7"></div>
+                            <div class="chart-bar active" style="height: 0%" data-day="CN"></div>
+                        </div>
+                        <div class="chart-labels">
+                            <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+                        </div>
+                    </div>
+                    <div class="activity-summary">
+                        <div class="summary-item">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Đang tải...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Timeline -->
+                <div class="recent-activity-card glass-effect">
+                    <h4><i class="fas fa-clock"></i> Hoạt động gần đây</h4>
+                    <div class="activity-timeline" id="activity-timeline">
+                        <div class="timeline-item loading">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <p><i class="fas fa-spinner fa-spin"></i> Đang tải hoạt động...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
         </div>
-    </main>
+    </div>
 
     <!-- JavaScript -->
     <script type="module" src="{{ url_for('static', filename='js/socket/notification_page.js') }}"></script>
+    
+    <script>
+        // Toggle delete dropdown function
+        function toggleDeleteDropdown(event) {
+            event.stopPropagation();
+            event.preventDefault();
+            
+            const dropdown = document.getElementById('delete-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+        }
+        
+        // Close delete dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.dropdown-actions')) {
+                const deleteDropdown = document.getElementById('delete-dropdown');
+                if (deleteDropdown) {
+                    deleteDropdown.classList.remove('show');
+                }
+            }
+        });
+    </script>
     
     <!-- Navigation Script -->
     <script>
@@ -145,15 +285,17 @@
             const sideNav = document.getElementById('side-nav');
             const navOverlay = document.getElementById('nav-overlay');
             
-            navToggle.addEventListener('click', () => {
-                sideNav.classList.add('active');
-                navOverlay.classList.add('active');
-            });
-            
-            navOverlay.addEventListener('click', () => {
-                sideNav.classList.remove('active');
-                navOverlay.classList.remove('active');
-            });
+            if (navToggle && sideNav && navOverlay) {
+                navToggle.addEventListener('click', () => {
+                    sideNav.classList.add('active');
+                    navOverlay.classList.add('active');
+                });
+                
+                navOverlay.addEventListener('click', () => {
+                    sideNav.classList.remove('active');
+                    navOverlay.classList.remove('active');
+                });
+            }
             
             // Load friend requests count
             loadFriendRequestsCount();
@@ -174,5 +316,8 @@
             }
         }
     </script>
+    
+    <!-- Connection Manager -->
+    <script src="{{ url_for('static', filename='js/connection-manager.js') }}"></script>
 </body>
 </html>

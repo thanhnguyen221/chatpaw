@@ -100,7 +100,7 @@ export function setupChatInteractions() {
 // E. CÁC HÀM XỬ LÝ REACTION (GẮN VÀO WINDOW)
 // ============================================================
 
-// 1. Hiển thị Popup
+// 1. Hiển thị Popup (Thả tim nhanh)
 window.showReactionPopup = function(wrapperElement) {
     closeAllReactionPopups(); 
 
@@ -135,7 +135,7 @@ function closeAllReactionPopups() {
     document.querySelectorAll('.reaction-popup').forEach(el => el.remove());
 }
 
-// 2. Gửi Socket
+// 2. Gửi Socket Reaction
 function sendReaction(messageId, emoji, type) {
     let convId = null;
     if (type === 'group') {
@@ -181,7 +181,6 @@ function updateReactionUI(data) {
     }
 
     // Hiển thị icon mới nhất (Đơn giản hóa)
-    // Nếu muốn hiển thị số lượng: `${data.emoji} <span>1</span>`
     reactContainer.innerHTML = `${data.emoji}`;
     
     // Hiệu ứng nảy
@@ -200,8 +199,6 @@ function updateSidebarPreview(data) {
         const timeEl = convItem.querySelector('.conversation-time');
         
         if (previewEl && data.preview_update) {
-            // data.preview_update được server gửi về (VD: "Bạn: Đã thả ❤️")
-            // Hoặc tự build text ở client nếu server chưa gửi
             const text = data.preview_update || `Đã thả cảm xúc ${data.emoji}`;
             
             previewEl.textContent = text;
@@ -218,26 +215,36 @@ function updateSidebarPreview(data) {
 }
 
 // ============================================================
-// F. XEM CHI TIẾT NGƯỜI THẢ CẢM XÚC (MODAL)
+// F. XEM CHI TIẾT NGƯỜI THẢ CẢM XÚC (MODAL CHUẨN + TAB)
 // ============================================================
 
 window.viewReactionDetails = function(event, messageId, conversationType) {
-    if(event) event.stopPropagation();
+    if(event) event.stopPropagation(); // Ngăn click lan ra ngoài
     
+    // Lấy các element HTML
     const modal = document.getElementById('reaction-details-modal');
     const container = document.getElementById('reaction-list-container');
+    const modalContent = document.querySelector('.modal-content.reaction-modal-content');
+
+    if (!modal || !container || !modalContent) {
+        console.error("Không tìm thấy HTML Modal Reaction Details");
+        return;
+    }
     
-    if (!modal || !container) return;
+    // 1. Reset trạng thái cũ
+    const existingTabs = modalContent.querySelector('#reaction-tabs');
+    if (existingTabs) existingTabs.remove();
     
-    modal.style.display = 'block';
-    container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Đang tải...</div>';
+    // Hiện modal ngay lập tức (với loading)
+    modal.style.display = 'flex'; 
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;"><i class="fas fa-spinner fa-spin"></i> Đang tải...</div>';
     
-    // Gọi API lấy danh sách
+    // 2. Gọi API
     fetch(`/get_message_reactions/${messageId}?type=${conversationType}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                renderReactionList(data.reactions, container);
+                renderReactionTabsAndUsers(data.reactions, container, modalContent);
             } else {
                 container.innerHTML = '<div style="padding:20px; text-align:center;">Lỗi tải dữ liệu</div>';
             }
@@ -248,17 +255,72 @@ window.viewReactionDetails = function(event, messageId, conversationType) {
         });
 };
 
-function renderReactionList(reactions, container) {
+function renderReactionTabsAndUsers(reactions, userListContainer, modalContent) {
     if (!reactions || reactions.length === 0) {
-        container.innerHTML = '<div style="padding:20px; text-align:center;">Chưa có cảm xúc nào</div>';
+        userListContainer.innerHTML = '<div style="padding:20px; text-align:center;">Chưa có cảm xúc nào</div>';
+        return;
+    }
+
+    // Nhóm dữ liệu: {'❤️': [user1], '😆': [user2, user3]}
+    const groupedReactions = reactions.reduce((acc, user) => {
+        if (!acc[user.emoji]) acc[user.emoji] = [];
+        acc[user.emoji].push(user);
+        return acc;
+    }, {});
+    
+    // Tạo thanh Tabs
+    const tabsContainer = document.createElement('div');
+    tabsContainer.id = 'reaction-tabs';
+    tabsContainer.className = 'reaction-tabs';
+
+    // Tab "Tất cả"
+    const allTab = document.createElement('button');
+    allTab.className = 'reaction-tab active';
+    allTab.innerHTML = `Tất cả <span>${reactions.length}</span>`;
+    allTab.onclick = () => {
+        tabsContainer.querySelectorAll('.reaction-tab').forEach(t => t.classList.remove('active'));
+        allTab.classList.add('active');
+        renderUserList(reactions, userListContainer);
+    };
+    tabsContainer.appendChild(allTab);
+
+    // Các Tab Emoji
+    for (const emoji in groupedReactions) {
+        const users = groupedReactions[emoji];
+        const tab = document.createElement('button');
+        tab.className = 'reaction-tab';
+        tab.innerHTML = `${emoji} <span>${users.length}</span>`;
+        
+        tab.onclick = () => {
+            tabsContainer.querySelectorAll('.reaction-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            renderUserList(users, userListContainer);
+        };
+        tabsContainer.appendChild(tab);
+    }
+    
+    // Chèn thanh Tab vào Modal
+    const header = modalContent.querySelector('.reaction-modal-header');
+    if (header && header.parentNode) {
+        header.parentNode.insertBefore(tabsContainer, userListContainer);
+    }
+
+    // Render mặc định
+    renderUserList(reactions, userListContainer);
+}
+
+function renderUserList(users, container) {
+    if (!users || users.length === 0) {
+        container.innerHTML = '<div style="padding:20px; text-align:center;">Không có người dùng nào</div>';
         return;
     }
     
     let html = '';
-    reactions.forEach(user => {
+    users.forEach(user => {
+        const avatarSrc = user.avatar || '/static/img/default-avatar.png';
         html += `
             <div class="reaction-user-item">
-                <img src="${user.avatar}" class="reaction-user-avatar" alt="${user.username}">
+                <img src="${avatarSrc}" class="reaction-user-avatar" alt="${user.username}" onerror="this.src='/static/img/default-avatar.png'">
                 <div class="reaction-user-info">
                     <div class="reaction-user-name">${user.username}</div>
                 </div>
@@ -266,11 +328,10 @@ function renderReactionList(reactions, container) {
             </div>
         `;
     });
-    
     container.innerHTML = html;
 }
 
-// Logic đóng modal chi tiết
+// Logic đóng Modal
 document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('reaction-details-modal');
     const closeBtn = document.querySelector('.close-reaction-modal');
@@ -321,128 +382,3 @@ function triggerReply(messageEl) {
 
     enableReplyMode(id, content, sender);
 }
-
-// ============================================================
-// F. XEM CHI TIẾT NGƯỜI THẢ CẢM XÚC (CÓ TAB VÀ SỐ LƯỢNG)
-// ============================================================
-
-window.viewReactionDetails = function(event, messageId, conversationType) {
-    if(event) event.stopPropagation();
-    
-    const modal = document.getElementById('reaction-details-modal');
-    const container = document.getElementById('reaction-list-container');
-    const modalContent = document.querySelector('.modal-content.reaction-modal-content');
-
-    if (!modal || !container || !modalContent) return;
-    
-    // 1. Xóa tab cũ nếu có trước khi mở modal mới
-    const existingTabs = modalContent.querySelector('#reaction-tabs');
-    if (existingTabs) existingTabs.remove();
-    
-    modal.style.display = 'block';
-    container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Đang tải...</div>';
-    
-    // 2. Gọi API lấy danh sách
-    fetch(`/get_message_reactions/${messageId}?type=${conversationType}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                renderReactionTabsAndUsers(data.reactions, container, modalContent);
-            } else {
-                container.innerHTML = '<div style="padding:20px; text-align:center;">Lỗi tải dữ liệu</div>';
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            container.innerHTML = '<div style="padding:20px; text-align:center;">Lỗi kết nối</div>';
-        });
-};
-
-/**
- * Nhóm dữ liệu, tạo tab và render danh sách người dùng mặc định.
- */
-function renderReactionTabsAndUsers(reactions, userListContainer, modalContent) {
-    if (!reactions || reactions.length === 0) {
-        userListContainer.innerHTML = '<div style="padding:20px; text-align:center;">Chưa có cảm xúc nào</div>';
-        return;
-    }
-
-    // 1. Nhóm dữ liệu theo Emoji: {'❤️': [user1, user2], '😆': [user3]}
-    const groupedReactions = reactions.reduce((acc, user) => {
-        if (!acc[user.emoji]) {
-            acc[user.emoji] = [];
-        }
-        acc[user.emoji].push(user);
-        return acc;
-    }, {});
-    
-    // 2. Tạo khung chứa Tabs
-    const tabsContainer = document.createElement('div');
-    tabsContainer.id = 'reaction-tabs';
-    tabsContainer.className = 'reaction-tabs';
-
-    let isFirst = true;
-    for (const emoji in groupedReactions) {
-        const users = groupedReactions[emoji];
-        const tab = document.createElement('button');
-        tab.className = 'reaction-tab' + (isFirst ? ' active' : '');
-        tab.innerHTML = `${emoji} <span>${users.length}</span>`;
-        tab.dataset.emoji = emoji;
-
-        // Xử lý sự kiện click tab
-        tab.onclick = () => {
-            document.querySelectorAll('#reaction-tabs .reaction-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            renderUserList(users, userListContainer);
-        };
-        tabsContainer.appendChild(tab);
-        
-        // Mặc định hiện danh sách của tab đầu tiên
-        if (isFirst) {
-            renderUserList(users, userListContainer);
-            isFirst = false;
-        }
-    }
-    
-    // 3. Chèn thanh tab vào Modal (sau header)
-    const header = modalContent.querySelector('.reaction-modal-header');
-    header.parentNode.insertBefore(tabsContainer, userListContainer);
-}
-
-/**
- * Render danh sách người dùng vào vùng chứa.
- */
-function renderUserList(users, container) {
-    if (!users || users.length === 0) {
-        container.innerHTML = '<div style="padding:20px; text-align:center;">Không có người dùng nào</div>';
-        return;
-    }
-    
-    let html = '';
-    users.forEach(user => {
-        html += `
-            <div class="reaction-user-item">
-                <img src="${user.avatar}" class="reaction-user-avatar" alt="${user.username}">
-                <div class="reaction-user-info">
-                    <div class="reaction-user-name">${user.username}</div>
-                </div>
-                <div class="reaction-emoji-icon">${user.emoji}</div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-}
-
-// Logic đóng modal chi tiết
-document.addEventListener('DOMContentLoaded', () => {
-    const modal = document.getElementById('reaction-details-modal');
-    const closeBtn = document.querySelector('.close-reaction-modal');
-    
-    if (closeBtn && modal) {
-        closeBtn.onclick = () => modal.style.display = "none";
-        window.addEventListener('click', (e) => {
-            if (e.target == modal) modal.style.display = "none";
-        });
-    }
-});

@@ -11,6 +11,9 @@ class NotificationsManager {
         this.initializeElements();
         this.initializeEvents();
         this.loadNotifications();
+        
+        // Initialize notification count
+        this.updateNotificationCount();
     }
     
     initializeElements() {
@@ -22,10 +25,15 @@ class NotificationsManager {
         this.refreshBtn = document.getElementById('refresh-btn');
         this.emptyState = document.getElementById('empty-state');
         
-        // Socket connection
-        this.socket = io();
+        // FIXED: Sử dụng socket từ index.js hoặc tạo mới
+        this.socket = window.socket || (window.io ? io() : null);
+        
+        if (this.socket) {
+            console.log('Socket connected for notifications');
+        } else {
+            console.warn('Socket connection not available');
+        }
     }
-    
     initializeEvents() {
         // Filter tabs
         this.filterTabs.forEach(tab => {
@@ -55,54 +63,78 @@ class NotificationsManager {
         // Socket events
         if (this.socket) {
             this.socket.on('new_notification', (data) => {
+                console.log('New notification received:', data);
                 this.handleNewNotification(data);
             });
             
             this.socket.on('notification_read', (data) => {
+                console.log('Notification read event:', data);
                 this.handleNotificationRead(data);
+            });
+            
+            this.socket.on('connect', () => {
+                console.log('Socket connected');
+            });
+            
+            this.socket.on('disconnect', () => {
+                console.log('Socket disconnected');
             });
         }
     }
-    // Thay thế function loadNotifications trong notifications_page.js
-async loadNotifications(page = 1) {
-    if (this.isLoading) return;
-    
-    this.isLoading = true;
-    this.showLoading();
-    
-    try {
-        const response = await fetch(`/api/notifications?page=${page}&filter=${this.currentFilter}&sort=${this.filterSelect?.value || 'newest'}`);
+    async loadNotifications(page = 1) {
+        if (this.isLoading) return;
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        this.isLoading = true;
+        this.showLoading();
         
-        const data = await response.json();
-        
-        // Sửa cấu trúc response
-        if (data.items) {  // Sửa: dùng data.items thay vì data.notifications
+        try {
+            const params = new URLSearchParams({
+                page: page,
+                sort: this.filterSelect?.value || 'newest'
+            });
+            
+            // FIXED: Xử lý filter đúng cách
+            if (this.currentFilter && this.currentFilter !== 'all') {
+                if (this.currentFilter === 'unread' || this.currentFilter === 'read') {
+                    params.append('read', this.currentFilter === 'read' ? 'true' : 'false');
+                } else {
+                    params.append('type', this.currentFilter);
+                }
+            }
+            
+            const response = await fetch(`/api/notifications?${params}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Xử lý response
+            const notifications = data.items || data.notifications || [];
+            
             if (page === 1) {
-                this.notifications = data.items;
+                this.notifications = notifications;
             } else {
-                this.notifications = [...this.notifications, ...data.items];
+                this.notifications = [...this.notifications, ...notifications];
             }
             
             this.hasMore = data.page < data.total_pages;
             this.renderNotifications();
             this.updateEmptyState();
             this.updateLoadMoreButton();
-        } else {
-            console.error('Invalid response format:', data);
-            this.showError('Không thể tải thông báo');
+            
+            // Cập nhật notification count
+            this.updateNotificationCount();
+            
+        } catch (error) {
+            console.error('Error loading notifications:', error);
+            this.showError('Lỗi khi tải thông báo');
+        } finally {
+            this.isLoading = false;
+            this.hideLoading();
         }
-    } catch (error) {
-        console.error('Error loading notifications:', error);
-        this.showError('Lỗi khi tải thông báo');
-    } finally {
-        this.isLoading = false;
-        this.hideLoading();
     }
-}
 
 // Thêm function showError
 showError(message) {
@@ -194,22 +226,19 @@ showError(message) {
     
     getNotificationText(notification) {
         const userLink = `<strong>${notification.sender_name}</strong>`;
-        const postLink = notification.data?.post_id ? 
-            `<a href="/post/${notification.data.post_id}" class="post-link">bài viết</a>` : 'bài viết';
         
         const texts = {
-            'like': `${userLink} đã thích ${postLink} của bạn`,
-            'comment': `${userLink} đã bình luận về ${postLink} của bạn`,
-            'friend_request': `${userLink} đã gửi cho bạn lời mời kết bạn`,
-            'friend_accept': `${userLink} đã chấp nhận lời mời kết bạn của bạn`,
-            'mention': `${userLink} đã đề cập đến bạn trong một bình luận`,
-            'message': `${userLink} đã gửi cho bạn một tin nhắn mới`,
-            'share': `${userLink} đã chia sẻ ${postLink} của bạn`
+            'like': `${userLink} đã thích bài viết của bạn`,
+            'comment': `${userLink} đã bình luận về bài viết của bạn`,
+            'friend_request': `${userLink} đã gửi lời mời kết bạn`,
+            'friend_accept': `${userLink} đã chấp nhận lời mời kết bạn`,
+            'mention': `${userLink} đã đề cập đến bạn`,
+            'message': `${userLink} đã gửi tin nhắn`,
+            'share': `${userLink} đã chia sẻ bài viết của bạn`
         };
         
-        return texts[notification.type] || 'Bạn có một thông báo mới';
+        return texts[notification.type] || 'Bạn có thông báo mới';
     }
-    
     getActionButtons(notification) {
         if (notification.type === 'friend_request') {
             return `
@@ -233,17 +262,7 @@ showError(message) {
                 </div>
             `;
         }
-        
-        if (['like', 'comment', 'mention', 'share'].includes(notification.type) && notification.data?.post_id) {
-            return `
-                <div class="notification-item-actions">
-                    <button class="action-btn view" onclick="notificationsManager.viewPost('${notification.data.post_id}')">
-                        <i class="fas fa-eye"></i> Xem bài viết
-                    </button>
-                </div>
-            `;
-        }
-        
+    
         return '';
     }
     
@@ -266,45 +285,100 @@ showError(message) {
     handleFilterChange(tab) {
         this.filterTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        this.currentFilter = tab.dataset.filter;
+        
+        // SỬA: Lấy filter từ data-filter (đã thêm trong HTML)
+        let filter = tab.dataset.filter;
+        
+        // Nếu không có data-filter, fallback về text
+        if (!filter) {
+            const filterMap = {
+                'Tất cả': 'all',
+                'Chưa đọc': 'unread',
+                'Đã đọc': 'read',  // THÊM mapping cho "Đã đọc"
+                'Tin nhắn': 'message',
+                'Bình luận': 'comment',
+                'Thích': 'like',
+                'Bạn bè': 'friend',
+                'Đề cập': 'mention',
+                'Chia sẻ': 'share'
+            };
+            filter = filterMap[tab.textContent.trim()] || 'all';
+        }
+        
+        this.currentFilter = filter;
         this.currentPage = 1;
         this.loadNotifications();
     }
-    
     handleSortChange(e) {
         this.currentPage = 1;
         this.loadNotifications();
     }
     
     async handleNotificationClick(notification) {
-        // Mark as read
+        // Đánh dấu là đã đọc
         if (!notification.read) {
             await this.markAsRead(notification._id);
             notification.read = true;
             this.updateNotificationElement(notification._id);
+            this.updateNotificationCount();
         }
         
-        // Navigate based on type
+        // Điều hướng dựa trên loại thông báo
+        let redirectUrl = null;
+        
         switch (notification.type) {
             case 'friend_request':
-                window.location.href = '/friend_requests_page';
+            case 'friend_accept':
+                redirectUrl = '/friend_requests_page';
                 break;
+                
             case 'message':
                 if (notification.data?.conversation_id) {
-                    window.location.href = `/chat?conversation=${notification.data.conversation_id}`;
+                    redirectUrl = `/chat?conversation=${notification.data.conversation_id}`;
+                } else {
+                    redirectUrl = '/chat';
                 }
                 break;
-            case 'like':
-            case 'comment':
-            case 'mention':
-            case 'share':
-                if (notification.data?.post_id) {
-                    window.location.href = `/post/${notification.data.post_id}`;
-                }
-                break;
+                
+            // Trong phương thức handleNotificationClick, sửa phần case 'like' và 'comment':
+case 'like':
+    case 'comment':
+    case 'mention':
+    case 'share':
+        // Kiểm tra và xử lý post_id
+        const postId = notification.data?.post_id;
+        if (postId) {
+            console.log('Redirecting to post:', postId);
+            
+            // Tạo URL chính xác
+            const postUrl = `/post/${postId}`;
+            
+            // Kiểm tra nếu có comment_id, thêm anchor
+            if (notification.data?.comment_id) {
+                window.location.href = `${postUrl}#comment-${notification.data.comment_id}`;
+            } else {
+                window.location.href = postUrl;
+            }
+            
+            // Hoặc sử dụng:
+            // window.open(postUrl, '_blank'); // Mở tab mới
+        } else {
+            console.error('No post_id in notification:', notification);
+            // Fallback: chuyển đến trang feed
+            window.location.href = '/feed';
+        }
+        break;
+                
+            default:
+                redirectUrl = '/feed';
+        }
+        
+        // Điều hướng
+        if (redirectUrl) {
+            console.log('Redirecting to:', redirectUrl);
+            window.location.href = redirectUrl;
         }
     }
-    
     async markAsRead(notificationId) {
         try {
             const response = await fetch(`/api/notifications/${notificationId}/read`, {
@@ -391,20 +465,47 @@ showError(message) {
     }
     
     handleNewNotification(notification) {
-        // Add to beginning of list
+        console.log('Processing new notification:', notification);
+        
+        // Kiểm tra xem notification đã tồn tại chưa (tránh trùng lặp)
+        const exists = this.notifications.some(n => n._id === notification._id);
+        if (exists) {
+            console.log('Notification already exists, skipping');
+            return;
+        }
+        
+        // Thêm vào đầu danh sách
         this.notifications.unshift(notification);
         
-        // Update UI
-        if (this.currentFilter === 'all' || this.currentFilter === notification.type) {
+        // Kiểm tra filter hiện tại
+        const shouldShow = this.currentFilter === 'all' || 
+                          this.currentFilter === notification.type ||
+                          (this.currentFilter === 'unread' && !notification.read) ||
+                          (this.currentFilter === 'read' && notification.read);
+        
+        if (shouldShow) {
             this.renderNotifications();
             this.updateEmptyState();
         }
         
-        // Show notification count in tab
+        // Cập nhật badge count
         this.updateNotificationCount();
         
-        // Play sound or show browser notification
+        // Hiển thị browser notification
         this.showBrowserNotification(notification);
+        
+        // Phát âm thanh nếu cần
+        this.playNotificationSound();
+    }
+    
+    playNotificationSound() {
+        try {
+            const audio = new Audio('/static/sounds/notification.mp3');
+            audio.volume = 0.3;
+            audio.play().catch(e => console.log('Could not play sound:', e));
+        } catch (error) {
+            console.log('Error playing notification sound:', error);
+        }
     }
     
     handleNotificationRead(data) {
@@ -433,16 +534,27 @@ showError(message) {
     
     updateNotificationCount() {
         const unreadCount = this.notifications.filter(n => !n.read).length;
+        console.log('Updating notification count:', unreadCount);
         
-        // Update badge in navbar if exists
+        // Update badge trong navbar
         const badge = document.getElementById('notifications-badge');
         if (badge) {
             if (unreadCount > 0) {
                 badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-                badge.style.display = 'inline';
+                badge.style.display = 'flex'; // Sử dụng flex để căn giữa
+                badge.classList.add('has-notifications');
             } else {
+                badge.textContent = '';
                 badge.style.display = 'none';
+                badge.classList.remove('has-notifications');
             }
+        }
+        
+        // Cập nhật title tab nếu cần
+        if (unreadCount > 0 && !document.title.includes('(')) {
+            document.title = `(${unreadCount}) ${document.title.replace(/^\(\d+\)\s*/, '')}`;
+        } else if (unreadCount === 0 && document.title.includes('(')) {
+            document.title = document.title.replace(/^\(\d+\)\s*/, '');
         }
     }
     
@@ -559,4 +671,18 @@ document.addEventListener('DOMContentLoaded', function() {
             item.classList.remove('active');
         }
     });
+});
+// Thêm vào cuối file
+window.addEventListener('beforeunload', () => {
+    if (window.notificationsManager && window.notificationsManager.socket) {
+        window.notificationsManager.socket.disconnect();
+    }
+});
+
+// Reconnect khi tab trở lại focus
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && window.notificationsManager) {
+        window.notificationsManager.initializeSocket();
+        window.notificationsManager.refreshNotifications();
+    }
 });

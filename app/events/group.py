@@ -1,6 +1,7 @@
 from flask import request, session, url_for
 from bson import ObjectId
 from datetime import datetime
+from app.utils.time_utils import get_vietnam_time, format_timestamp_for_client
 from flask_socketio import join_room, leave_room, emit
 import pytz
 
@@ -40,6 +41,69 @@ def register_group_events(socketio, mongo):
     def get_vietnam_time():
         vietnam_tz = pytz.timezone('Asia/Ho_Chi_Minh')
         return datetime.now(vietnam_tz)
+
+    @socketio.on('reset_group_unread')
+    def handle_reset_group_unread(data):
+        group_id = data.get('group_id')
+        user_id = session.get('user_id')
+
+        if not group_id or not user_id:
+            return
+
+        try:
+            group_oid = ObjectId(group_id)
+        except Exception as e:
+            print(f"Error converting group ID: {e}")
+            return
+
+        groups_col.update_one(
+            {'_id': group_oid},
+            {'$set': {f'unread_counts.{user_id}': 0}}
+        )
+
+    @socketio.on('mark_group_message_as_read')
+    def handle_mark_group_message_as_read(data):
+        message_id = data.get('message_id')
+        group_id = data.get('group_id')
+        user_id = session.get('user_id')
+
+        if not all([message_id, group_id, user_id]):
+            return
+
+        try:
+            msg_oid = ObjectId(message_id)
+            user_oid = ObjectId(user_id)
+        except Exception as e:
+            print(f"Error converting IDs: {e}")
+            return
+
+        # Add user to the read_by array if not already present
+        update_result = messages_col.update_one(
+            {'_id': msg_oid},
+            {'$addToSet': {'read_by': user_oid}}
+        )
+
+        print(f"Mark as read result for message {message_id}: matched={update_result.matched_count}, modified={update_result.modified_count}")
+
+        # Get the updated list of users who have read the message
+        message = messages_col.find_one({'_id': msg_oid})
+        if message and 'read_by' in message:
+            seen_by_users = []
+            for reader_id in message['read_by']:
+                user_info = get_user_info(reader_id)
+                if user_info:
+                    seen_by_users.append({
+                        'user_id': str(reader_id),
+                        'username': user_info['username'],
+                        'avatar': user_info['avatar']
+                    })
+            
+            # Emit an event to the group with the list of users who have seen the message
+            emit('group_message_seen_by', {
+                'message_id': message_id,
+                'group_id': group_id,
+                'seen_by': seen_by_users
+            }, room=f"group_{group_id}")
 
     # ------------------ JOIN GROUP ------------------
     @socketio.on('join_group')
@@ -103,7 +167,8 @@ def register_group_events(socketio, mongo):
                 'content': msg.get('content', ''),
                 'message_type': msg.get('message_type', 'text'),
                 'timestamp': ts_str,
-                'reply_context': reply_context  # cho FE vẽ quote
+                'reply_context': reply_context,  # cho FE vẽ quote
+                'gift_style': msg.get('gift_style')  # 👈 THÊM DÒNG NÀY
             })
 
         emit('group_history', {
@@ -150,7 +215,7 @@ def register_group_events(socketio, mongo):
             'group_id': group_id
         }, room=request.sid)
 
-    # ------------------ SEND MESSAGE (GROUP + GIFT) ------------------
+        # ------------------ SEND MESSAGE (GROUP + GIFT + UNREAD + SUMMARY) ------------------
     @socketio.on('send_group_message')
     def handle_send_group_message(data):
         group_id = data.get('group_id')
@@ -224,7 +289,6 @@ def register_group_events(socketio, mongo):
             'message_type': message_type,
             'timestamp': now,
             'read_by': [user_oid],
-            
             # [MỚI] Lưu gift_style vào DB
             'gift_style': gift_style 
         }
@@ -237,28 +301,74 @@ def register_group_events(socketio, mongo):
         message_id = inserted.inserted_id
         print(f"[DEBUG] Message inserted with ID: {message_id}")
 
-        # Cập nhật last_message cho groups_col
+        # ================== [MỚI] CẬP NHẬT LAST_MESSAGE + UNREAD_COUNTS ==================
         try:
-            # [MỚI] Nếu là quà thì hiển thị preview khác
+            # Preview đẹp cho sidebar nhóm
             if gift_style:
                 preview = "🎁 Đã gửi một hộp quà"
+            elif message_type == 'location':
+                preview = "📍 Đã chia sẻ vị trí"
+            elif message_type == 'audio':
+                preview = "🎤 Tin nhắn thoại"
+            elif message_type == 'text':
+                preview = content
             else:
-                preview = content if message_type == 'text' else f'[{message_type}]'
+                preview = f'[{message_type}]'  # image, file, sticker...
+
+            # Lấy toàn bộ member group (kể cả người gửi)
+            members = list(group_members_col.find(
+                {'group_id': group_oid},
+                {'user_id': 1}
+            ))
+
+            inc_fields = {}
+            set_fields = {
+                'last_message': preview,
+                'last_message_time': now,
+                'last_message_user': user_oid,
+                'last_sender_name': sender_name,
+                f'unread_counts.{user_id}': 0  # Người gửi: reset về 0
+            }
+
+            for m in members:
+                uid_str = str(m['user_id'])
+                if uid_str != str(user_id):
+                    # Các thành viên khác: +1 tin chưa đọc
+                    inc_fields[f'unread_counts.{uid_str}'] = 1
+
+            update_doc = {'$set': set_fields}
+            if inc_fields:
+                update_doc['$inc'] = inc_fields
 
             groups_col.update_one(
                 {'_id': group_oid},
-                {
-                    '$set': {
-                        'last_message': preview,
-                        'last_message_time': now,
-                        'last_message_user': user_oid
-                    }
-                }
+                update_doc
             )
-        except Exception as e:
-            print(f"[DEBUG] Cannot update group last_message: {e}")
 
-        # Emit tới room
+            # Đọc lại unread_counts để bắn socket cho từng user
+            group_doc = groups_col.find_one(
+                {'_id': group_oid},
+                {'unread_counts': 1}
+            )
+            unread_counts = group_doc.get('unread_counts', {}) if group_doc else {}
+
+            for m in members:
+                uid_str = str(m['user_id'])
+                emit('conversation_summary_updated', {
+                    'conversation_id': group_id,
+                    'conversation_type': 'group',
+                    'last_message': preview,
+                    'last_message_time': format_timestamp_for_client(now),
+                    'last_sender_id': user_id,
+                    'last_sender_name': sender_name,
+                    'unread_count': unread_counts.get(uid_str, 0)
+                }, room=uid_str)
+
+        except Exception as e:
+            print(f"[DEBUG] Cannot update group last_message/unread_counts: {e}")
+        # =====================================================================
+
+        # Emit tới room để hiển thị tin nhắn trong khung chat
         emit_data = {
             'group_id': group_id,
             'message_id': str(message_id),
@@ -266,7 +376,7 @@ def register_group_events(socketio, mongo):
             'sender_name': sender_name,
             'content': content,
             'message_type': message_type,
-            'timestamp': now.isoformat(),
+            'timestamp': format_timestamp_for_client(now),
             'sender_avatar': sender_avatar,
 
             # dữ liệu reply
@@ -279,6 +389,7 @@ def register_group_events(socketio, mongo):
         
         print(f"[DEBUG] Emitting group_message: {emit_data}")
         emit('group_message', emit_data, room=f"group_{group_id}")
+
 
     # ------------------ UPDATE GROUP NAME ------------------
     @socketio.on('update_group_name')

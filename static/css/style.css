@@ -3042,3 +3042,189 @@ body {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+.location-message {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f1f5ff;
+  font-size: 14px;
+}
+
+.location-message .location-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.location-message .location-info i {
+  color: #1a73e8;
+}
+
+.location-message .location-coords {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+/* --- STYLE CHO LOCATION CARD (ĐỒNG BỘ 1v1 & GROUP) --- */
+
+/* Khung tổng thể của thẻ vị trí */
+.location-card {
+    background-color: #ffffff !important; /* Luôn là màu trắng */
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 220px;
+    max-width: 280px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); /* Đổ bóng nhẹ cho nổi */
+    border: 1px solid #eee;
+    margin: 2px 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Phần trên: Icon và Text */
+.location-header {
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fff;
+}
+
+/* Vòng tròn chứa icon */
+.loc-icon-circle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #e3f2fd; /* Xanh nhạt */
+    color: #4CAF50;      /* Xanh đậm */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+/* Thông tin chữ */
+.loc-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Tiêu đề địa chỉ - LUÔN MÀU ĐEN */
+.loc-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: #333333 !important; /* Ép màu đen kể cả tin nhắn của mình */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+/* Toạ độ - MÀU XÁM */
+.loc-coords {
+    font-size: 11px;
+    color: #666666 !important; /* Ép màu xám */
+    margin-top: 2px;
+}
+
+/* Phần dưới: Link bấm */
+.location-footer-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #fafafa; /* Màu nền xám rất nhạt */
+    color: #4CAF50 !important; /* Chữ màu xanh link */
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.2s;
+    border-top: 1px solid #eee;
+}
+
+.location-footer-link:hover {
+    background: #f0f8ff; /* Hover đổi màu nhẹ */
+    color: #4CAF50 !important;
+}
+
+/* --- QUAN TRỌNG: FIX LỖI TIN NHẮN CỦA MÌNH (.sent) --- */
+/* Ngăn chặn style mặc định của bong bóng chat đè lên thẻ location */
+.message.sent .location-card {
+    border: none; /* Bỏ viền thừa nếu có */
+}
+
+/* Đảm bảo text bên trong thẻ sent không bị thành màu trắng */
+.message.sent .loc-title { color: #333 !important; }
+.message.sent .loc-coords { color: #666 !important; }
+.message.sent .location-footer-link { color: #4CAF50  !important; }
+
+/* ====== GROUP ITEM PREVIEW + UNREAD (Messenger style) ====== */
+
+.group-item {
+  position: relative;
+}
+
+/* Container chứa last message + badge */
+.group-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Nội dung tin nhắn cuối */
+.group-last-message {
+  font-size: 0.8rem;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badge số tin chưa đọc (giống Messenger) */
+.group-unread-badge {
+  background-color: #43b581;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: none;              /* JS sẽ bật lên khi > 0 */
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Group đang được chọn */
+.group-item.active {
+  background: rgba(114, 137, 218, 0.35);
+  transform: translateX(3px);
+}
+
+.message-status-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.seen-by-container {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.seen-by-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-left: -6px;
+  border: 1px solid white;
+  background-color: #ccc;
+  box-shadow: 0 0 2px rgba(0,0,0,0.2);
+}

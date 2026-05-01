@@ -10,6 +10,7 @@ def register_call_events(socketio, mongo):
     group_members_col = mongo.db.group_members
     users_col = mongo.db.users
     groups_col = mongo.db.groups
+    calls_col = mongo.db.calls
 
     # Lưu danh sách user (sid) trong từng phòng call
     # call_rooms = { "call_<conversation_id>": [sid1, sid2, ...] }
@@ -105,9 +106,12 @@ def register_call_events(socketio, mongo):
         leave_room(room_id)
 
         room_empty = False
-        if room_id in call_rooms and sid in call_rooms[room_id]:
-            call_rooms[room_id].remove(sid)
-            if not call_rooms[room_id]:
+        call_id = None
+        if room_id in call_rooms:
+            call_id = call_rooms[room_id].get('call_id')
+            if sid in call_rooms[room_id]['sids']:
+                call_rooms[room_id]['sids'].remove(sid)
+            if not call_rooms[room_id]['sids']:
                 room_empty = True
                 del call_rooms[room_id]
 
@@ -118,6 +122,44 @@ def register_call_events(socketio, mongo):
         if room_empty and room_id.startswith("call_"):
             conv_id = room_id.replace("call_", "", 1)
             _broadcast_call_status(conv_id, False)
+
+            if call_id:
+                try:
+                    call = calls_col.find_one_and_update(
+                        {'_id': ObjectId(call_id)},
+                        {'$set': {'end_time': datetime.utcnow()}},
+                        return_document=True
+                    )
+                    if call:
+                        duration = (call['end_time'] - call['start_time']).total_seconds()
+                        status = 'missed' if len(call.get('participants', [])) <= 1 else 'ended'
+                        
+                        calls_col.update_one(
+                            {'_id': ObjectId(call_id)},
+                            {'$set': {'status': status, 'duration': duration}}
+                        )
+
+                        # Create system message
+                        message_content = {
+                            'status': status,
+                            'duration': duration
+                        }
+                        
+                        messages_col = mongo.db.messages if call['conversation_type'] == 'private' else mongo.db.group_messages
+                        
+                        system_message = {
+                            'conversation_id': call['conversation_id'],
+                            'sender_id': ObjectId(session.get('user_id')),
+                            'content': str(message_content),
+                            'message_type': 'call',
+                            'timestamp': datetime.utcnow(),
+                        }
+                        messages_col.insert_one(system_message)
+                        
+                        emit('receive_message' if call['conversation_type'] == 'private' else 'group_message', system_message, room=str(call['conversation_id']))
+
+                except Exception as e:
+                    print(f"Error finalizing call record: {e}")
 
             # --- NEW: Bắn event call:ended để FE đổi nút ---
             payload = {
@@ -178,6 +220,7 @@ def register_call_events(socketio, mongo):
     def handle_join_call(data):
         user_id = session.get('user_id')
         conversation_id = data.get('conversation_id')
+        call_id = data.get('call_id')
 
         if not user_id or not conversation_id:
             return
@@ -186,19 +229,42 @@ def register_call_events(socketio, mongo):
         if not has_access:
             return
 
+        # Update call document
+        if call_id:
+            try:
+                call_oid = ObjectId(call_id)
+                user_oid = ObjectId(user_id)
+                
+                # Add user to participants
+                calls_col.update_one(
+                    {'_id': call_oid},
+                    {'$addToSet': {'participants': user_oid}}
+                )
+
+                # Check if call is now ongoing
+                call = calls_col.find_one({'_id': call_oid})
+                if call and len(call.get('participants', [])) > 1:
+                    calls_col.update_one(
+                        {'_id': call_oid},
+                        {'$set': {'status': 'ongoing'}}
+                    )
+            except Exception as e:
+                print(f"Error updating call record: {e}")
+
         room_id = f"call_{conversation_id}"
         join_room(room_id)
 
         current_sid = request.sid
         if room_id not in call_rooms:
-            call_rooms[room_id] = []
-        if current_sid not in call_rooms[room_id]:
-            call_rooms[room_id].append(current_sid)
+            call_rooms[room_id] = {'sids': [], 'call_id': call_id}
+        
+        if current_sid not in call_rooms[room_id]['sids']:
+            call_rooms[room_id]['sids'].append(current_sid)
 
         print(f"📞 User {user_id} joined {room_id}")
 
         # Gửi danh sách user hiện có trong phòng cho client mới
-        others = [sid for sid in call_rooms[room_id] if sid != current_sid]
+        others = [sid for sid in call_rooms[room_id]['sids'] if sid != current_sid]
         emit('call:all_users', {'users': others}, to=current_sid)
 
         # Thông báo cho các user khác trong phòng rằng có người mới join
@@ -298,15 +364,30 @@ def register_call_events(socketio, mongo):
         if not has_access:
             return
 
+        # Create a new call record
+        call_id = calls_col.insert_one({
+            'conversation_id': ObjectId(conv_id),
+            'conversation_type': detected_type,
+            'caller_id': ObjectId(user_id),
+            'start_time': datetime.utcnow(),
+            'end_time': None,
+            'status': 'ringing',
+            'participants': [ObjectId(user_id)]
+        }).inserted_id
+
         # Cho phép FE override loại nếu gửi kèm conversation_type
         ctype = data.get('conversation_type', detected_type)
+
+        # Emit back to the caller with the call_id
+        emit('call:initiated', {'call_id': str(call_id)}, room=request.sid)
 
         sender_info = get_user_info(user_id)
         payload = {
             'caller': sender_info,
             'conversation_id': conv_id,
             'conversation_type': ctype,
-            'room_name': ''
+            'room_name': '',
+            'call_id': str(call_id)
         }
 
         if ctype == 'group':

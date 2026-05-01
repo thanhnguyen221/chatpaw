@@ -87,6 +87,17 @@ export function setupContactClickEvents() {
               await openOrCreateConversation(friendId);
           }
       });
+
+      // Chuột phải để xem mini profile
+      contactsContainer.addEventListener('contextmenu', (e) => {
+          const item = e.target.closest('.contact-item');
+          if (!item) return;
+          e.preventDefault();
+          const friendId = item.dataset.userId;
+          if (window.openMiniProfile) {
+              window.openMiniProfile(friendId);
+          }
+      });
   }
 }
 
@@ -268,11 +279,22 @@ export async function openOrCreateConversation(friendId) {
 
       // Gọi hàm joinConversation từ chat.js (đã import)
       joinConversation(data.conversation_id);
+      return data.conversation_id;
     }
   } catch (err) {
     console.error('Lỗi mở hội thoại:', err);
   }
 }
+// Cho phép gọi từ các script khác (vd: mini profile popup)
+window.openOrCreateConversation = openOrCreateConversation;
+
+export function sendFriendRequest(recipientId) {
+    if (recipientId) {
+        socket.emit('send_friend_request', { recipient_id: recipientId });
+    }
+}
+window.sendFriendRequest = sendFriendRequest;
+
 // Thêm vào cuối friends.js
 export function setupFriendRequestsPage() {
   console.log('[Friends] Setting up friend requests page...');

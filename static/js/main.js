@@ -39,61 +39,57 @@ import { initFileSharing, setCurrentConversation as setFileConversation } from '
 // ====== DOM đã sẵn sàng ======
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[Main] DOM loaded');
+  try {
+    initializeTimeUtils();
+    console.log('[Main] initializeTimeUtils OK');
 
-  initializeTimeUtils();
-  
-  // Khởi tạo các module
-  setupChatEvents();
-  initFileSharing();
-  setupFriendEvents();
-  setupContactClickEvents();
-  
-  // Gắn callback khi mở hội thoại
-  setupConversationClickEvents(onOpenConversation);
-  
-  setupSendMessage();
-  setupSearchInput();
-  fetchFriendRequests();
-  setupCreateGroupHandler();
-  setupGroupMessageSending();
-  setupGroupSocketEvents();
-  setupMessageStatus(); 
-  setupMessageActions();
-  
-  // Setup sự kiện click nhóm
-  setupGroupClickEvents();
+    setupChatEvents();
+    console.log('[Main] setupChatEvents OK');
 
-  setupTabSwitching();
-  
-  // ĐÃ XÓA: bindCallUI(); (Không dùng nữa)
+    initFileSharing();
+    console.log('[Main] initFileSharing OK');
 
-  if (typeof setupMessageContextMenu === 'function') {
-    console.log('[Main] Setting up message context menu...');
-    setupMessageContextMenu();
-  } else {
-    console.error('[Main] setupMessageContextMenu function not found!');
+    setupFriendEvents();
+    console.log('[Main] setupFriendEvents OK');
+
+    setupContactClickEvents();
+    console.log('[Main] setupContactClickEvents OK');
+    
+    setupConversationClickEvents(onOpenConversation);
+    console.log('[Main] setupConversationClickEvents OK');
+    
+    setupSendMessage();
+    console.log('[Main] setupSendMessage OK');
+
+    setupSearchInput();
+    console.log('[Main] setupSearchInput OK');
+
+    fetchFriendRequests();
+    console.log('[Main] fetchFriendRequests OK');
+
+    setupCreateGroupHandler();
+    console.log('[Main] setupCreateGroupHandler OK');
+
+    setupGroupMessageSending();
+    console.log('[Main] setupGroupMessageSending OK');
+
+    setupGroupSocketEvents();
+    console.log('[Main] setupGroupSocketEvents OK');
+
+    setupMessageStatus(); 
+    console.log('[Main] setupMessageStatus OK');
+
+    setupMessageActions();
+    console.log('[Main] setupMessageActions OK');
+    
+    setupGroupClickEvents();
+    console.log('[Main] setupGroupClickEvents OK');
+
+    setupTabSwitching();
+    console.log('[Main] setupTabSwitching OK');
+  } catch (e) {
+    console.error('[Main] Initialization failed:', e);
   }
-
-  // Socket Events cơ bản
-  socket.on('connect', () => {
-    console.log('✅ Connected to server, setting user online');
-    socket.emit('user_online');
-  });
-
-  window.addEventListener('beforeunload', () => {
-    socket.emit('user_offline');
-  });
-
-  socket.on('friend_online_status', (data) => {
-    console.log('[Online Status] Friend status changed:', data);
-    updateFriendOnlineStatus(data.user_id, data.is_online);
-  });
-
-  socket.on('online_status_update', (onlineStatus) => {
-    updateAllFriendsOnlineStatus(onlineStatus);
-  });
-
-  socket.emit('get_online_status');
 });
 
 
@@ -141,13 +137,26 @@ async function loadUserGroups() {
     groupsLoading = true;
     const response = await fetch('/user_groups');
     const data = await response.json();
+    console.log('[DEBUG] loadUserGroups data:', data);
     const groupsList = document.getElementById('groups-list');
     
     if (!groupsList) return;
     groupsList.innerHTML = '';
 
+    if (!data.groups) {
+      console.error('[DEBUG] No data.groups in response');
+      return;
+    }
     data.groups.forEach(group => {
-      addGroupToList(group._id, group.name, group.avatar);
+      addGroupToList(
+        group._id,
+        group.name,
+        group.avatar,
+        group.last_message,
+        group.last_sender_id,
+        group.last_sender_name,
+        typeof group.unread_count === 'number' ? group.unread_count : 0
+      );
     });
   } catch (err) {
     console.error('Lỗi tải danh sách nhóm:', err);
@@ -294,6 +303,71 @@ window.showInAppNotification = function({
       notif.remove();
     }
   }, 5000);
+
+  maybeShowBrowserNotification({
+    title,
+    messagePreview,
+    conversationId,
+    conversationType
+  });
+}
+
+function maybeShowBrowserNotification({ title, messagePreview, conversationId, conversationType }) {
+  if (typeof Notification === 'undefined') return;
+  if (!document.hidden) return;
+
+  const bodyText = messagePreview || (conversationType === 'group' ? 'Tin nhắn mới trong nhóm' : 'Tin nhắn mới');
+  const icon = conversationType === 'group'
+    ? (window.defaultGroupAvatar || '/static/img/default-group.png')
+    : (window.defaultUserAvatar || '/static/img/default-avatar.png');
+
+  const show = () => {
+    try {
+      const n = new Notification(title || 'PAW TALK', {
+        body: bodyText,
+        icon,
+        tag: `chat-${conversationType}-${conversationId || ''}`
+      });
+
+      n.onclick = () => {
+        window.focus();
+
+        const tabBtn = document.querySelector(
+          conversationType === 'group'
+            ? '.mini-sidebar button[data-tab="groups"]'
+            : '.mini-sidebar button[data-tab="conversations"]'
+        );
+        if (tabBtn) tabBtn.click();
+
+        if (conversationType === 'group') {
+          if (window.openGroupChat) {
+            window.openGroupChat(conversationId, title || 'Nhóm');
+          }
+        } else {
+          const convItem = document.querySelector(
+            `.conversation-item[data-id="${conversationId}"]`
+          );
+          if (convItem) convItem.click();
+        }
+
+        n.close();
+      };
+    } catch (e) {
+      console.warn('Browser notification error:', e);
+    }
+  };
+
+  if (Notification.permission === 'granted') {
+    show();
+  } else if (Notification.permission === 'default') {
+    try {
+      Notification.requestPermission().then((perm) => {
+        if (perm === 'granted') show();
+      });
+    } catch (e) {
+      console.warn('Request notification permission error:', e);
+    }
+  }
 }
 
 // Export globals

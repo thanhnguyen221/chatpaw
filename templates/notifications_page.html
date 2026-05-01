@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo - PAW TALK</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_page.css') }}">
+    
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Navigation Sidebar (giống các trang khác) -->
+    <button class="nav-toggle" id="nav-toggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="nav-overlay" id="nav-overlay"></div>
+
+    <aside class="side-nav" id="side-nav">
+        <div class="nav-header">
+            <div class="nav-logo">PT</div>
+            <div class="nav-title">PAW TALK</div>
+        </div>
+        
+        <nav class="nav-menu">
+            <a href="/chat" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-home"></i>
+                </div>
+                <span class="nav-text">Trang chủ</span>
+            </a>
+            
+            <a href="{{ url_for('main.get_my_profile_url') }}" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-user"></i>
+                </div>
+                <span class="nav-text">Trang cá nhân</span>
+            </a>
+            
+            <a href="/friend_requests_page" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <span class="nav-text">Lời mời kết bạn</span>
+                <span class="nav-badge" id="friend-requests-badge" style="display: none;">0</span>
+            </a>
+            
+            <div class="nav-divider"></div>
+            
+            <a href="/notifications" class="nav-item active">
+                <div class="nav-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <span class="nav-text">Thông báo</span>
+                <span class="nav-badge" id="notifications-badge" style="display: none;">0</span>
+            </a>
+            
+            <div class="nav-divider"></div>
+            
+            <a href="/settings" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span class="nav-text">Cài đặt</span>
+            </a>
+            
+            <a href="/logout" class="nav-item">
+                <div class="nav-icon">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <span class="nav-text">Đăng xuất</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="notifications-container">
+        <!-- Header -->
+        <div class="notifications-header">
+            <div class="header-left">
+                <h1>Thông báo</h1>
+                <p>Cập nhật các hoạt động mới nhất liên quan đến bạn</p>
+            </div>
+        </div>
+
+        <!-- SỬA LẠI: Thêm data-filter attribute -->
+        <div class="filter-tabs minimal">
+            <button class="tab-btn minimal active" data-filter="all">Tất cả</button>
+            <button class="tab-btn minimal" data-filter="unread">Chưa đọc</button>
+            <button class="tab-btn minimal" data-filter="read">Đã đọc</button>
+        </div>
+        
+        <!-- Actions -->
+        <div class="notification-actions">
+            <div class="actions-left">
+                <button class="mark-all-btn" id="mark-all-read-btn">
+                    <i class="fas fa-check-double"></i> Đánh dấu đã đọc tất cả
+                </button>
+            </div>
+            <div class="actions-right">
+                <select class="filter-select" id="filter-select">
+                    <option value="newest">Mới nhất</option>
+                    <option value="oldest">Cũ nhất</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Notifications List -->
+        <div class="notifications-list" id="notifications-list">
+            <!-- Notifications will be loaded here by JavaScript -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="empty-state" style="display: none;">
+            <i class="far fa-bell-slash"></i>
+            <h3>Không có thông báo nào</h3>
+            <p>Bạn chưa có thông báo nào. Hoạt động mới sẽ xuất hiện ở đây.</p>
+            <button class="refresh-btn" id="refresh-btn">
+                <i class="fas fa-sync-alt"></i> Làm mới
+            </button>
+        </div>
+
+        <!-- Load More -->
+        <div class="load-more-container">
+            <button class="load-more-btn" id="load-more-btn" disabled>
+                Đang tải...
+            </button>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script type="module" src="{{ url_for('static', filename='js/socket/notification_page.js') }}"></script>
+    
+    <!-- Navigation Script -->
+    <script>
+        // Navigation toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const navToggle = document.getElementById('nav-toggle');
+            const sideNav = document.getElementById('side-nav');
+            const navOverlay = document.getElementById('nav-overlay');
+            
+            navToggle.addEventListener('click', () => {
+                sideNav.classList.add('active');
+                navOverlay.classList.add('active');
+            });
+            
+            navOverlay.addEventListener('click', () => {
+                sideNav.classList.remove('active');
+                navOverlay.classList.remove('active');
+            });
+            
+            // Load friend requests count
+            loadFriendRequestsCount();
+        });
+        
+        async function loadFriendRequestsCount() {
+            try {
+                const response = await fetch('/friend_requests_count');
+                const data = await response.json();
+                
+                const badge = document.getElementById('friend-requests-badge');
+                if (badge && data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.style.display = 'inline';
+                }
+            } catch (error) {
+                console.error('Error loading friend requests count:', error);
+            }
+        }
+    </script>
+</body>
+</html>

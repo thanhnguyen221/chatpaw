@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAW TALK - Bài viết</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_detail.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% if csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    {% endif %}
+</head>
+<body>
+    <div class="nav-overlay" id="nav-overlay"></div>
+
+    <div class="post-detail-container">
+        <!-- Header -->
+        <header class="post-detail-header">
+            <a href="javascript:history.back()" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                <span>Quay lại</span>
+            </a>
+            <h1>Bài viết</h1>
+        </header>
+
+        <!-- Main Content -->
+        <div class="post-detail-content">
+            <!-- Post Card -->
+            <div class="post-card-detail">
+                <!-- Post Owner Info -->
+                <div class="post-owner-info">
+                    <img src="{{ owner_avatar }}" alt="{{ post_owner.username }}" class="owner-avatar">
+                    <div class="owner-details">
+                        <h3>{{ post_owner.username }}</h3>
+                        <span class="post-time">
+                            <i class="far fa-clock"></i>
+                            {{ post.created_at_formatted }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Post Content -->
+                <div class="post-text">
+                    {{ post.content|safe }}
+                </div>
+
+                <!-- Post Media -->
+                {% if post.media_urls %}
+                    <div class="post-media-detail {% if post.media_urls|length == 1 %}single-media{% else %}multiple-media{% endif %}">
+                        {% if post.media_urls|length == 1 %}
+                            {% set media = post.media_urls[0] %}
+                            {% if media.type == 'image' %}
+                                <img src="{{ media.url }}" alt="Post image" class="post-image-detail">
+                            {% elif media.type == 'video' %}
+                                <video controls class="post-video-detail">
+                                    <source src="{{ media.url }}" type="video/mp4">
+                                    Trình duyệt không hỗ trợ video.
+                                </video>
+                            {% endif %}
+                        {% else %}
+                            <div class="media-grid grid-{{ post.media_urls|length }}">
+                                {% for media in post.media_urls %}
+                                    {% if loop.index <= 4 %}
+                                        <div class="media-item">
+                                            {% if media.type == 'image' %}
+                                                <img src="{{ media.url }}" alt="Post image {{ loop.index }}">
+                                            {% elif media.type == 'video' %}
+                                                <video controls>
+                                                    <source src="{{ media.url }}" type="video/mp4">
+                                                </video>
+                                            {% endif %}
+                                            {% if loop.index == 4 and post.media_urls|length > 4 %}
+                                                <div class="more-media-overlay">
+                                                    +{{ post.media_urls|length - 4 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <!-- Post Stats -->
+                <div class="post-stats">
+                    <div class="stats-item {% if has_liked %}liked{% endif %}" id="like-stat">
+                        <i class="fas fa-heart"></i>
+                        <span id="like-count">{{ post.likes|length }}</span>
+                    </div>
+                    <div class="stats-item" id="comment-stat">
+                        <i class="fas fa-comment"></i>
+                        <span id="comment-count">{{ post.comments|length }}</span>
+                    </div>
+                </div>
+
+                <!-- Post Actions -->
+                <div class="post-actions">
+                    <button class="action-btn {% if has_liked %}liked{% endif %}" id="like-btn">
+                        <i class="fas fa-heart"></i>
+                        <span>{{ 'Bỏ thích' if has_liked else 'Thích' }}</span>
+                    </button>
+                    <button class="action-btn" id="comment-btn">
+                        <i class="fas fa-comment"></i>
+                        <span>Bình luận</span>
+                    </button>
+                    <button class="action-btn" id="share-btn">
+                        <i class="fas fa-share"></i>
+                        <span>Chia sẻ</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Comments Section -->
+            <div class="comments-section">
+                <h3>Bình luận ({{ post.comments|length }})</h3>
+                
+                <!-- Comment Form -->
+                <div class="comment-form">
+                    <img src="{{ current_user_avatar }}" alt="Your avatar" class="user-avatar">
+                    <div class="comment-input-container">
+                        <input type="text" id="comment-input" placeholder="Viết bình luận...">
+                        <button id="submit-comment">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Comments List -->
+                <div class="comments-list" id="comments-list">
+                    {% if post.comments %}
+                        {% for comment in post.comments|reverse %}
+                        <div class="comment-item" data-comment-id="{{ comment.id }}">
+                            <img src="{{ comment.user_avatar }}" alt="{{ comment.username }}" class="comment-avatar">
+                            <div class="comment-content">
+                                <div class="comment-header">
+                                    <strong>{{ comment.username }}</strong>
+                                    <span class="comment-time">{{ comment.created_at|format_time }}</span>
+                                </div>
+                                <p class="comment-text">{{ comment.content }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-comments">
+                            <i class="fas fa-comment-slash"></i>
+                            <p>Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Viewer Modal -->
+    <div class="media-viewer-modal" id="media-viewer">
+        <div class="media-viewer-content">
+            <button class="close-viewer-btn" id="close-viewer">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="viewer-container">
+                <button class="viewer-nav-btn prev-btn" id="prev-media">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="viewer-media" id="viewer-media"></div>
+                <button class="viewer-nav-btn next-btn" id="next-media">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="viewer-counter" id="viewer-counter"></div>
+            <div class="viewer-indicators" id="viewer-indicators"></div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        const postId = '{{ post._id }}';
+        const userId = '{{ user_id }}';
+        
+        // Lấy CSRF token từ meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    </script>
+    
+    <script src="{{ url_for('static', filename='js/post_detail.js') }}"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@ const pendingCandidates = {};     // Hàng đợi ICE cho từng peer
 const declinedConversations = new Set();           // Những cuộc gọi mình đã bấm Từ chối
 const handledIncomingConversations = new Set();    // Những incoming popup mình đã xử lý (accept/decline)
 let isCurrentUserCallInitiator = false;            // Có phải người bắt đầu cuộc gọi hiện tại không
+let currentDbCallId = null;
 
 // --- BIẾN CHO TÍNH NĂNG VẼ & REACTION ---
 let isDrawingMode = false;
@@ -321,7 +322,7 @@ function emitDrawSegment(x0, y0, x1, y1) {
 export async function startGroupCall(conversationId, conversationType = "group", options = {}) {
     console.log("[Call] Starting call for:", conversationId, "type:", conversationType, "options:", options);
 
-    const { isInitiator = true, ignoreDecline = false } = options;
+    const { isInitiator = true, ignoreDecline = false, call_id = null } = options;
 
     // 🔹 Nếu trước đó mình đã bấm "Từ chối" cuộc gọi này và chưa kết thúc,
     // thì không cho join lại (tránh bug decline xong vẫn join được).
@@ -352,6 +353,7 @@ export async function startGroupCall(conversationId, conversationType = "group",
 
     currentCallId = conversationId;
     currentCallType = conversationType;
+    if(call_id) currentDbCallId = call_id;
     isInCall = true;
 
     const overlay = document.getElementById("call-overlay");
@@ -373,7 +375,7 @@ export async function startGroupCall(conversationId, conversationType = "group",
 
     try {
         await getMedia("user");
-        socket.emit("call:join", { conversation_id: conversationId });
+        socket.emit("call:join", { conversation_id: conversationId, call_id: currentDbCallId });
     } catch (e) {
         console.error("[Call] Lỗi lấy Media:", e);
         alert("Không thể truy cập Camera/Mic. Hãy kiểm tra quyền truy cập.");
@@ -446,7 +448,7 @@ export function endCall() {
     isCurrentUserCallInitiator = false;
 
     if (convId) {
-        socket.emit("call:leave", { conversation_id: convId });
+        socket.emit("call:leave", { conversation_id: convId, call_id: currentDbCallId });
 
         // Clear flag declined/handled cho cuộc trò chuyện này
         declinedConversations.delete(convId);
@@ -628,6 +630,12 @@ socket.on("webrtc:candidate", async (data) => {
 socket.on("call:user_left", (data) => {
     console.log("[Call] call:user_left", data);
     removePeer(data.sid);
+});
+
+socket.on("call:initiated", (data) => {
+    if (data.call_id) {
+        currentDbCallId = data.call_id;
+    }
 });
 
 // ==================================================
@@ -942,6 +950,7 @@ socket.on("call:incoming_notification", (data) => {
 
     if (popup && avatar && name && btnAccept && btnDecline) {
         avatar.src = data.caller?.avatar || "/static/img/default-avatar.png";
+        currentDbCallId = data.call_id;
 
         if (data.conversation_type === "group") {
             name.textContent = data.room_name || "Cuộc gọi nhóm";
@@ -972,7 +981,8 @@ socket.on("call:incoming_notification", (data) => {
             // Truyền luôn conversation_type để lưu lại, và đánh dấu mình KHÔNG phải initiator
             startGroupCall(data.conversation_id, data.conversation_type, {
                 isInitiator: false,
-                ignoreDecline: true
+                ignoreDecline: true,
+                call_id: currentDbCallId
             });
         };
 

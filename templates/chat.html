@@ -153,6 +153,258 @@
     }
 
   </style>
+  <style>
+    :root {
+      --mini-bg-body: #111214;
+      --mini-bg-status-bubble: #111214;
+      --mini-bg-status-hover: #18191c;
+      --mini-accent-banner: #cce3ea;
+      --mini-text-main: #f2f3f5;
+      --mini-text-sub: #b5bac1;
+      --mini-text-status: #dbdee1;
+      --mini-btn-gray: #2b2d31;
+      --mini-btn-gray-hover: #404249;
+      --mini-btn-green: #23a559;
+    }
+
+    .profile-card {
+      display: none;
+      position: fixed;
+      width: 340px;
+      overflow: hidden;
+      background-color: var(--mini-bg-body);
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+      z-index: 3000;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .profile-card.active { display: block; animation: miniFadeIn 0.1s ease-out; }
+
+    @keyframes miniFadeIn {
+      from { opacity: 0; transform: translate(-50%, -48%); }
+      to   { opacity: 1; transform: translate(-50%, -50%); }
+    }
+
+    .profile-card .banner {
+      height: 120px;
+      background-color: var(--mini-accent-banner);
+      position: relative;
+    }
+
+    .profile-card .banner-actions {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 5;
+    }
+
+    .profile-card .circle-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: white;
+      background-color: rgba(0, 0, 0, 0.4);
+      transition: 0.2s;
+    }
+
+    .profile-card .circle-btn:hover { background-color: rgba(0, 0, 0, 0.6); }
+    .profile-card .btn-add:hover { background-color: var(--mini-btn-green); }
+
+    .profile-card .user-header { position: relative; padding: 0 16px; }
+
+    .profile-card .avatar-wrapper {
+      width: 90px;
+      height: 90px;
+      margin-top: -50px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .profile-card .avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 6px solid var(--mini-bg-body);
+      background: #000;
+      object-fit: cover;
+    }
+
+    .profile-card .status-dot {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      width: 24px;
+      height: 24px;
+      background-color: var(--mini-bg-body);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-card .dot-inner {
+      width: 16px;
+      height: 16px;
+      background-color: var(--mini-btn-green);
+      border-radius: 50%;
+    }
+
+    .profile-card .status-wrapper {
+      position: absolute;
+      left: 110px;
+      top: -15px;
+      right: 12px;
+      height: 0;
+      z-index: 20;
+    }
+
+    .profile-card .thought-dot {
+      position: absolute;
+      background-color: var(--mini-bg-status-bubble);
+      border-radius: 50%;
+      transition: background-color 0.1s;
+    }
+
+    .profile-card .dot-small { width: 6px; height: 6px; left: -16px; top: 24px; }
+    .profile-card .dot-medium { width: 12px; height: 12px; left: -9px; top: 12px; }
+
+    .profile-card .custom-status-bubble {
+      background: var(--mini-bg-status-bubble);
+      color: var(--mini-text-status);
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor: default;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      position: absolute;
+      top: 0;
+      left: 0;
+      max-width: 100%;
+      width: fit-content;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.1s ease-in-out;
+      border: 1px solid transparent;
+    }
+
+    .profile-card .status-wrapper:hover .custom-status-bubble {
+      white-space: normal;
+      width: 100%;
+      z-index: 100;
+      background-color: var(--mini-bg-status-hover);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      overflow: visible;
+    }
+
+    .profile-card .status-wrapper:hover .thought-dot {
+      background-color: var(--mini-bg-status-hover);
+    }
+
+    .profile-card .status-actions {
+      display: none;
+    }
+
+    .profile-card .user-info-body {
+      padding: 12px 16px 16px;
+      margin-top: 6px;
+    }
+
+    .profile-card .display-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--mini-text-main);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .profile-card .username {
+      font-size: 14px;
+      color: var(--mini-text-sub);
+      margin-bottom: 12px;
+    }
+
+    .profile-card .mutual-info {
+      font-size: 12px;
+      color: #b5bac1;
+      margin-bottom: 15px;
+      display: flex;
+    }
+
+    .action-grid {
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    #mini-profile-popup.active .action-grid {
+      display: grid;
+    }
+
+    .profile-card .act-btn {
+      flex: 1;
+      border: none;
+      border-radius: 4px;
+      color: #dbdee1;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 8px 0;
+      transition: 0.2s;
+      background-color: var(--mini-btn-gray);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-card .act-btn:hover {
+      background-color: var(--mini-btn-gray-hover);
+      color: #fff;
+    }
+
+    .profile-card .input-area {
+      border-top: 1px solid #2f3136;
+      padding-top: 12px;
+    }
+
+    .profile-card .input-box {
+      width: 100%;
+      background: #1e1f22;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      color: var(--mini-text-sub);
+      outline: none;
+      font-size: 13px;
+    }
+
+    .seen-by-container {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 4px;
+    }
+
+    .seen-by-avatar {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-left: -4px;
+        border: 1px solid #fff;
+        background-color: #ccc;
+    }
+  </style>
 </head>
 <body>
   <div class="chat-app">
@@ -207,7 +459,7 @@
           <h2>Hội thoại</h2>
           <div id="conversations">
             {% for conv in conversations %}
-            <div class="conversation-item" data-id="{{ conv._id }}"
+            <div class="conversation-item" data-id="{{ conv._id }}" data-friend-id="{{ conv.friend_id }}"
                 data-last-message="{{ conv.last_message|tojson|forceescape }}"
                 data-last-message-type="{{ conv.last_message_type }}"
                 data-last-message-sender="{{ conv.last_message_sender or '' }}">
@@ -303,13 +555,36 @@
         </button>
 
         <div id="action-buttons-menu" class="action-menu">
-            <button id="attach-file" title="Đính kèm file"><i class="fi fi-rr-folder-open"></i></button>
-            <button id="attach-image" title="Gửi hình ảnh"><i class="fi fi-rr-picture"></i></button>
-            <button id="show-stickers" title="Gửi sticker"><i class="fi fi-rr-smile"></i></button>
-            <button id="btn-gift" title="Gửi hộp quà"><i class="fi fi-rr-gift"></i></button>
-            <button id="record-voice" title="Ghi âm tin nhắn"><i class="fas fa-microphone"></i></button>
-            <button id="btn-drawing-tool" title="Vẽ chú thích màn hình"><i class="fas fa-palette"></i></button>
-        </div>
+    <button id="attach-file" title="Đính kèm file">
+        <i class="fi fi-rr-folder-open"></i>
+    </button>
+
+    <button id="attach-image" title="Gửi hình ảnh">
+        <i class="fi fi-rr-picture"></i>
+    </button>
+
+    <button id="show-stickers" title="Gửi sticker">
+        <i class="fi fi-rr-smile"></i>
+    </button>
+
+    <button id="btn-gift" title="Gửi hộp quà">
+        <i class="fi fi-rr-gift"></i>
+    </button>
+
+    <button id="record-voice" title="Ghi âm tin nhắn">
+        <i class="fas fa-microphone"></i>
+    </button>
+
+    <!-- 🔥 NÚT CHIA SẺ VỊ TRÍ MỚI -->
+    <button id="btn-share-location" title="Chia sẻ vị trí hiện tại">
+        <i class="fas fa-location-arrow"></i>
+    </button>
+
+    <button id="btn-drawing-tool" title="Vẽ chú thích màn hình">
+        <i class="fas fa-palette"></i>
+    </button>
+</div>
+
         
         <input id="message" type="text" placeholder="Nhập tin nhắn...">
         <button id="send"><i class="fi fi-br-paper-plane"></i></button>
@@ -549,6 +824,67 @@
          loop>
   </audio>
 
+  <div class="profile-card" id="mini-profile-popup">
+    <div class="banner">
+      <div class="banner-actions">
+        <button class="circle-btn btn-add" id="mini-profile-add-friend-btn" title="Gửi lời mời kết bạn">
+          <i class="fas fa-user-plus"></i>
+        </button>
+        <button class="circle-btn" id="mini-profile-more-btn" title="Tùy chọn khác">
+          <i class="fas fa-ellipsis-h"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="user-header">
+      <div class="avatar-wrapper">
+        <img src="{{ url_for('static', filename='img/default-avatar.png') }}" class="avatar-img" id="mini-profile-avatar">
+        <div class="status-dot"><div class="dot-inner" id="mini-profile-status-dot"></div></div>
+      </div>
+
+      <div class="status-wrapper" id="mini-profile-status-wrapper">
+        <div class="thought-dot dot-small"></div>
+        <div class="thought-dot dot-medium"></div>
+
+        <div class="custom-status-bubble">
+          <span id="mini-profile-status-text"></span>
+          <div class="status-actions">
+            <button class="mini-btn" title="Thả cảm xúc"><i class="fas fa-smile"></i></button>
+            <button class="mini-btn" title="Trả lời"><i class="fas fa-reply"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="user-info-body">
+      <div class="display-name">
+        <span id="mini-profile-display-name"></span>
+        <i class="fas fa-file-alt" style="font-size: 16px; color: #b5bac1;" title="Ghi chú"></i>
+      </div>
+      <div class="username" id="mini-profile-username"></div>
+
+      <div class="mutual-info" id="mini-profile-mutual" style="display:none;">
+        <span id="mini-profile-mutual-text"></span>
+      </div>
+
+      <div class="action-grid">
+        <button class="act-btn" id="mini-profile-msg-btn" title="Nhắn tin">
+          <i class="fas fa-comment"></i>
+        </button>
+        <button class="act-btn" id="mini-profile-call-btn" title="Bắt đầu cuộc gọi">
+          <i class="fas fa-phone-alt"></i>
+        </button>
+        <button class="act-btn" id="mini-profile-video-btn" title="Video Call">
+          <i class="fas fa-video"></i>
+        </button>
+      </div>
+
+      <div class="input-area">
+        <input type="text" class="input-box" id="mini-profile-input" placeholder="">
+      </div>
+    </div>
+  </div>
+
   <div id="menu-overlay"></div>
   <div id="mobile-context-menu">
     <div class="mobile-menu-item" id="mob-reply">
@@ -590,6 +926,271 @@
         </div>
     </div>
   </div>
+  <script>
+    (function() {
+      const popup = document.getElementById('mini-profile-popup');
+      if (!popup) return;
+
+      const avatarEl = document.getElementById('mini-profile-avatar');
+      const displayNameEl = document.getElementById('mini-profile-display-name');
+      const usernameEl = document.getElementById('mini-profile-username');
+      const statusTextEl = document.getElementById('mini-profile-status-text');
+      const statusWrapper = document.getElementById('mini-profile-status-wrapper');
+      const inputEl = document.getElementById('mini-profile-input');
+      const mutualEl = document.getElementById('mini-profile-mutual');
+      const mutualTextEl = document.getElementById('mini-profile-mutual-text');
+
+      let currentMiniProfileUserId = null;
+
+      function fillMiniProfile(data) {
+        if (!data) return;
+
+        currentMiniProfileUserId = data.user_id || null;
+
+        const fullName = data.full_name && data.full_name.trim() ? data.full_name.trim() : '';
+        const username = data.username || '';
+
+        if (displayNameEl) {
+          displayNameEl.textContent = fullName || username || 'Người dùng';
+        }
+        if (usernameEl) {
+          usernameEl.textContent = username ? '@' + username : '';
+        }
+        if (avatarEl && data.avatar) {
+          avatarEl.src = data.avatar;
+        }
+
+        const statusText = (data.custom_status || '').trim();
+        if (statusTextEl) {
+          statusTextEl.textContent = statusText;
+        }
+        if (statusWrapper) {
+          statusWrapper.style.display = statusText ? 'block' : 'none';
+        }
+
+        if (inputEl) {
+          inputEl.placeholder = username ? `Nhắn tin cho @${username}` : 'Nhắn tin';
+        }
+
+        if (mutualEl && mutualTextEl) {
+          const mf = data.mutual_friends_count || 0;
+          const mg = data.mutual_groups_count || 0;
+          const samples = data.mutual_friends_sample || [];
+
+          // Xóa avatar cũ nếu có
+          const oldAvs = mutualEl.querySelectorAll('.mutual-avatar');
+          oldAvs.forEach(av => av.remove());
+
+          if (mf > 0 || mg > 0) {
+            // Render avatar bạn chung (tối đa 3)
+            samples.slice(0, 3).forEach(fr => {
+              const img = document.createElement('img');
+              img.src = fr.avatar;
+              img.alt = fr.username;
+              img.className = 'mutual-avatar';
+              img.title = fr.username;
+              Object.assign(img.style, {
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                border: '1px solid var(--mini-bg-body)',
+                marginRight: '2px'
+              });
+              mutualEl.insertBefore(img, mutualTextEl);
+            });
+
+            let text = '';
+            if (mf > 0) text += `${mf} Bạn Chung`;
+            if (mf > 0 && mg > 0) text += ' • ';
+            if (mg > 0) text += `${mg} Nhóm Chung`;
+            mutualTextEl.textContent = text;
+            mutualEl.style.display = 'flex';
+          } else {
+            mutualEl.style.display = 'none';
+            mutualTextEl.textContent = '';
+          }
+        }
+        const friendStatus = data.friend_status;
+        const addFriendBtn = document.getElementById('mini-profile-add-friend-btn');
+
+        if (addFriendBtn) {
+            if (friendStatus === 'self' || friendStatus === 'accepted' || friendStatus === 'received') {
+                addFriendBtn.style.display = 'none';
+            } else if (friendStatus === 'sent') {
+                addFriendBtn.style.display = 'block';
+                addFriendBtn.disabled = true;
+                addFriendBtn.innerHTML = '<i class="fas fa-check"></i>';
+                addFriendBtn.title = 'Đã gửi lời mời';
+            } else { // 'none'
+                addFriendBtn.style.display = 'block';
+                addFriendBtn.disabled = false;
+                addFriendBtn.innerHTML = '<i class="fas fa-user-plus"></i>';
+                addFriendBtn.title = 'Gửi lời mời kết bạn';
+            }
+        }
+      }
+
+      function openMiniProfileInternal(userId) {
+        if (!userId) {
+          console.warn('[MiniProfile] openMiniProfileInternal called without userId');
+          return;
+        }
+        console.log('[MiniProfile] Fetching for userId:', userId);
+        fetch('/user_mini_profile/' + encodeURIComponent(userId))
+          .then(res => {
+            if (!res.ok) {
+              console.error('[MiniProfile] API error status:', res.status);
+              throw new Error('API error');
+            }
+            return res.json();
+          })
+          .then(data => {
+            console.log('[MiniProfile] Received data:', data);
+            if (!data || data.error) {
+              console.error('[MiniProfile] API returned error:', data);
+              return;
+            }
+            fillMiniProfile(data);
+            popup.classList.add('active');
+          })
+          .catch(err => console.error('[MiniProfile] Fetch error:', err));
+      }
+
+      const addFriendBtn = document.getElementById('mini-profile-add-friend-btn');
+      if (addFriendBtn) {
+        addFriendBtn.addEventListener('click', () => {
+            if (currentMiniProfileUserId && !addFriendBtn.disabled) {
+                if (window.sendFriendRequest) {
+                    window.sendFriendRequest(currentMiniProfileUserId);
+                }
+                addFriendBtn.disabled = true;
+                addFriendBtn.innerHTML = '<i class="fas fa-check"></i>';
+                addFriendBtn.title = 'Đã gửi lời mời';
+            }
+        });
+      }
+
+      window.openMiniProfile = openMiniProfileInternal;
+      window.closeMiniProfile = function() {
+        popup.classList.remove('active');
+      };
+
+      // Đóng khi click ra ngoài
+      window.addEventListener('click', (e) => {
+        if (!popup.classList.contains('active')) return;
+        if (popup.contains(e.target)) return;
+        popup.classList.remove('active');
+      });
+
+      // Ngăn chặn bubbling bên trong popup
+      popup.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      // Mở từ click vào tên/label người gửi hoặc avatar trong khung chat
+      const messagesContainer = document.getElementById('messages');
+      if (messagesContainer) {
+        messagesContainer.addEventListener('click', (e) => {
+          const avatarNode = e.target.closest('.message-avatar');
+          const senderNode = e.target.closest('.message-sender, .sender-info');
+          const targetNode = avatarNode || senderNode;
+          if (!targetNode) return;
+          const msgEl = targetNode.closest('.message');
+          if (!msgEl) return;
+          const userId = msgEl.dataset.senderId;
+          if (!userId) {
+            console.warn('[MiniProfile] No dataset.senderId on message element', msgEl);
+            return;
+          }
+          console.log('[MiniProfile] Clicked on message, userId:', userId);
+          openMiniProfileInternal(userId);
+        });
+      }
+
+      // Mở từ click avatar trong danh sách hội thoại (sidebar)
+      const convList = document.getElementById('conversations');
+      if (convList) {
+        convList.addEventListener('click', (e) => {
+          const avatar = e.target.closest('.conversation-avatar');
+          if (!avatar) return;
+          const item = avatar.closest('.conversation-item');
+          if (!item) return;
+          const friendId = item.dataset.friendId;
+          if (!friendId) {
+            console.warn('[MiniProfile] No dataset.friendId on conversation-item', item);
+            return;
+          }
+          console.log('[MiniProfile] Clicked conversation avatar, friendId:', friendId);
+          e.stopPropagation();
+          openMiniProfileInternal(friendId);
+        });
+      }
+
+      // Gán hành động cho nút Nhắn tin / Call / Video trong mini profile
+      const msgBtn = document.getElementById('mini-profile-msg-btn');
+      const callBtn = document.getElementById('mini-profile-call-btn');
+      const videoBtn = document.getElementById('mini-profile-video-btn');
+
+      if (msgBtn) {
+        msgBtn.addEventListener('click', () => {
+          if (!currentMiniProfileUserId) return;
+          if (window.openOrCreateConversation) {
+            window.openOrCreateConversation(currentMiniProfileUserId);
+          }
+          popup.classList.remove('active');
+        });
+      }
+
+      function startPrivateCallForUser(userId) {
+        if (!userId) return;
+        fetch('/get_or_create_conversation/' + encodeURIComponent(userId))
+          .then(res => res.json())
+          .then(data => {
+            if (!data || !data.conversation_id) return;
+            const convId = data.conversation_id;
+            if (window.startPrivateCall) {
+              window.startPrivateCall(convId);
+            }
+          })
+          .catch(err => console.error('Mini profile call error:', err));
+      }
+
+      if (callBtn) {
+        callBtn.addEventListener('click', () => {
+          if (!currentMiniProfileUserId) return;
+          startPrivateCallForUser(currentMiniProfileUserId);
+          popup.classList.remove('active');
+        });
+      }
+
+      if (videoBtn) {
+        videoBtn.addEventListener('click', () => {
+          if (!currentMiniProfileUserId) return;
+          startPrivateCallForUser(currentMiniProfileUserId);
+          popup.classList.remove('active');
+        });
+      }
+
+      if (inputEl) {
+        inputEl.addEventListener('keydown', async (e) => {
+          if (e.key === 'Enter') {
+            const message = inputEl.value.trim();
+            if (message && currentMiniProfileUserId) {
+              if (window.openOrCreateConversation) {
+                const convId = await window.openOrCreateConversation(currentMiniProfileUserId);
+                if (convId && window.sendDirectMessage) {
+                  window.sendDirectMessage(convId, message);
+                }
+              }
+              
+              inputEl.value = '';
+              popup.classList.remove('active');
+            }
+          }
+        });
+      }
+    })();
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.43/moment-timezone-with-data.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/vi.min.js"></script>

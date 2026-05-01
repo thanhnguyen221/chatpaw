@@ -158,10 +158,8 @@ def register_chat_events(socketio, mongo):
             print(f"Error updating message read status: {str(e)}")
 
     # =========================
-   # =========================
-    # 4. SEND_MESSAGE (PRIVATE + GROUP, CÓ REPLY + GIFT)
+    # 4. SEND_MESSAGE (PRIVATE + GROUP, CÓ REPLY + GIFT + LAST_MESSAGE + UNREAD)
     # =========================
-
     @socketio.on('send_message')
     def handle_send_message(data):
         try:
@@ -191,17 +189,25 @@ def register_chat_events(socketio, mongo):
                 print(f"Invalid conversation_type: {conversation_type}")
                 return
 
+            # --- Chuẩn hóa ObjectId ---
+            try:
+                conv_oid = ObjectId(conversation_id)
+                sender_oid = ObjectId(sender_id)
+            except Exception as e:
+                print("Invalid ObjectId:", e)
+                return
+
             # --- Kiểm tra quyền + lấy participants ---
             recipient_ids = []
-            participants = []
+            participants = []   # list[str user_id]
 
             if conversation_type == 'private':
-                conversation = conversations_col.find_one({'_id': ObjectId(conversation_id)})
+                conversation = conversations_col.find_one({'_id': conv_oid})
                 if not conversation:
                     print(f"Private conversation {conversation_id} not found")
                     return
 
-                if str(sender_id) not in conversation['participants']:
+                if str(sender_id) not in conversation.get('participants', []):
                     print(f"User {sender_id} not in conversation")
                     return
 
@@ -210,22 +216,22 @@ def register_chat_events(socketio, mongo):
 
             else:  # group
                 is_member = group_members_col.find_one({
-                    'group_id': ObjectId(conversation_id),
-                    'user_id': ObjectId(sender_id)
+                    'group_id': conv_oid,
+                    'user_id': sender_oid
                 })
                 if not is_member:
                     print(f"User {sender_id} not in group {conversation_id}")
                     return
 
                 members = list(group_members_col.find({
-                    'group_id': ObjectId(conversation_id),
-                    'user_id': {'$ne': ObjectId(sender_id)}
+                    'group_id': conv_oid,
+                    'user_id': {'$ne': sender_oid}
                 }))
                 participants = [str(member['user_id']) for member in members]
                 recipient_ids = [member['user_id'] for member in members]
 
             # --- Thông tin sender ---
-            sender = users_col.find_one({'_id': ObjectId(sender_id)}, {'username': 1, 'avatar': 1})
+            sender = users_col.find_one({'_id': sender_oid}, {'username': 1, 'avatar': 1})
             sender_name = sender.get('username', 'Unknown') if sender else 'Unknown'
 
             avatar = sender.get('avatar') if sender else None
@@ -238,12 +244,12 @@ def register_chat_events(socketio, mongo):
             timestamp_str = format_timestamp_for_client(now)
 
             initial_status = 'sent'
-            read_by = [ObjectId(sender_id)]
+            read_by = [sender_oid]
 
             message = {
-                'conversation_id': ObjectId(conversation_id),
+                'conversation_id': conv_oid,
                 'conversation_type': conversation_type,
-                'sender_id': ObjectId(sender_id),
+                'sender_id': sender_oid,
                 'content': content,
                 'message_type': message_type,
                 'timestamp': timestamp_str,
@@ -275,32 +281,68 @@ def register_chat_events(socketio, mongo):
                 except Exception as e:
                     print(f"Error getting reply context: {e}")
 
-            # --- Cập nhật last_message ---
-            # Nếu là quà thì hiển thị text "Đã gửi một món quà" hoặc nội dung text tùy bạn
+            # --- Cập nhật last_message + unread_counts ---
+            # Tùy theo loại message mà hiển thị preview cho đẹp
             preview_content = content
+
             if gift_style:
                 preview_content = "🎁 Đã gửi một hộp quà"
+            elif message_type == 'location':
+                preview_content = "📍 Đã chia sẻ vị trí"
+            elif message_type == 'audio':
+                preview_content = "🎤 Tin nhắn thoại"
             elif message_type != 'text':
+                # fallback cho các loại khác: image, file, sticker...
                 preview_content = f'[{message_type}]'
 
-            update_data = {
-                'last_message': preview_content,
-                'last_message_time': now
-            }
-            
+            # --- Build update cho last_message & unread ---
             if conversation_type == 'private':
+                # unread_counts: tăng +1 cho các participant, set về 0 cho sender
+                inc_fields = {}
+                for pid in participants:   # các user còn lại
+                    inc_fields[f'unread_counts.{pid}'] = 1
+
+                set_fields = {
+                    'last_message': preview_content,
+                    'last_message_time': now,
+                    'last_sender_id': sender_oid,
+                    'last_sender_name': sender_name,
+                    f'unread_counts.{sender_id}': 0
+                }
+
+                update_doc = {'$set': set_fields}
+                if inc_fields:
+                    update_doc['$inc'] = inc_fields
+
                 conversations_col.update_one(
-                    {'_id': ObjectId(conversation_id)},
-                    {'$set': update_data}
-                )
-            else:
-                update_data['last_message_user'] = ObjectId(sender_id)
-                groups_col.update_one(
-                    {'_id': ObjectId(conversation_id)},
-                    {'$set': update_data}
+                    {'_id': conv_oid},
+                    update_doc
                 )
 
-            # --- Payload gửi về client ---
+            else:
+                # group: last_message + last_message_user + unread_counts
+                inc_fields = {}
+                for pid in participants:   # các member khác
+                    inc_fields[f'unread_counts.{pid}'] = 1
+
+                set_fields = {
+                    'last_message': preview_content,
+                    'last_message_time': now,
+                    'last_message_user': sender_oid,
+                    'last_sender_name': sender_name,
+                    f'unread_counts.{sender_id}': 0
+                }
+
+                update_doc = {'$set': set_fields}
+                if inc_fields:
+                    update_doc['$inc'] = inc_fields
+
+                groups_col.update_one(
+                    {'_id': conv_oid},
+                    update_doc
+                )
+
+            # --- Payload gửi về client (tin nhắn) ---
             message_payload = {
                 'conversation_id': str(conversation_id),
                 'message_id': str(message_id),
@@ -313,11 +355,63 @@ def register_chat_events(socketio, mongo):
                 'status': initial_status,
                 'read_by': [str(sender_id)],
                 'reply_context': reply_context,
-                'gift_style': gift_style # [MỚI] Gửi về client để render hiệu ứng
+                'gift_style': gift_style  # [MỚI] Gửi về client để render hiệu ứng
             }
 
             # Emit tới room (1v1 & group đều join cùng id này)
             emit('receive_message', message_payload, room=str(conversation_id))
+
+            # [FIX] Emit tới từng người nhận để đảm bảo nhận được ở mọi nơi
+            for p_id in participants:
+                emit('receive_message', message_payload, room=str(p_id))
+
+            # --- [OPTIONAL] Emit cập nhật summary cho sidebar (nếu FE có dùng) ---
+            try:
+                # Đọc lại unread_counts để gửi riêng cho từng user
+                if conversation_type == 'private':
+                    conv_doc = conversations_col.find_one(
+                        {'_id': conv_oid},
+                        {'unread_counts': 1, 'participants': 1}
+                    )
+                    if conv_doc:
+                        unread_counts = conv_doc.get('unread_counts', {})
+                        # Gửi cho tất cả participants trong cuộc trò chuyện (bao gồm cả sender)
+                        all_participants = conv_doc.get('participants', [])
+                        for uid in all_participants:
+                            emit('conversation_summary_updated', {
+                                'conversation_id': str(conversation_id),
+                                'conversation_type': 'private',
+                                'last_message': preview_content,
+                                'last_message_time': format_timestamp_for_client(now),
+                                'last_sender_id': str(sender_id),
+                                'last_sender_name': sender_name,
+                                'unread_count': unread_counts.get(uid, 0)
+                            }, room=str(uid))
+                else:
+                    conv_doc = groups_col.find_one(
+                        {'_id': conv_oid},
+                        {'unread_counts': 1}
+                    )
+                    if conv_doc:
+                        unread_counts = conv_doc.get('unread_counts', {})
+                        # Lấy toàn bộ member group (cả sender)
+                        members_all = list(group_members_col.find(
+                            {'group_id': conv_oid},
+                            {'user_id': 1}
+                        ))
+                        for m in members_all:
+                            uid = str(m['user_id'])
+                            emit('conversation_summary_updated', {
+                                'conversation_id': str(conversation_id),
+                                'conversation_type': 'group',
+                                'last_message': preview_content,
+                                'last_message_time': format_timestamp_for_client(now),
+                                'last_sender_id': str(sender_id),
+                                'last_sender_name': sender_name,
+                                'unread_count': unread_counts.get(uid, 0)
+                            }, room=uid)
+            except Exception as e:
+                print(f"Error emitting conversation_summary_updated: {e}")
 
             # --- Auto gửi yêu cầu delivered cho user đang online ---
             online_users = get_online_users()
@@ -330,6 +424,7 @@ def register_chat_events(socketio, mongo):
 
         except Exception as e:
             print(f"Error sending message: {str(e)}")
+
 
     # =========================
     # 5. JOIN / LEAVE CONVERSATION

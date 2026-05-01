@@ -357,6 +357,15 @@ export function initFileSharing() {
       if (imageInput) imageInput.click();
     });
   }
+ // ====== SHARE LOCATION ======
+const shareLocationBtn = document.getElementById('btn-share-location');
+if (shareLocationBtn) {
+  shareLocationBtn.addEventListener('click', handleShareLocation);
+} else {
+  console.warn('[Location] Không tìm thấy nút #btn-share-location');
+}
+
+
 
   // ====== STICKER PANEL ======
   const showStickersBtn = document.getElementById('show-stickers');
@@ -526,6 +535,74 @@ async function uploadImage(file) {
     alert('Có lỗi khi upload hình ảnh');
   }
 }
+// ====== SHARE LOCATION (GỬI VỊ TRÍ) ======
+async function handleShareLocation() {
+  if (!currentConversationId) {
+    alert('Vui lòng chọn một cuộc trò chuyện trước');
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    alert('Trình duyệt không hỗ trợ chia sẻ vị trí.');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude, accuracy } = position.coords;
+
+      const locationPayload = {
+        type: 'location',
+        lat: latitude,
+        lng: longitude,
+        accuracy: accuracy,
+        created_at: new Date().toISOString()
+      };
+
+      const eventName =
+        currentConversationType === 'group' ? 'send_group_message' : 'send_message';
+
+      const messageData = {
+        content: JSON.stringify(locationPayload),
+        message_type: 'location',
+        reply_to_id: replyingToId
+      };
+
+      if (currentConversationType === 'group') {
+        messageData.group_id = currentConversationId;
+      } else {
+        messageData.conversation_id = currentConversationId;
+        messageData.conversation_type = currentConversationType;
+      }
+
+      socket.emit(eventName, messageData);
+      cancelReply();
+    },
+    (error) => {
+      console.error('Lấy vị trí bị lỗi:', error);
+      let msg = 'Không lấy được vị trí hiện tại.';
+
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          msg = 'Bạn đã từ chối quyền truy cập vị trí.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          msg = 'Không thể xác định vị trí hiện tại.';
+          break;
+        case error.TIMEOUT:
+          msg = 'Lấy vị trí quá thời gian cho phép.';
+          break;
+      }
+      alert(msg);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 10000
+    }
+  );
+}
+
 
 // ====== UPLOAD VOICE MESSAGE ======
 
@@ -620,6 +697,8 @@ function sendSticker(stickerCode) {
 // ====== HIỂN THỊ TIN NHẮN ======
 
 // ====== HIỂN THỊ TIN NHẮN ======
+// đặt gần đầu displayMessage, sau khi khai báo detectedType:
+let locationMapUrl = null;
 
 export function displayMessage(message) {
   const messagesContainer = document.getElementById('messages');
@@ -632,6 +711,7 @@ export function displayMessage(message) {
   const messageElement = document.createElement('div');
   messageElement.className = `message ${isMe ? 'sent me' : 'received'}`;
   if (messageId) messageElement.dataset.id = messageId;
+  if (message.sender_id) messageElement.dataset.senderId = message.sender_id;
 
   const senderName = message.sender_name || 'Unknown';
   const timeLabel = formatTime(message.timestamp);
@@ -639,6 +719,7 @@ export function displayMessage(message) {
   // ===== 1. PARSE PAYLOAD & XÁC ĐỊNH KIỂU =====
   let payload = null;
   let detectedType = message.message_type || 'text';
+  let locationMapUrl = null; // URL map cho tin nhắn dạng location
 
   if (message.content) {
     if (typeof message.content === 'object') {
@@ -652,7 +733,7 @@ export function displayMessage(message) {
         try {
           payload = JSON.parse(trimmed);
           if (!detectedType && payload.type) {
-            detectedType = payload.type; // audio / image / file...
+            detectedType = payload.type; // audio / image / file / location...
           }
         } catch (e) {
           // parse lỗi thì kệ, coi như text
@@ -745,7 +826,39 @@ export function displayMessage(message) {
         }
       </div>
     `;
-  } else if (detectedType === 'sticker') {
+} else if (detectedType === 'location') {
+    const loc = payload || {};
+    const lat = loc.lat || loc.latitude;
+    const lng = loc.lng || loc.longitude;
+    const address = loc.address || loc.name || 'Vị trí đã chia sẻ';
+    
+    let googleMapsUrl = '#';
+    if (lat && lng) {
+        googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+        // Cập nhật biến global locationMapUrl để click vào bubble cũng mở map (nếu muốn)
+        locationMapUrl = googleMapsUrl; 
+    }
+
+    mainContentHTML = `
+      <div class="location-card">
+        <div class="location-header">
+          <div class="loc-icon-circle">
+            <i class="fas fa-map-marker-alt"></i>
+          </div>
+          <div class="loc-info">
+            <span class="loc-title">${escapeHtml(address)}</span>
+            ${lat && lng ? `<span class="loc-coords">${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}</span>` : ''}
+          </div>
+        </div>
+        
+        <a href="${googleMapsUrl}" target="_blank" class="location-footer-link" onclick="event.stopPropagation()">
+           <span>Xem trên Google Maps</span>
+           <i class="fi fi-rr-arrow-right"></i>
+        </a>
+      </div>
+    `;
+    }
+   else if (detectedType === 'sticker') {
     mainContentHTML = `
       <div class="sticker-message">${getStickerHTML(message.content)}</div>
     `;
@@ -760,12 +873,9 @@ export function displayMessage(message) {
       <div class="message-text">${text}</div>
     `;
   }
-  // 🔥 [CẬP NHẬT] KIỂM TRA & BỌC HỘP QUÀ (Thông minh)
+
+  // 🔥 BỌC HỘP QUÀ NẾU CÓ gift_style
   if (message.gift_style) {
-    // Vì đây là tin nhắn vừa mới gửi (hiển thị ngay lập tức cho người gửi),
-    // nên mặc định nó chưa có trạng thái 'is_gift_open' từ server.
-    // Chúng ta hiển thị nó ở trạng thái ĐÓNG (không có class is-open).
-    
     mainContentHTML = `
       <div class="gift-wrap gift-style-${message.gift_style}" 
            onclick="window.handleOpenGift(this, '${messageId}', '${currentConversationType}')">
@@ -850,17 +960,32 @@ export function displayMessage(message) {
   if (!isDeleted) {
     const replyBtn = messageElement.querySelector('.btn-reply');
     if (replyBtn) {
-      replyBtn.addEventListener('click', () => {
+      replyBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // ⛔ không cho click này mở Google Maps
         const previewText = buildReplyPreviewFromMessage(message);
         enableReplyMode(messageId, previewText, senderName);
       });
     }
   }
 
+  // Nếu là tin nhắn location và có URL, cho bấm cả tin nhắn để mở Google Maps
+  if (locationMapUrl) {
+    messageElement.style.cursor = 'pointer';
+
+    messageElement.addEventListener('click', (e) => {
+      // Đừng mở map nếu người ta bấm vào khu action (reply, menu...)
+      if (e.target.closest('.message-actions')) return;
+      if (e.target.closest('.message-reply-quote')) return; // click vào quote chỉ để jump tin gốc
+
+      window.open(locationMapUrl, '_blank', 'noopener');
+    });
+  }
+
   // Click vào quote để scroll tới tin gốc
   const replyQuoteEl = messageElement.querySelector('.message-reply-quote');
   if (replyQuoteEl) {
-    replyQuoteEl.addEventListener('click', () => {
+    replyQuoteEl.addEventListener('click', (e) => {
+      e.stopPropagation(); // tránh mở Google Maps
       const replyId = replyQuoteEl.getAttribute('data-reply-id');
       if (!replyId) return;
       const target = document.querySelector(`.message[data-id="${replyId}"]`);
@@ -877,6 +1002,7 @@ export function displayMessage(message) {
   messagesContainer.appendChild(messageElement);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
+
 
 
 // ====== UTILS ======
@@ -966,6 +1092,9 @@ function buildReplyPreviewFromMessage(message) {
     return '🎤 [Tin nhắn thoại]'; 
   }
   // ---------------------------------------------
+if (type === 'location') {
+    return '📍 [Vị trí đã chia sẻ]';
+  }
 
   if (type === 'sticker') {
     return 'Sticker';
@@ -982,8 +1111,12 @@ function buildReplyPreviewFromMessage(message) {
 function formatTime(timestamp) {
   if (!timestamp) return '';
   try {
-    const m = moment(timestamp).tz('Asia/Ho_Chi_Minh');
-    const now = moment().tz('Asia/Ho_Chi_Minh');
+    console.log('[DEBUG] formatTime timestamp:', timestamp);
+    // Backend đã gửi giờ VN, frontend dùng moment() bình thường
+    const m = moment(timestamp);
+    const now = moment();
+    console.log('[DEBUG] moment parsed (local):', m.format(), 'now:', now.format());
+    console.log('[DEBUG] diff minutes:', now.diff(m, 'minutes'));
 
     if (!m.isValid()) return 'Vừa xong';
 

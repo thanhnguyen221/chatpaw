@@ -85,7 +85,7 @@ Google Gemini AI powers two core features:
 
 **1. Clone the repository:**
 ```bash
-git clone https://github.com/thanhnguyen221/pawtalk.git
+git clone https://github.com/thanhnguyen221/chatpaw.git
 cd pawtalk
 ```
 
@@ -221,13 +221,21 @@ This project is licensed under the MIT License.
 
 ---
 
-## 👨‍💻 Author
+
+
+## 👨‍💻 Authors
+
+**Trần Thanh Thuy**
+- **Role:** Project Leader / Research Lead
+- **Responsibilities:** Social Networking Architecture, Timeline Features & System Design.
+- **GitHub:** [@Thuy-art](https://github.com/Thuy-art)
 
 **Thanh Nguyen-Nhut**
-- GitHub: [@thanhnguyen221](https://github.com/thanhnguyen221)
-- LinkedIn: [linkedin.com/in/nhut-thanh-nguyen-6041343b2](https://linkedin.com/in/nhut-thanh-nguyen-6041343b2)
-- Email: thanhfff55@gmail.com
-
+- **Role:** Technical Lead / Backend Developer
+- **Responsibilities:** Real-time Communication (WebSocket/WebRTC), AI Integration & Security Workflow.
+- **GitHub:** [@thanhnguyen221](https://github.com/thanhnguyen221)
+- **LinkedIn:** [Thanh Nguyen](https://linkedin.com/in/nhut-thanh-nguyen-6041343b2)
+- **Email:** thanhfff55@gmail.com
 ---
 
 <p align="center">

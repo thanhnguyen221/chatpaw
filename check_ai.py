@@ -1,7 +1,7 @@
 import google.generativeai as genai
 
 # Dán Key của bạn vào đây
-GENAI_API_KEY = "AIzaSyDcrpdj9qVUcHEntsQz5sIRlNl7SUgooDo"
+GENAI_API_KEY = ""
 genai.configure(api_key=GENAI_API_KEY)
 
 print("--- ĐANG KIỂM TRA DANH SÁCH MODEL ---")
